@@ -1,0 +1,38 @@
+export const users = [
+  {
+    id: 1,
+    username: 'crodriguez',
+    email: 'carlos.rodriguez@ferrocasa.gob.ve',
+    password: 'admin123',
+    nombre: 'Ing. Carlos Rodríguez',
+    rol: 'Coordinador',
+    avatar: 'CR',
+  },
+  {
+    id: 2,
+    username: 'rsilva',
+    email: 'ricardo.silva@ferrocasa.gob.ve',
+    password: 'admin123',
+    nombre: 'Ing. R. Silva',
+    rol: 'Administrador',
+    avatar: 'RS',
+  },
+  {
+    id: 3,
+    username: 'rmendez',
+    email: 'roberto.mendez@ferrocasa.gob.ve',
+    password: 'admin123',
+    nombre: 'Ing. Roberto Méndez',
+    rol: 'Coordinador de Activos',
+    avatar: 'RM',
+  },
+  {
+    id: 4,
+    username: 'admin',
+    email: 'admin@ferrocasa.gob.ve',
+    password: 'admin123',
+    nombre: 'Admin User',
+    rol: 'Coordinador Regional',
+    avatar: 'AU',
+  },
+];
