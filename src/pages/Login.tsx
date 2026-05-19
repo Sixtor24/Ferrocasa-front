@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import logo from '../assets/logo.png';
+import bgImage from '../assets/ferrocasa.jpg';
 import { User, Lock, Eye, EyeOff, LogIn, Info } from 'lucide-react';
 
 export default function Login() {
@@ -30,13 +31,7 @@ export default function Login() {
   return (
     <div className="min-h-screen relative flex items-center justify-center">
       {/* Background */}
-      <div
-        className="absolute inset-0 bg-cover bg-center"
-        style={{
-          backgroundImage:
-            'url(https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1920&q=80)',
-        }}
-      >
+      <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url(${bgImage})` }}>
         <div className="absolute inset-0 bg-navy-950/60" />
       </div>
 
@@ -135,8 +130,8 @@ export default function Login() {
 
       {/* Location label */}
       <div className="absolute bottom-6 right-6 z-10 text-right text-white">
-        <p className="text-sm opacity-80">Infraestructura Nacional</p>
-        <p className="font-bold text-lg">Represa de Guri, Bolívar</p>
+        <p className="text-sm opacity-80">Vivienda y Hábitat</p>
+        <p className="font-bold text-lg">C.V.G. FERROCASA, Venezuela</p>
       </div>
     </div>
   );
