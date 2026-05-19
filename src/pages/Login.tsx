@@ -31,7 +31,7 @@ export default function Login() {
   return (
     <div className="min-h-screen relative flex items-center justify-center">
       {/* Background */}
-      <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url(${bgImage})` }}>
+      <div className="absolute inset-0 bg-cover bg-center blur-[2px]" style={{ backgroundImage: `url(${bgImage})` }}>
         <div className="absolute inset-0 bg-navy-950/75" />
       </div>
 
