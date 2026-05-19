@@ -32,7 +32,7 @@ export default function Login() {
     <div className="min-h-screen relative flex items-center justify-center">
       {/* Background */}
       <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url(${bgImage})` }}>
-        <div className="absolute inset-0 bg-navy-950/60" />
+        <div className="absolute inset-0 bg-navy-950/75" />
       </div>
 
       {/* Login Card */}
