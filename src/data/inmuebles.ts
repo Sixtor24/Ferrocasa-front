@@ -1,67 +1,26 @@
-export interface Inmueble {
-  id: number;
-  nombre: string;
-  zona: string;
-  tipoInmueble: string;
-  codigo: string;
-  superficie: string;
-  precio: string;
-  estatus: 'DISPONIBLE' | 'EN PROCESO' | 'VENDIDO';
-}
+import type { Inmueble } from '../types/inmueble';
 
-export const inmuebles: Inmueble[] = [
-  {
-    id: 1,
-    nombre: 'V-R-120 (Villa Rosa)',
-    zona: 'Villa Rosa',
-    tipoInmueble: 'Apartamento',
-    codigo: 'CT-2024-001',
-    superficie: '85.00 m²',
-    precio: '$45,000.00',
-    estatus: 'DISPONIBLE',
-  },
-  {
-    id: 2,
-    nombre: 'C-G-045 (Guayana)',
-    zona: 'Guayana',
-    tipoInmueble: 'Casa Residencial',
-    codigo: 'CT-2024-002',
-    superficie: '120.50 m²',
-    precio: '$72,300.00',
-    estatus: 'EN PROCESO',
-  },
-  {
-    id: 3,
-    nombre: 'L-P-002 (El Parque)',
-    zona: 'El Parque',
-    tipoInmueble: 'Local Comercial',
-    codigo: 'CT-2024-003',
-    superficie: '45.20 m²',
-    precio: '$28,900.00',
-    estatus: 'VENDIDO',
-  },
-  {
-    id: 4,
-    nombre: 'T-I-012 (Industrial)',
-    zona: 'Industrial',
-    tipoInmueble: 'Terreno',
-    codigo: 'CT-2024-004',
-    superficie: '1,500.00 m²',
-    precio: '$125,000.00',
-    estatus: 'DISPONIBLE',
-  },
+// Mock data basada en data real de parcelas (136 filas, muchos campos incompletos)
+export const inmueblesList: Inmueble[] = [
+  { id: 1, ubicacion: 'Urbanización Villa Rosa, Parcela 120', areaSegunDocumento: 85, areaDesincorporada: 0, areaComprometida: 0, areaDisponible: 85, identificacionParcela: 'VR-P-120', zonificacion: 'Residencial', estadoOcupacion: 'Disponible', usoActual: 'Vivienda', linderos: 'Norte: Av. Principal, Sur: Parcela 121', coordenadas: '8.3540° N, 62.6403° O', datosRegistrales: 'Registro Público, Tomo 12, Folio 45', proyecto: 'Urbanización Villa Rosa', tipoInmueble: 'Apartamento', precio: 45000, observaciones: '' },
+  { id: 2, ubicacion: 'Complejo Guayana, Casa C-045', areaSegunDocumento: 120.5, areaDesincorporada: 0, areaComprometida: 120.5, areaDisponible: 0, identificacionParcela: 'CG-C-045', zonificacion: 'Residencial', estadoOcupacion: 'Comprometido', usoActual: 'Vivienda', linderos: 'Norte: Calle 3, Sur: Casa C-046', coordenadas: '', datosRegistrales: 'Registro Público, Tomo 15, Folio 88', proyecto: 'Complejo Guayana', tipoInmueble: 'Casa', precio: 72300, observaciones: 'Compromiso de venta firmado' },
+  { id: 3, ubicacion: 'Centro Comercial El Parque, Local L-002', areaSegunDocumento: 45.2, areaDesincorporada: 45.2, areaComprometida: 0, areaDisponible: 0, identificacionParcela: 'EP-L-002', zonificacion: 'Comercial', estadoOcupacion: 'Desincorporado', usoActual: 'Comercio', linderos: '', coordenadas: '', datosRegistrales: '', proyecto: 'Centro Comercial El Parque', tipoInmueble: 'Local', precio: 28900, observaciones: 'Desincorporado por deterioro estructural' },
+  { id: 4, ubicacion: 'Zona Industrial, Terreno T-012', areaSegunDocumento: 1500, areaDesincorporada: 0, areaComprometida: 0, areaDisponible: 1500, identificacionParcela: 'ZI-T-012', zonificacion: 'Industrial', estadoOcupacion: 'Disponible', usoActual: 'Terreno baldío', linderos: 'Norte: Carretera Nacional, Sur: Terreno T-013', coordenadas: '8.3012° N, 62.7105° O', datosRegistrales: 'Registro Público, Tomo 8, Folio 12', proyecto: '', tipoInmueble: 'Terreno', precio: 125000, observaciones: '' },
+  { id: 5, ubicacion: 'Residencias El Ávila, Apt A-205', areaSegunDocumento: 92, areaDesincorporada: 0, areaComprometida: 0, areaDisponible: 92, identificacionParcela: 'EA-A-205', zonificacion: 'Residencial', estadoOcupacion: 'Disponible', usoActual: 'Vivienda', linderos: '', coordenadas: '', datosRegistrales: 'Registro Público, Tomo 20, Folio 110', proyecto: 'Residencias El Ávila', tipoInmueble: 'Apartamento', precio: 55000, observaciones: '' },
+  { id: 6, ubicacion: 'Villas del Sol, TH-018', areaSegunDocumento: 145, areaDesincorporada: 0, areaComprometida: 0, areaDisponible: 145, identificacionParcela: 'VS-TH-018', zonificacion: 'Residencial', estadoOcupacion: 'Disponible', usoActual: 'Vivienda', linderos: 'Norte: Calle Sol, Sur: TH-019', coordenadas: '8.2890° N, 62.6501° O', datosRegistrales: '', proyecto: 'Villas del Sol', tipoInmueble: 'Townhouse', precio: 82000, observaciones: '' },
+  { id: 7, ubicacion: 'Urbanización Villa Rosa, Parcela 55', areaSegunDocumento: 78, areaDesincorporada: 0, areaComprometida: 78, areaDisponible: 0, identificacionParcela: 'VR-P-055', zonificacion: 'Residencial', estadoOcupacion: 'Ocupado', usoActual: 'Vivienda', linderos: 'Norte: Parcela 54, Sur: Av. Central', coordenadas: '', datosRegistrales: 'Registro Público, Tomo 12, Folio 23', proyecto: 'Urbanización Villa Rosa', tipoInmueble: 'Apartamento', precio: 42000, observaciones: 'Ocupado por propietario' },
+  { id: 8, ubicacion: 'Sector Los Mangos, Terreno sin zonificar', areaSegunDocumento: null, areaDesincorporada: null, areaComprometida: null, areaDisponible: null, identificacionParcela: 'LM-SZ-001', zonificacion: 'Sin zonificar', estadoOcupacion: 'En litigio', usoActual: 'Terreno baldío', linderos: '', coordenadas: '', datosRegistrales: '', proyecto: '', tipoInmueble: 'Terreno', precio: null, observaciones: 'En litigio desde 2019. Sin documentación registral disponible.' },
+  { id: 9, ubicacion: 'Complejo Guayana, Galpón G-003', areaSegunDocumento: 320, areaDesincorporada: 0, areaComprometida: 0, areaDisponible: 320, identificacionParcela: 'CG-G-003', zonificacion: 'Industrial', estadoOcupacion: 'Disponible', usoActual: 'Equipamiento', linderos: 'Norte: Galpón G-002, Sur: Vía de acceso', coordenadas: '8.3100° N, 62.6800° O', datosRegistrales: 'Registro Público, Tomo 18, Folio 67', proyecto: 'Complejo Guayana', tipoInmueble: 'Galpón', precio: 95000, observaciones: '' },
+  { id: 10, ubicacion: 'Villas del Sol, Terreno V-050', areaSegunDocumento: 200, areaDesincorporada: 0, areaComprometida: 200, areaDisponible: 0, identificacionParcela: 'VS-V-050', zonificacion: 'Mixta', estadoOcupacion: 'Comprometido', usoActual: 'Sin uso', linderos: '', coordenadas: '', datosRegistrales: '', proyecto: 'Villas del Sol', tipoInmueble: 'Terreno', precio: 35000, observaciones: 'Reservado para futura construcción' },
 ];
 
-export const resumenInventario = {
-  totalInmuebles: 1248,
-  disponibilidad: '64%',
+export const inmuebleStats = {
+  totalRegistros: 136,
+  disponibles: 58,
+  ocupados: 34,
+  comprometidos: 22,
+  desincorporados: 14,
+  enLitigio: 8,
+  areaTotal: 245000,
+  areaDisponible: 142000,
 };
-
-export const proyectosOrigen = [
-  'Urbanización Villa Rosa',
-  'Residencias El Ávila',
-  'Complejo Guayana',
-  'Villas del Sol',
-];
-
-export const tiposInmueble = ['Apartamento', 'Casa Residencial', 'Local Comercial', 'Terreno'];

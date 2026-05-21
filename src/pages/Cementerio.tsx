@@ -1,103 +1,88 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { inventarioCementerio, parcelasCementerio, cementerioStats } from '../data/cementerio';
+import { AREAS_CEMENTERIO, ESTADOS_BIEN_CEMENTERIO, SECTORES_CEMENTERIO, TIPOS_PARCELA, ESTATUS_PARCELA } from '../types/cementerio';
+import { inventarioCementerioSchema } from '../schemas/cementerio.schema';
+import { validarConZod } from '../utils/validators';
+import { formatFecha } from '../utils/formatters';
+import DataTable, { type Column, type FilterOption } from '../components/DataTable';
+import StatusBadge from '../components/StatusBadge';
+import ImportExcelModal from '../components/ImportExcelModal';
+import type { InventarioCementerio, ParcelaCementerio } from '../types/cementerio';
 import {
-  parcelas,
-  sectores,
-  tiposParcela,
-  estatusParcela,
-  cementerioStats,
-} from '../data/cementerio';
-import {
-  Search,
-  ChevronRight,
-  ChevronLeft,
-  MapPin,
-  Users,
-  AlertTriangle,
-  Wrench,
-  X,
-  Filter,
-  FileSpreadsheet,
-  Plus,
-  Eye,
-  Landmark,
+  Landmark, MapPin, Package, AlertTriangle, Wrench,
+  Plus, Upload, X, Save, XCircle, ClipboardList,
 } from 'lucide-react';
 
-const estatusStyle: Record<string, string> = {
-  DISPONIBLE: 'bg-green-100 text-green-700',
-  OCUPADA: 'bg-navy-100 text-navy-800',
-  RESERVADA: 'bg-amber-100 text-amber-700',
-  MANTENIMIENTO: 'bg-red-100 text-red-700',
-};
-
-const tipoStyle: Record<string, string> = {
-  Individual: 'bg-blue-50 text-blue-700',
-  Familiar: 'bg-purple-50 text-purple-700',
-  Nicho: 'bg-gray-100 text-gray-700',
-  Osario: 'bg-orange-50 text-orange-700',
-};
-
-const PER_PAGE = 6;
+type TabKey = 'inventario' | 'parcelas';
 
 export default function Cementerio() {
-  const [busqueda, setBusqueda] = useState('');
-  const [filtroSector, setFiltroSector] = useState('Todos los sectores');
-  const [filtroTipo, setFiltroTipo] = useState('Todos los tipos');
-  const [filtroEstatus, setFiltroEstatus] = useState('Todos');
-  const [pagina, setPagina] = useState(1);
-  const [showFilters, setShowFilters] = useState(false);
-  const [exportMsg, setExportMsg] = useState('');
-  const [showForm, setShowForm] = useState(false);
-  const [formMsg, setFormMsg] = useState('');
+  const [tab, setTab] = useState<TabKey>('inventario');
+  const [invList, setInvList] = useState(inventarioCementerio);
+  const [showModal, setShowModal] = useState(false);
+  const [showImport, setShowImport] = useState(false);
+  const [detalleInv, setDetalleInv] = useState<InventarioCementerio | null>(null);
+  const [detalleParcela, setDetalleParcela] = useState<ParcelaCementerio | null>(null);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [successMsg, setSuccessMsg] = useState('');
 
-  // Form
-  const [fSector, setFSector] = useState(sectores[1]);
-  const [fTipo, setFTipo] = useState<'Individual' | 'Familiar' | 'Nicho' | 'Osario'>('Individual');
-  const [fTitular, setFTitular] = useState('');
+  // Form state for new inventory item
+  const [form, setForm] = useState({
+    codigo: '', descripcion: '', marca: '', modelo: '', color: '', serial: '',
+    estadoBien: 'Bueno' as string, area: AREAS_CEMENTERIO[0] as string, observaciones: '',
+  });
 
-  const filtrados = useMemo(() => {
-    return parcelas.filter((p) => {
-      if (filtroSector !== 'Todos los sectores' && p.sector !== filtroSector) return false;
-      if (filtroTipo !== 'Todos los tipos' && p.tipo !== filtroTipo) return false;
-      if (filtroEstatus !== 'Todos' && p.estatus !== filtroEstatus) return false;
-      if (busqueda) {
-        const q = busqueda.toLowerCase();
-        return (
-          p.codigo.toLowerCase().includes(q) ||
-          p.titular.toLowerCase().includes(q) ||
-          p.sector.toLowerCase().includes(q)
-        );
-      }
-      return true;
-    });
-  }, [busqueda, filtroSector, filtroTipo, filtroEstatus]);
-
-  const totalPaginas = Math.max(1, Math.ceil(filtrados.length / PER_PAGE));
-  const paginaActual = Math.min(pagina, totalPaginas);
-  const paginados = filtrados.slice((paginaActual - 1) * PER_PAGE, paginaActual * PER_PAGE);
-
-  const hayFiltros = filtroSector !== 'Todos los sectores' || filtroTipo !== 'Todos los tipos' || filtroEstatus !== 'Todos' || busqueda !== '';
-
-  const limpiar = () => {
-    setFiltroSector('Todos los sectores');
-    setFiltroTipo('Todos los tipos');
-    setFiltroEstatus('Todos');
-    setBusqueda('');
-    setPagina(1);
+  const updateForm = (key: string, value: string) => {
+    setForm((prev) => ({ ...prev, [key]: value }));
+    setErrors((prev) => { const n = { ...prev }; delete n[key]; return n; });
   };
 
-  const simularExport = () => {
-    setExportMsg('Generando reporte...');
-    setTimeout(() => setExportMsg('Reporte exportado'), 1500);
-    setTimeout(() => setExportMsg(''), 4000);
+  const handleSubmit = () => {
+    const result = validarConZod(inventarioCementerioSchema, form);
+    if (!result.success) { setErrors(result.errors); return; }
+    const nuevo: InventarioCementerio = { id: invList.length + 1, ...form, estadoBien: form.estadoBien as InventarioCementerio['estadoBien'], area: form.area as InventarioCementerio['area'] };
+    setInvList([nuevo, ...invList]);
+    setShowModal(false);
+    setForm({ codigo: '', descripcion: '', marca: '', modelo: '', color: '', serial: '', estadoBien: 'Bueno', area: AREAS_CEMENTERIO[0] as string, observaciones: '' });
+    setErrors({});
+    setSuccessMsg('Bien registrado exitosamente');
+    setTimeout(() => setSuccessMsg(''), 3000);
   };
 
-  const handleReservar = () => {
-    if (!fTitular.trim()) return;
-    setFormMsg('Reserva registrada exitosamente');
-    setFTitular('');
-    setTimeout(() => setFormMsg(''), 3000);
-  };
+  // --- Columns: Inventario ---
+  const invColumns: Column<InventarioCementerio>[] = [
+    { key: 'codigo', label: 'Código', sortable: true, render: (b) => <span className="font-mono font-bold text-navy-900">{b.codigo}</span> },
+    { key: 'descripcion', label: 'Descripción', sortable: true, render: (b) => <span className="text-sm text-gray-700 truncate max-w-[200px] block">{b.descripcion}</span> },
+    { key: 'marca', label: 'Marca', sortable: true, render: (b) => (
+      <div><p className="text-sm text-gray-700">{b.marca}</p>{b.modelo && <p className="text-xs text-gray-400">{b.modelo}</p>}</div>
+    )},
+    { key: 'area', label: 'Área', sortable: true, render: (b) => <span className="text-xs bg-navy-50 text-navy-800 px-2 py-0.5 rounded font-medium">{b.area}</span> },
+    { key: 'estadoBien', label: 'Estado', render: (b) => <StatusBadge status={b.estadoBien} showDot size="sm" /> },
+    { key: 'serial', label: 'Serial', render: (b) => <span className="text-xs font-mono text-gray-500">{b.serial}</span> },
+  ];
+
+  const invFilters: FilterOption[] = [
+    { key: 'estadoBien', label: 'Estado del bien', options: ['Todos', ...ESTADOS_BIEN_CEMENTERIO] },
+    { key: 'area', label: 'Área', options: ['Todas', ...AREAS_CEMENTERIO] },
+  ];
+
+  // --- Columns: Parcelas ---
+  const parcColumns: Column<ParcelaCementerio>[] = [
+    { key: 'identificacion', label: 'Parcela', sortable: true, render: (p) => <span className="font-mono font-bold text-navy-900">{p.identificacion}</span> },
+    { key: 'sector', label: 'Sector', sortable: true },
+    { key: 'tipo', label: 'Tipo', render: (p) => <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded font-medium">{p.tipo}</span> },
+    { key: 'ocupante', label: 'Ocupante', render: (p) => <span className="text-sm text-gray-700">{p.ocupante || '—'}</span> },
+    { key: 'fechaAsignacion', label: 'Asignación', render: (p) => <span className="text-sm text-gray-500">{formatFecha(p.fechaAsignacion)}</span> },
+    { key: 'estatus', label: 'Estatus', render: (p) => <StatusBadge status={p.estatus} showDot size="sm" /> },
+  ];
+
+  const parcFilters: FilterOption[] = [
+    { key: 'estatus', label: 'Estatus', options: ['Todos', ...ESTATUS_PARCELA] },
+    { key: 'sector', label: 'Sector', options: ['Todos', ...SECTORES_CEMENTERIO] },
+    { key: 'tipo', label: 'Tipo', options: ['Todos', ...TIPOS_PARCELA] },
+  ];
+
+  const occupancyPct = Math.round((cementerioStats.parcelasOcupadas / cementerioStats.totalParcelas) * 100);
 
   return (
     <div className="p-4 md:p-6 space-y-6">
@@ -106,214 +91,71 @@ export default function Cementerio() {
         <div>
           <div className="flex items-center gap-2 text-sm text-gray-500 mb-1">
             <Link to="/dashboard" className="hover:text-navy-600">Dashboard</Link>
-            <ChevronRight size={14} />
+            <span>/</span>
             <span className="font-medium text-navy-800">Cementerio</span>
           </div>
           <h1 className="text-2xl font-bold text-navy-900">Gestión de Cementerio Municipal</h1>
-          <p className="text-sm text-gray-500 mt-1">Administración de parcelas, nichos y servicios funerarios.</p>
+          <p className="text-sm text-gray-500 mt-1">Inventario físico ({cementerioStats.totalInventario} bienes) y parcelas ({cementerioStats.totalParcelas} registros).</p>
         </div>
-        <div className="flex flex-wrap gap-2 items-center">
-          {exportMsg && <span className="text-sm text-green-600 font-medium animate-pulse">{exportMsg}</span>}
-          <button onClick={simularExport}
-            className="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50">
-            <FileSpreadsheet size={16} />
-            <span className="hidden sm:inline">Exportar</span>
+        <div className="flex flex-wrap gap-3">
+          {successMsg && <span className="text-sm text-green-600 font-medium animate-pulse self-center">{successMsg}</span>}
+          <button onClick={() => setShowImport(true)} className="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50">
+            <Upload size={16} /> Importar
           </button>
-          <button onClick={() => setShowForm(!showForm)}
-            className="flex items-center gap-2 px-4 py-2 bg-navy-900 text-white rounded-lg text-sm font-medium hover:bg-navy-800">
-            <Plus size={16} />
-            <span className="hidden sm:inline">Reservar Parcela</span>
-          </button>
+          {tab === 'inventario' && (
+            <button onClick={() => setShowModal(true)} className="flex items-center gap-2 px-5 py-2.5 bg-navy-900 text-white rounded-lg text-sm font-medium hover:bg-navy-800">
+              <Plus size={18} /> Nuevo Bien
+            </button>
+          )}
         </div>
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-        <StatCard icon={<Landmark size={18} className="text-navy-600" />} iconBg="bg-navy-100"
-          label="Total Parcelas" value={cementerioStats.totalParcelas.toString()} />
-        <StatCard icon={<MapPin size={18} className="text-green-600" />} iconBg="bg-green-100"
-          label="Disponibles" value={cementerioStats.disponibles.toString()} />
-        <StatCard icon={<Users size={18} className="text-blue-600" />} iconBg="bg-blue-100"
-          label="Ocupadas" value={cementerioStats.ocupadas.toString()} />
-        <StatCard icon={<AlertTriangle size={18} className="text-amber-600" />} iconBg="bg-amber-100"
-          label="Reservadas" value={cementerioStats.reservadas.toString()} />
-        <StatCard icon={<Wrench size={18} className="text-red-600" />} iconBg="bg-red-100"
-          label="Mantenimiento" value={cementerioStats.mantenimiento.toString()} />
+        <StatCard icon={<Package size={18} className="text-navy-600" />} bg="bg-navy-100" label="Inventario" value={cementerioStats.totalInventario.toString()} />
+        <StatCard icon={<Landmark size={18} className="text-blue-600" />} bg="bg-blue-100" label="Parcelas" value={cementerioStats.totalParcelas.toString()} />
+        <StatCard icon={<MapPin size={18} className="text-green-600" />} bg="bg-green-100" label="Disponibles" value={cementerioStats.parcelasDisponibles.toString()} />
+        <StatCard icon={<AlertTriangle size={18} className="text-amber-600" />} bg="bg-amber-100" label="Reservadas" value={cementerioStats.parcelasReservadas.toString()} />
+        <StatCard icon={<Wrench size={18} className="text-red-600" />} bg="bg-red-100" label="Vencidas" value={cementerioStats.parcelasVencidas.toString()} />
       </div>
 
-      {/* Reservation form */}
-      {showForm && (
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <h3 className="text-sm font-bold text-navy-900 uppercase tracking-wide mb-4">Nueva Reserva de Parcela</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-            <div>
-              <label className="text-xs font-medium text-gray-500 uppercase mb-1.5 block">Sector</label>
-              <select value={fSector} onChange={(e) => setFSector(e.target.value)}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-navy-500">
-                {sectores.filter((s) => s !== 'Todos los sectores').map((s) => <option key={s}>{s}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="text-xs font-medium text-gray-500 uppercase mb-1.5 block">Tipo</label>
-              <select value={fTipo} onChange={(e) => setFTipo(e.target.value as typeof fTipo)}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-navy-500">
-                <option>Individual</option><option>Familiar</option><option>Nicho</option><option>Osario</option>
-              </select>
-            </div>
-            <div>
-              <label className="text-xs font-medium text-gray-500 uppercase mb-1.5 block">Titular</label>
-              <input type="text" placeholder="Nombre del titular" value={fTitular} onChange={(e) => setFTitular(e.target.value)}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy-500" />
-            </div>
-            <div className="flex items-end">
-              <button onClick={handleReservar}
-                className="w-full bg-navy-900 text-white py-2 rounded-lg text-sm font-medium hover:bg-navy-800 transition-colors">
-                Registrar Reserva
-              </button>
-            </div>
-          </div>
-          {formMsg && (
-            <div className="mt-3 bg-green-50 border border-green-200 text-green-700 text-sm rounded-lg px-4 py-2 text-center font-medium">
-              ✓ {formMsg}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Search + filters */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input type="text" placeholder="Buscar parcela, titular, sector..."
-            value={busqueda} onChange={(e) => { setBusqueda(e.target.value); setPagina(1); }}
-            className="w-full pl-9 pr-8 py-2.5 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-navy-500" />
-          {busqueda && (
-            <button onClick={() => setBusqueda('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-              <X size={14} />
-            </button>
-          )}
-        </div>
-        <button onClick={() => setShowFilters(!showFilters)}
-          className={`flex items-center gap-2 px-4 py-2.5 border rounded-lg text-sm font-medium transition-colors ${
-            showFilters ? 'border-navy-500 text-navy-800 bg-navy-50' : 'border-gray-200 text-gray-600 hover:bg-gray-50'
-          }`}>
-          <Filter size={16} /> Filtros
+      {/* Tabs */}
+      <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit">
+        <button onClick={() => setTab('inventario')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${tab === 'inventario' ? 'bg-white text-navy-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+          <ClipboardList size={16} /> Inventario Físico
+        </button>
+        <button onClick={() => setTab('parcelas')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${tab === 'parcelas' ? 'bg-white text-navy-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+          <Landmark size={16} /> Parcelas
         </button>
       </div>
 
-      {showFilters && (
-        <div className="bg-white rounded-xl border border-gray-200 p-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div>
-            <label className="text-xs font-medium text-gray-500 uppercase mb-1.5 block">Sector</label>
-            <select value={filtroSector} onChange={(e) => { setFiltroSector(e.target.value); setPagina(1); }}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-navy-500">
-              {sectores.map((s) => <option key={s}>{s}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="text-xs font-medium text-gray-500 uppercase mb-1.5 block">Tipo</label>
-            <select value={filtroTipo} onChange={(e) => { setFiltroTipo(e.target.value); setPagina(1); }}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-navy-500">
-              {tiposParcela.map((t) => <option key={t}>{t}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="text-xs font-medium text-gray-500 uppercase mb-1.5 block">Estatus</label>
-            <select value={filtroEstatus} onChange={(e) => { setFiltroEstatus(e.target.value); setPagina(1); }}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-navy-500">
-              {estatusParcela.map((e) => <option key={e}>{e}</option>)}
-            </select>
-          </div>
-        </div>
+      {/* Table: Inventario */}
+      {tab === 'inventario' && (
+        <DataTable
+          data={invList}
+          columns={invColumns}
+          filters={invFilters}
+          searchPlaceholder="Buscar por código, descripción, marca, serial..."
+          searchKeys={['codigo', 'descripcion', 'marca', 'serial']}
+          perPage={8}
+          onRowClick={setDetalleInv}
+        />
       )}
 
-      {hayFiltros && (
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs text-gray-500">Filtros:</span>
-          {filtroSector !== 'Todos los sectores' && (
-            <span className="bg-navy-100 text-navy-800 text-xs font-medium px-2.5 py-1 rounded-full flex items-center gap-1">
-              {filtroSector} <X size={12} className="cursor-pointer" onClick={() => setFiltroSector('Todos los sectores')} />
-            </span>
-          )}
-          {filtroTipo !== 'Todos los tipos' && (
-            <span className="bg-navy-100 text-navy-800 text-xs font-medium px-2.5 py-1 rounded-full flex items-center gap-1">
-              {filtroTipo} <X size={12} className="cursor-pointer" onClick={() => setFiltroTipo('Todos los tipos')} />
-            </span>
-          )}
-          {filtroEstatus !== 'Todos' && (
-            <span className="bg-navy-100 text-navy-800 text-xs font-medium px-2.5 py-1 rounded-full flex items-center gap-1">
-              {filtroEstatus} <X size={12} className="cursor-pointer" onClick={() => setFiltroEstatus('Todos')} />
-            </span>
-          )}
-          <button onClick={limpiar} className="text-xs text-red-600 hover:underline ml-1">Limpiar</button>
-        </div>
+      {/* Table: Parcelas */}
+      {tab === 'parcelas' && (
+        <DataTable
+          data={parcelasCementerio}
+          columns={parcColumns}
+          filters={parcFilters}
+          searchPlaceholder="Buscar por parcela, ocupante, sector..."
+          searchKeys={['identificacion', 'ocupante', 'sector']}
+          perPage={8}
+          onRowClick={setDetalleParcela}
+        />
       )}
-
-      {/* Table */}
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[700px]">
-            <thead>
-              <tr className="border-b border-gray-200 bg-gray-50/50">
-                <th className="text-left text-xs font-semibold text-gray-500 uppercase px-4 sm:px-6 py-3">Código</th>
-                <th className="text-left text-xs font-semibold text-gray-500 uppercase px-4 sm:px-6 py-3">Sector / Fila</th>
-                <th className="text-left text-xs font-semibold text-gray-500 uppercase px-4 sm:px-6 py-3">Tipo</th>
-                <th className="text-left text-xs font-semibold text-gray-500 uppercase px-4 sm:px-6 py-3">Titular</th>
-                <th className="text-left text-xs font-semibold text-gray-500 uppercase px-4 sm:px-6 py-3">Fecha Asignación</th>
-                <th className="text-left text-xs font-semibold text-gray-500 uppercase px-4 sm:px-6 py-3">Estatus</th>
-              </tr>
-            </thead>
-            <tbody>
-              {paginados.length === 0 ? (
-                <tr><td colSpan={6} className="px-6 py-12 text-center text-gray-400 text-sm">No se encontraron parcelas.</td></tr>
-              ) : paginados.map((p) => (
-                <tr key={p.id} className="border-b border-gray-100 hover:bg-gray-50">
-                  <td className="px-4 sm:px-6 py-4 text-sm font-mono font-medium text-navy-900">{p.codigo}</td>
-                  <td className="px-4 sm:px-6 py-4">
-                    <p className="text-sm text-gray-700">{p.sector}</p>
-                    <p className="text-xs text-gray-400">{p.fila} · Nro. {p.numero}</p>
-                  </td>
-                  <td className="px-4 sm:px-6 py-4">
-                    <span className={`text-xs font-medium px-2 py-0.5 rounded ${tipoStyle[p.tipo] || 'bg-gray-100 text-gray-700'}`}>
-                      {p.tipo}
-                    </span>
-                  </td>
-                  <td className="px-4 sm:px-6 py-4 text-sm text-gray-700">{p.titular}</td>
-                  <td className="px-4 sm:px-6 py-4 text-sm text-gray-500">{p.fechaAsignacion}</td>
-                  <td className="px-4 sm:px-6 py-4">
-                    <span className={`text-xs font-bold px-2.5 py-1 rounded ${estatusStyle[p.estatus] || 'bg-gray-100 text-gray-600'}`}>
-                      {p.estatus}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Pagination */}
-        <div className="flex flex-col sm:flex-row items-center justify-between px-4 sm:px-6 py-3 border-t border-gray-200 gap-2">
-          <p className="text-sm text-gray-500">
-            {filtrados.length === 0 ? 'Sin resultados' : `Mostrando ${(paginaActual - 1) * PER_PAGE + 1}-${Math.min(paginaActual * PER_PAGE, filtrados.length)} de ${filtrados.length}`}
-          </p>
-          <div className="flex items-center gap-1">
-            <button onClick={() => setPagina(Math.max(1, paginaActual - 1))} disabled={paginaActual <= 1}
-              className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 disabled:opacity-30">
-              <ChevronLeft size={18} />
-            </button>
-            {Array.from({ length: Math.min(totalPaginas, 5) }, (_, i) => i + 1).map((p) => (
-              <button key={p} onClick={() => setPagina(p)}
-                className={`w-8 h-8 rounded-lg text-sm font-medium ${paginaActual === p ? 'bg-navy-900 text-white' : 'text-gray-600 hover:bg-gray-100'}`}>
-                {p}
-              </button>
-            ))}
-            <button onClick={() => setPagina(Math.min(totalPaginas, paginaActual + 1))} disabled={paginaActual >= totalPaginas}
-              className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 disabled:opacity-30">
-              <ChevronRight size={18} />
-            </button>
-          </div>
-        </div>
-      </div>
 
       {/* Capacity bar */}
       <div className="bg-navy-900 rounded-xl p-5 text-white">
@@ -322,26 +164,132 @@ export default function Cementerio() {
             <h3 className="font-bold text-lg">Capacidad General</h3>
             <p className="text-sm text-white/70">Ocupación actual del cementerio municipal</p>
           </div>
-          <p className="text-3xl font-bold">{cementerioStats.capacidad}</p>
+          <p className="text-3xl font-bold">{occupancyPct}%</p>
         </div>
         <div className="mt-4 w-full bg-white/20 rounded-full h-3">
-          <div className="bg-white h-3 rounded-full transition-all" style={{ width: cementerioStats.capacidad }} />
+          <div className="bg-white h-3 rounded-full transition-all" style={{ width: `${occupancyPct}%` }} />
         </div>
       </div>
+
+      {/* Detail: Inventario */}
+      {detalleInv && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex justify-end" onClick={() => setDetalleInv(null)}>
+          <div className="bg-white w-full max-w-lg h-full overflow-y-auto shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+              <h3 className="text-lg font-bold text-navy-900">Detalle del Bien</h3>
+              <button onClick={() => setDetalleInv(null)} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
+            </div>
+            <div className="p-6 space-y-4">
+              <StatusBadge status={detalleInv.estadoBien} showDot size="md" />
+              <div className="grid grid-cols-2 gap-4">
+                {[['Código', detalleInv.codigo], ['Descripción', detalleInv.descripcion], ['Marca', detalleInv.marca], ['Modelo', detalleInv.modelo || '—'], ['Color', detalleInv.color || '—'], ['Serial', detalleInv.serial], ['Área', detalleInv.area]].map(([l, v]) => (
+                  <div key={l}><p className="text-xs text-gray-500">{l}</p><p className="text-sm font-medium text-navy-900">{v}</p></div>
+                ))}
+              </div>
+              {detalleInv.observaciones && <div><p className="text-xs text-gray-500 mb-1">Observaciones</p><p className="text-sm text-gray-700 bg-gray-50 rounded-lg p-3">{detalleInv.observaciones}</p></div>}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Detail: Parcela */}
+      {detalleParcela && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex justify-end" onClick={() => setDetalleParcela(null)}>
+          <div className="bg-white w-full max-w-lg h-full overflow-y-auto shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+              <h3 className="text-lg font-bold text-navy-900">Detalle de Parcela</h3>
+              <button onClick={() => setDetalleParcela(null)} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
+            </div>
+            <div className="p-6 space-y-4">
+              <StatusBadge status={detalleParcela.estatus} showDot size="md" />
+              <div className="grid grid-cols-2 gap-4">
+                {[['Parcela', detalleParcela.identificacion], ['Sector', detalleParcela.sector], ['Tipo', detalleParcela.tipo], ['Ocupante', detalleParcela.ocupante || '—'], ['Asignación', formatFecha(detalleParcela.fechaAsignacion)], ['Vencimiento', formatFecha(detalleParcela.fechaVencimiento)], ['Contacto', detalleParcela.contacto || '—']].map(([l, v]) => (
+                  <div key={l}><p className="text-xs text-gray-500">{l}</p><p className="text-sm font-medium text-navy-900">{v}</p></div>
+                ))}
+              </div>
+              {detalleParcela.observaciones && <div><p className="text-xs text-gray-500 mb-1">Observaciones</p><p className="text-sm text-gray-700 bg-gray-50 rounded-lg p-3">{detalleParcela.observaciones}</p></div>}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* New Inventory Item Modal */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-bold text-navy-900">Nuevo Bien — Cementerio</h3>
+              <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
+            </div>
+            <div className="space-y-4">
+              <Field label="Código *" error={errors.codigo}>
+                <input value={form.codigo} onChange={(e) => updateForm('codigo', e.target.value)} className="input-field" placeholder="CEM-016" />
+              </Field>
+              <Field label="Descripción *" error={errors.descripcion}>
+                <input value={form.descripcion} onChange={(e) => updateForm('descripcion', e.target.value)} className="input-field" />
+              </Field>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Marca *" error={errors.marca}>
+                  <input value={form.marca} onChange={(e) => updateForm('marca', e.target.value)} className="input-field" />
+                </Field>
+                <Field label="Modelo" error={errors.modelo}>
+                  <input value={form.modelo} onChange={(e) => updateForm('modelo', e.target.value)} className="input-field" />
+                </Field>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Color" error={errors.color}>
+                  <input value={form.color} onChange={(e) => updateForm('color', e.target.value)} className="input-field" />
+                </Field>
+                <Field label="Serial" error={errors.serial}>
+                  <input value={form.serial} onChange={(e) => updateForm('serial', e.target.value)} className="input-field" />
+                </Field>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Estado del bien *" error={errors.estadoBien}>
+                  <select value={form.estadoBien} onChange={(e) => updateForm('estadoBien', e.target.value)} className="input-field">
+                    {ESTADOS_BIEN_CEMENTERIO.map((e) => <option key={e}>{e}</option>)}
+                  </select>
+                </Field>
+                <Field label="Área *" error={errors.area}>
+                  <select value={form.area} onChange={(e) => updateForm('area', e.target.value)} className="input-field">
+                    {AREAS_CEMENTERIO.map((a) => <option key={a}>{a}</option>)}
+                  </select>
+                </Field>
+              </div>
+              <Field label="Observaciones" error={errors.observaciones}>
+                <textarea value={form.observaciones} onChange={(e) => updateForm('observaciones', e.target.value)} className="input-field" rows={2} />
+              </Field>
+              <button onClick={handleSubmit} className="w-full bg-navy-900 text-white py-3 rounded-lg font-medium hover:bg-navy-800 transition-colors flex items-center justify-center gap-2">
+                <Save size={18} /> Registrar Bien
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <ImportExcelModal open={showImport} onClose={() => setShowImport(false)} tiposDisponibles={['Inventario Cementerio', 'Parcelas']} />
     </div>
   );
 }
 
-function StatCard({ icon, iconBg, label, value }: {
-  icon: React.ReactNode; iconBg: string; label: string; value: string;
-}) {
+function StatCard({ icon, bg, label, value }: { icon: React.ReactNode; bg: string; label: string; value: string }) {
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-5">
       <div className="flex items-center justify-between mb-2">
         <p className="text-xs sm:text-sm text-gray-500">{label}</p>
-        <div className={`w-8 h-8 sm:w-9 sm:h-9 ${iconBg} rounded-lg flex items-center justify-center`}>{icon}</div>
+        <div className={`w-8 h-8 sm:w-9 sm:h-9 ${bg} rounded-lg flex items-center justify-center`}>{icon}</div>
       </div>
       <p className="text-xl sm:text-2xl font-bold text-navy-900">{value}</p>
+    </div>
+  );
+}
+
+function Field({ label, error, children }: { label: string; error?: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="text-sm text-gray-600 mb-1 block">{label}</label>
+      {children}
+      {error && <p className="text-xs text-red-500 mt-1 flex items-center gap-1"><XCircle size={12} />{error}</p>}
     </div>
   );
 }

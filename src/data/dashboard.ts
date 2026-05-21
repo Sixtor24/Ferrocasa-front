@@ -1,34 +1,51 @@
+// KPIs consolidados basados en data real
 export const dashboardStats = {
-  totalBienes: { valor: 4250, cambio: '+2.4%' },
-  stockBajo: { valor: 12, urgente: true },
-  parcelasDisponibles: { valor: 85, actualizado: true },
-  movimientosHoy: { valor: 24 },
+  totalBienesMuebles: { valor: 1640, cambio: '+3.2%', label: 'Bienes Muebles' },
+  inventarioCementerio: { valor: 304, cambio: '+1.8%', label: 'Inv. Cementerio' },
+  totalInmuebles: { valor: 136, cambio: '', label: 'Inmuebles' },
+  totalVehiculos: { valor: 5, cambio: '', label: 'Vehículos' },
+};
+
+export const resumenGeneral = {
+  bienesCompletos: 803,
+  bienesParciales: 632,
+  bienesError: 205,
+  parcelasDisponibles: 68,
+  parcelasOcupadas: 152,
+  inmDisponibles: 58,
+  inmComprometidos: 22,
+  vehiculosActivos: 4,
+  vehiculosInactivos: 1,
 };
 
 export const movimientosAlmacen = [
-  { dia: 'LUN', entradas: 120, salidas: 80 },
-  { dia: 'MAR', entradas: 95, salidas: 110 },
-  { dia: 'MIE', entradas: 410, salidas: 200 },
-  { dia: 'JUE', entradas: 180, salidas: 150 },
-  { dia: 'VIE', entradas: 220, salidas: 190 },
-  { dia: 'SAB', entradas: 60, salidas: 40 },
-  { dia: 'DOM', entradas: 30, salidas: 20 },
+  { dia: 'LUN', entradas: 45, salidas: 30 },
+  { dia: 'MAR', entradas: 38, salidas: 42 },
+  { dia: 'MIE', entradas: 72, salidas: 55 },
+  { dia: 'JUE', entradas: 60, salidas: 48 },
+  { dia: 'VIE', entradas: 85, salidas: 63 },
+  { dia: 'SAB', entradas: 20, salidas: 15 },
+  { dia: 'DOM', entradas: 8, salidas: 5 },
+];
+
+export const distribucionActivos = [
+  { name: 'Bienes Muebles', value: 1640, color: '#102a43' },
+  { name: 'Inv. Cementerio', value: 304, color: '#334e68' },
+  { name: 'Inmuebles', value: 136, color: '#627d98' },
+  { name: 'Vehículos', value: 5, color: '#9fb3c8' },
 ];
 
 export const estatusInmuebles = {
-  vendido: 1240,
-  disponible: 485,
-  porcentajeOcupado: 85,
+  disponible: 58,
+  ocupado: 34,
+  comprometido: 22,
+  desincorporado: 14,
+  enLitigio: 8,
+  total: 136,
+  porcentajeDisponible: 43,
 };
 
 export const ultimaAuditoria = {
-  mensaje: 'Salida de 500 cabillas',
-  hora: '10:15 AM',
+  mensaje: 'Registro masivo: 120 bienes importados vía Excel — Sede Puerto Ordaz',
+  hora: '10:45 AM',
 };
-
-export const accionesRapidas = [
-  { id: 1, nombre: 'Registrar Entrada', icono: 'LogIn' },
-  { id: 2, nombre: 'Registrar Salida', icono: 'LogOut' },
-  { id: 3, nombre: 'Venta Inmueble', icono: 'Tag' },
-  { id: 4, nombre: 'Reportes Mensuales', icono: 'Smile' },
-];

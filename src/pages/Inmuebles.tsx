@@ -1,106 +1,85 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { inmueblesList, inmuebleStats } from '../data/inmuebles';
+import { ESTADOS_OCUPACION, ZONIFICACIONES, TIPOS_INMUEBLE } from '../types/inmueble';
+import { inmuebleSchema } from '../schemas/inmueble.schema';
+import { validarConZod } from '../utils/validators';
+import { formatArea, formatMoneda } from '../utils/formatters';
+import DataTable, { type Column, type FilterOption } from '../components/DataTable';
+import StatusBadge from '../components/StatusBadge';
+import ImportExcelModal from '../components/ImportExcelModal';
+import type { Inmueble } from '../types/inmueble';
 import {
-  inmuebles,
-  resumenInventario,
-  proyectosOrigen,
-  tiposInmueble,
-  type Inmueble,
-} from '../data/inmuebles';
-import {
-  Search,
-  Filter,
-  Download,
-  Home,
-  Building2,
-  Store,
-  Mountain,
-  ChevronLeft,
-  ChevronRight,
-  Save,
-  X,
+  Building2, MapPin, AlertTriangle, Gavel,
+  Plus, Upload, X, Save, XCircle,
 } from 'lucide-react';
 
-const estatusStyle: Record<string, string> = {
-  DISPONIBLE: 'bg-green-100 text-green-700',
-  'EN PROCESO': 'bg-amber-100 text-amber-700',
-  VENDIDO: 'bg-red-100 text-red-700',
-};
-
-const tipoIcono: Record<string, React.ReactNode> = {
-  Apartamento: <Home size={18} className="text-navy-500" />,
-  'Casa Residencial': <Building2 size={18} className="text-navy-500" />,
-  'Local Comercial': <Store size={18} className="text-navy-500" />,
-  Terreno: <Mountain size={18} className="text-navy-500" />,
-};
-
 export default function Inmuebles() {
-  const [listaInmuebles, setListaInmuebles] = useState<Inmueble[]>(inmuebles);
-  const [filtroEstatus, setFiltroEstatus] = useState('Todos');
-  const [proyecto, setProyecto] = useState(proyectosOrigen[0]);
-  const [codigoCatastral, setCodigoCatastral] = useState('CAT-00-12345');
-  const [tipo, setTipo] = useState('Apartamento');
-  const [numero, setNumero] = useState('B-14');
-  const [superficie, setSuperficie] = useState('0.00');
-  const [precio, setPrecio] = useState('0.00');
-  const [estatusInicial, setEstatusInicial] = useState<'Disponible' | 'Proceso'>('Disponible');
-  const [pagina, setPagina] = useState(1);
-  const [showSuccess, setShowSuccess] = useState(false);
-  const [busqueda, setBusqueda] = useState('');
-  const [exportMsg, setExportMsg] = useState('');
+  const [lista, setLista] = useState(inmueblesList);
+  const [showModal, setShowModal] = useState(false);
+  const [showImport, setShowImport] = useState(false);
+  const [detalle, setDetalle] = useState<Inmueble | null>(null);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [successMsg, setSuccessMsg] = useState('');
 
-  const filtrados = useMemo(() => {
-    let list = listaInmuebles;
-    if (filtroEstatus !== 'Todos') {
-      list = list.filter((i) => i.estatus === filtroEstatus.toUpperCase());
-    }
-    if (busqueda) {
-      const q = busqueda.toLowerCase();
-      list = list.filter((i) =>
-        i.nombre.toLowerCase().includes(q) ||
-        i.codigo.toLowerCase().includes(q) ||
-        i.zona.toLowerCase().includes(q) ||
-        i.tipoInmueble.toLowerCase().includes(q)
-      );
-    }
-    return list;
-  }, [listaInmuebles, filtroEstatus, busqueda]);
+  // Form state
+  const [form, setForm] = useState({
+    ubicacion: '', identificacionParcela: '', zonificacion: 'Residencial' as string,
+    estadoOcupacion: 'Disponible' as string, usoActual: 'Vivienda' as string,
+    tipoInmueble: 'Apartamento' as string, areaSegunDocumento: '', precio: '',
+    proyecto: '', linderos: '', coordenadas: '', datosRegistrales: '', observaciones: '',
+  });
 
-  const PER_PAGE = 4;
-  const totalPaginas = Math.max(1, Math.ceil(filtrados.length / PER_PAGE));
-  const paginaActual = Math.min(pagina, totalPaginas);
-  const paginados = filtrados.slice((paginaActual - 1) * PER_PAGE, paginaActual * PER_PAGE);
-
-  const totalDisponibles = listaInmuebles.filter((i) => i.estatus === 'DISPONIBLE').length;
-  const porcentajeDisp = listaInmuebles.length > 0 ? Math.round((totalDisponibles / listaInmuebles.length) * 100) : 0;
-
-  const simularExport = () => {
-    setExportMsg('Exportando...');
-    setTimeout(() => setExportMsg('Exportado exitosamente'), 1500);
-    setTimeout(() => setExportMsg(''), 4000);
+  const updateForm = (key: string, value: string) => {
+    setForm((prev) => ({ ...prev, [key]: value }));
+    setErrors((prev) => { const n = { ...prev }; delete n[key]; return n; });
   };
 
-  const handleRegistrar = () => {
-    const nuevo: Inmueble = {
-      id: listaInmuebles.length + 1,
-      nombre: `${tipo.charAt(0)}-${numero}`,
-      zona: proyecto.split(' ').pop() || proyecto,
-      tipoInmueble: tipo,
-      codigo: `CT-2024-${String(listaInmuebles.length + 1).padStart(3, '0')}`,
-      superficie: `${superficie} m²`,
-      precio: `$${parseFloat(precio).toLocaleString('en-US', { minimumFractionDigits: 2 })}`,
-      estatus: estatusInicial === 'Disponible' ? 'DISPONIBLE' : 'EN PROCESO',
+  const handleSubmit = () => {
+    const parsed = {
+      ...form,
+      areaSegunDocumento: form.areaSegunDocumento ? parseFloat(form.areaSegunDocumento) : null,
+      areaDesincorporada: null, areaComprometida: null, areaDisponible: form.areaSegunDocumento ? parseFloat(form.areaSegunDocumento) : null,
+      precio: form.precio ? parseFloat(form.precio) : null,
     };
-    setListaInmuebles([nuevo, ...listaInmuebles]);
-    setCodigoCatastral('CAT-00-12345');
-    setNumero('B-14');
-    setSuperficie('0.00');
-    setPrecio('0.00');
-    setShowSuccess(true);
-    setTimeout(() => setShowSuccess(false), 3000);
+    const result = validarConZod(inmuebleSchema, parsed);
+    if (!result.success) { setErrors(result.errors); return; }
+    const nuevo: Inmueble = {
+      id: lista.length + 1, ...parsed,
+      zonificacion: parsed.zonificacion as Inmueble['zonificacion'],
+      estadoOcupacion: parsed.estadoOcupacion as Inmueble['estadoOcupacion'],
+      usoActual: parsed.usoActual as Inmueble['usoActual'],
+    };
+    setLista([nuevo, ...lista]);
+    setShowModal(false);
+    resetForm();
+    setSuccessMsg('Inmueble registrado exitosamente');
+    setTimeout(() => setSuccessMsg(''), 3000);
   };
 
-  const tabs = ['Todos', 'Disponible', 'Vendido', 'En proceso'];
+  const resetForm = () => {
+    setForm({ ubicacion: '', identificacionParcela: '', zonificacion: 'Residencial', estadoOcupacion: 'Disponible', usoActual: 'Vivienda', tipoInmueble: 'Apartamento', areaSegunDocumento: '', precio: '', proyecto: '', linderos: '', coordenadas: '', datosRegistrales: '', observaciones: '' });
+    setErrors({});
+  };
+
+  const columns: Column<Inmueble>[] = [
+    { key: 'identificacionParcela', label: 'Parcela', sortable: true, render: (i) => <span className="font-mono font-bold text-navy-900">{i.identificacionParcela}</span> },
+    { key: 'ubicacion', label: 'Ubicación', sortable: true, render: (i) => (
+      <div><p className="text-sm font-medium text-navy-900 truncate max-w-[220px]">{i.ubicacion}</p><p className="text-xs text-gray-500">{i.tipoInmueble} · {i.zonificacion}</p></div>
+    )},
+    { key: 'areaSegunDocumento', label: 'Área', align: 'right', sortable: true, render: (i) => <span className="text-sm">{formatArea(i.areaSegunDocumento)}</span> },
+    { key: 'areaDisponible', label: 'Disponible', align: 'right', render: (i) => <span className="text-sm text-green-700 font-medium">{formatArea(i.areaDisponible)}</span> },
+    { key: 'precio', label: 'Precio', align: 'right', sortable: true, render: (i) => <span className="text-sm font-medium">{formatMoneda(i.precio, 'USD')}</span> },
+    { key: 'estadoOcupacion', label: 'Estado', render: (i) => <StatusBadge status={i.estadoOcupacion} showDot size="sm" /> },
+  ];
+
+  const filters: FilterOption[] = [
+    { key: 'estadoOcupacion', label: 'Estado', options: ['Todos', ...ESTADOS_OCUPACION] },
+    { key: 'zonificacion', label: 'Zonificación', options: ['Todas', ...ZONIFICACIONES] },
+    { key: 'tipoInmueble', label: 'Tipo', options: ['Todos', ...TIPOS_INMUEBLE] },
+  ];
+
+  const dispPct = Math.round((inmuebleStats.disponibles / inmuebleStats.totalRegistros) * 100);
 
   return (
     <div className="p-4 md:p-6 space-y-6">
@@ -108,293 +87,169 @@ export default function Inmuebles() {
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 text-sm text-gray-500 mb-1">
-            <Link to="/almacen" className="hover:text-navy-600">Almacén</Link>
-            <ChevronRight size={14} />
-            <span className="font-medium text-navy-800">Registro de Inmuebles</span>
+            <Link to="/dashboard" className="hover:text-navy-600">Dashboard</Link>
+            <span>/</span>
+            <span className="font-medium text-navy-800">Inmuebles</span>
           </div>
           <h1 className="text-2xl font-bold text-navy-900">Registro de Inmuebles</h1>
-          <p className="text-sm text-gray-500 mt-1">
-            Administración centralizada de activos inmobiliarios y terrenos nacionales.
-          </p>
+          <p className="text-sm text-gray-500 mt-1">Control patrimonial de parcelas y activos inmobiliarios ({inmuebleStats.totalRegistros} registros).</p>
         </div>
-        {exportMsg && <span className="text-sm text-green-600 font-medium animate-pulse">{exportMsg}</span>}
+        <div className="flex flex-wrap gap-3">
+          {successMsg && <span className="text-sm text-green-600 font-medium animate-pulse self-center">{successMsg}</span>}
+          <button onClick={() => setShowImport(true)} className="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50">
+            <Upload size={16} /> Importar
+          </button>
+          <button onClick={() => setShowModal(true)} className="flex items-center gap-2 px-5 py-2.5 bg-navy-900 text-white rounded-lg text-sm font-medium hover:bg-navy-800">
+            <Plus size={18} /> Nuevo Inmueble
+          </button>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-        {/* Left: Form */}
-        <div className="lg:col-span-2 space-y-6">
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 bg-navy-100 rounded-lg flex items-center justify-center">
-                <Building2 size={20} className="text-navy-700" />
-              </div>
-              <h2 className="text-lg font-bold text-navy-900">NUEVO INMUEBLE</h2>
-            </div>
+      {/* Stats */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-white rounded-xl border border-gray-200 p-5 flex items-center gap-4">
+          <div className="w-11 h-11 bg-navy-100 rounded-xl flex items-center justify-center"><Building2 size={22} className="text-navy-600" /></div>
+          <div><p className="text-sm text-gray-500">Total</p><p className="text-2xl font-bold text-navy-900">{inmuebleStats.totalRegistros}</p></div>
+        </div>
+        <div className="bg-white rounded-xl border border-gray-200 p-5 flex items-center gap-4">
+          <div className="w-11 h-11 bg-green-100 rounded-xl flex items-center justify-center"><MapPin size={22} className="text-green-600" /></div>
+          <div><p className="text-sm text-gray-500">Disponibles</p><p className="text-2xl font-bold text-green-700">{inmuebleStats.disponibles}</p></div>
+        </div>
+        <div className="bg-white rounded-xl border border-amber-200 p-5 flex items-center gap-4">
+          <div className="w-11 h-11 bg-amber-100 rounded-xl flex items-center justify-center"><AlertTriangle size={22} className="text-amber-500" /></div>
+          <div><p className="text-sm text-gray-500">Comprometidos</p><p className="text-2xl font-bold text-amber-700">{inmuebleStats.comprometidos}</p></div>
+        </div>
+        <div className="bg-white rounded-xl border border-purple-200 p-5 flex items-center gap-4">
+          <div className="w-11 h-11 bg-purple-100 rounded-xl flex items-center justify-center"><Gavel size={22} className="text-purple-600" /></div>
+          <div><p className="text-sm text-gray-500">En Litigio</p><p className="text-2xl font-bold text-purple-700">{inmuebleStats.enLitigio}</p></div>
+        </div>
+      </div>
 
+      {/* Table */}
+      <DataTable
+        data={lista}
+        columns={columns}
+        filters={filters}
+        searchPlaceholder="Buscar por parcela, ubicación, proyecto..."
+        searchKeys={['identificacionParcela', 'ubicacion', 'proyecto', 'tipoInmueble']}
+        perPage={8}
+        onRowClick={setDetalle}
+      />
+
+      {/* Summary bar */}
+      <div className="bg-navy-900 rounded-xl p-5 text-white">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h3 className="font-bold text-lg">Disponibilidad Inmobiliaria</h3>
+            <p className="text-sm text-white/70">{formatArea(inmuebleStats.areaDisponible)} disponibles de {formatArea(inmuebleStats.areaTotal)} totales</p>
+          </div>
+          <p className="text-3xl font-bold">{dispPct}%</p>
+        </div>
+        <div className="mt-4 w-full bg-white/20 rounded-full h-3">
+          <div className="bg-white h-3 rounded-full transition-all" style={{ width: `${dispPct}%` }} />
+        </div>
+      </div>
+
+      {/* Detail Panel */}
+      {detalle && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex justify-end" onClick={() => setDetalle(null)}>
+          <div className="bg-white w-full max-w-lg h-full overflow-y-auto shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+              <h3 className="text-lg font-bold text-navy-900">Detalle del Inmueble</h3>
+              <button onClick={() => setDetalle(null)} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
+            </div>
+            <div className="p-6 space-y-5">
+              <StatusBadge status={detalle.estadoOcupacion} showDot size="md" />
+              <div className="grid grid-cols-2 gap-4">
+                {[
+                  ['Parcela', detalle.identificacionParcela], ['Tipo', detalle.tipoInmueble],
+                  ['Ubicación', detalle.ubicacion], ['Zonificación', detalle.zonificacion],
+                  ['Uso actual', detalle.usoActual], ['Proyecto', detalle.proyecto || '—'],
+                  ['Área s/documento', formatArea(detalle.areaSegunDocumento)],
+                  ['Área disponible', formatArea(detalle.areaDisponible)],
+                  ['Área comprometida', formatArea(detalle.areaComprometida)],
+                  ['Área desincorporada', formatArea(detalle.areaDesincorporada)],
+                  ['Precio', formatMoneda(detalle.precio, 'USD')],
+                  ['Coordenadas', detalle.coordenadas || '—'],
+                ].map(([l, v]) => (
+                  <div key={l}><p className="text-xs text-gray-500">{l}</p><p className="text-sm font-medium text-navy-900">{v}</p></div>
+                ))}
+              </div>
+              {detalle.linderos && <div><p className="text-xs text-gray-500 mb-1">Linderos</p><p className="text-sm text-gray-700 bg-gray-50 rounded-lg p-3">{detalle.linderos}</p></div>}
+              {detalle.datosRegistrales && <div><p className="text-xs text-gray-500 mb-1">Datos registrales</p><p className="text-sm text-gray-700 bg-gray-50 rounded-lg p-3">{detalle.datosRegistrales}</p></div>}
+              {detalle.observaciones && <div><p className="text-xs text-gray-500 mb-1">Observaciones</p><p className="text-sm text-gray-700 bg-gray-50 rounded-lg p-3">{detalle.observaciones}</p></div>}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* New Modal */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-bold text-navy-900">Nuevo Inmueble</h3>
+              <button onClick={() => { setShowModal(false); resetForm(); }} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
+            </div>
             <div className="space-y-4">
-              <div>
-                <label className="text-sm text-gray-600 mb-1 block">Proyecto de Origen</label>
-                <select
-                  value={proyecto}
-                  onChange={(e) => setProyecto(e.target.value)}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-navy-500"
-                >
-                  {proyectosOrigen.map((p) => (
-                    <option key={p}>{p}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="text-sm text-gray-600 mb-1 block">Código Catastral</label>
-                <input
-                  type="text"
-                  value={codigoCatastral}
-                  onChange={(e) => setCodigoCatastral(e.target.value)}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-navy-500"
-                />
-              </div>
-
+              <Field label="Ubicación *" error={errors.ubicacion}>
+                <input value={form.ubicacion} onChange={(e) => updateForm('ubicacion', e.target.value)} className="input-field" placeholder="Urbanización Villa Rosa, Parcela 150" />
+              </Field>
               <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-sm text-gray-600 mb-1 block">Tipo</label>
-                  <select
-                    value={tipo}
-                    onChange={(e) => setTipo(e.target.value)}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-navy-500"
-                  >
-                    {tiposInmueble.map((t) => (
-                      <option key={t}>{t}</option>
-                    ))}
+                <Field label="Identificación de parcela *" error={errors.identificacionParcela}>
+                  <input value={form.identificacionParcela} onChange={(e) => updateForm('identificacionParcela', e.target.value)} className="input-field" placeholder="VR-P-150" />
+                </Field>
+                <Field label="Tipo de inmueble *" error={errors.tipoInmueble}>
+                  <select value={form.tipoInmueble} onChange={(e) => updateForm('tipoInmueble', e.target.value)} className="input-field">
+                    {TIPOS_INMUEBLE.map((t) => <option key={t}>{t}</option>)}
                   </select>
-                </div>
-                <div>
-                  <label className="text-sm text-gray-600 mb-1 block">Número</label>
-                  <input
-                    type="text"
-                    value={numero}
-                    onChange={(e) => setNumero(e.target.value)}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-navy-500"
-                  />
-                </div>
+                </Field>
               </div>
-
               <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-sm text-gray-600 mb-1 block">Superficie (m²)</label>
-                  <input
-                    type="text"
-                    value={superficie}
-                    onChange={(e) => setSuperficie(e.target.value)}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-navy-500"
-                  />
-                </div>
-                <div>
-                  <label className="text-sm text-gray-600 mb-1 block">Precio ($)</label>
-                  <input
-                    type="text"
-                    value={precio}
-                    onChange={(e) => setPrecio(e.target.value)}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-navy-500"
-                  />
-                </div>
+                <Field label="Zonificación *" error={errors.zonificacion}>
+                  <select value={form.zonificacion} onChange={(e) => updateForm('zonificacion', e.target.value)} className="input-field">
+                    {ZONIFICACIONES.map((z) => <option key={z}>{z}</option>)}
+                  </select>
+                </Field>
+                <Field label="Estado *" error={errors.estadoOcupacion}>
+                  <select value={form.estadoOcupacion} onChange={(e) => updateForm('estadoOcupacion', e.target.value)} className="input-field">
+                    {ESTADOS_OCUPACION.map((e) => <option key={e}>{e}</option>)}
+                  </select>
+                </Field>
               </div>
-
-              <div>
-                <label className="text-sm text-gray-600 mb-2 block">Estatus Inicial</label>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setEstatusInicial('Disponible')}
-                    className={`flex-1 py-2 text-sm font-medium rounded-lg border transition-colors ${
-                      estatusInicial === 'Disponible'
-                        ? 'bg-navy-900 text-white border-navy-900'
-                        : 'border-gray-200 text-gray-600 hover:bg-gray-50'
-                    }`}
-                  >
-                    Disponible
-                  </button>
-                  <button
-                    onClick={() => setEstatusInicial('Proceso')}
-                    className={`flex-1 py-2 text-sm font-medium rounded-lg border transition-colors ${
-                      estatusInicial === 'Proceso'
-                        ? 'bg-navy-900 text-white border-navy-900'
-                        : 'border-gray-200 text-gray-600 hover:bg-gray-50'
-                    }`}
-                  >
-                    Proceso
-                  </button>
-                </div>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Área (m²)" error={errors.areaSegunDocumento}>
+                  <input type="number" value={form.areaSegunDocumento} onChange={(e) => updateForm('areaSegunDocumento', e.target.value)} className="input-field" placeholder="0.00" />
+                </Field>
+                <Field label="Precio (USD)" error={errors.precio}>
+                  <input type="number" value={form.precio} onChange={(e) => updateForm('precio', e.target.value)} className="input-field" placeholder="0.00" />
+                </Field>
               </div>
-
-              <button
-                onClick={handleRegistrar}
-                className="w-full bg-navy-900 text-white py-3 rounded-lg font-medium hover:bg-navy-800 transition-colors flex items-center justify-center gap-2"
-              >
-                <Save size={18} />
-                Registrar Activo
+              <Field label="Proyecto" error={errors.proyecto}>
+                <input value={form.proyecto} onChange={(e) => updateForm('proyecto', e.target.value)} className="input-field" placeholder="Urbanización Villa Rosa" />
+              </Field>
+              <Field label="Observaciones" error={errors.observaciones}>
+                <textarea value={form.observaciones} onChange={(e) => updateForm('observaciones', e.target.value)} className="input-field" rows={2} />
+              </Field>
+              <button onClick={handleSubmit} className="w-full bg-navy-900 text-white py-3 rounded-lg font-medium hover:bg-navy-800 transition-colors flex items-center justify-center gap-2">
+                <Save size={18} /> Registrar Inmueble
               </button>
-              {showSuccess && (
-                <div className="bg-green-50 border border-green-200 text-green-700 text-sm rounded-lg px-4 py-2 text-center font-medium">
-                  ✓ Inmueble registrado exitosamente
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Summary */}
-          <div className="bg-navy-900 rounded-xl p-6 text-white">
-            <h3 className="text-lg font-bold mb-4">Resumen de Inventario</h3>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between bg-white/10 rounded-lg px-4 py-3">
-                <span className="text-sm text-white/80">Total Inmuebles</span>
-                <span className="text-xl font-bold">{listaInmuebles.length.toLocaleString()}</span>
-              </div>
-              <div className="flex items-center justify-between bg-white/10 rounded-lg px-4 py-3">
-                <span className="text-sm text-white/80">Disponibilidad</span>
-                <span className="text-xl font-bold">{porcentajeDisp}%</span>
-              </div>
             </div>
           </div>
         </div>
+      )}
 
-        {/* Right: Table */}
-        <div className="lg:col-span-3 space-y-4">
-          {/* Search bar */}
-          <div className="relative">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Buscar inmueble por nombre, código o zona..."
-              value={busqueda}
-              onChange={(e) => { setBusqueda(e.target.value); setPagina(1); }}
-              className="w-full pl-9 pr-8 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-navy-500 bg-white"
-            />
-            {busqueda && (
-              <button onClick={() => setBusqueda('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                <X size={14} />
-              </button>
-            )}
-          </div>
+      <ImportExcelModal open={showImport} onClose={() => setShowImport(false)} tiposDisponibles={['Parcelas / Inmuebles']} />
+    </div>
+  );
+}
 
-          {/* Tabs & tools */}
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between px-4 pt-4 gap-3">
-              <div className="flex flex-wrap gap-1">
-                {tabs.map((tab) => (
-                  <button
-                    key={tab}
-                    onClick={() => { setFiltroEstatus(tab); setPagina(1); }}
-                    className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                      filtroEstatus === tab
-                        ? 'bg-navy-900 text-white'
-                        : 'text-gray-500 hover:bg-gray-100'
-                    }`}
-                  >
-                    {tab}
-                    <span className="ml-1.5 text-xs opacity-70">
-                      ({tab === 'Todos'
-                        ? listaInmuebles.length
-                        : listaInmuebles.filter((i) => i.estatus === tab.toUpperCase()).length})
-                    </span>
-                  </button>
-                ))}
-              </div>
-              <div className="flex gap-2">
-                <button className="flex items-center gap-1 px-3 py-1.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50">
-                  <Filter size={14} />
-                  Filtrar
-                </button>
-                <button
-                  onClick={simularExport}
-                  className="flex items-center gap-1 px-3 py-1.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50"
-                >
-                  <Download size={14} />
-                  Exportar
-                </button>
-              </div>
-            </div>
-
-            <div className="overflow-x-auto">
-            <table className="w-full mt-4 min-w-[600px]">
-              <thead>
-                <tr className="border-b border-gray-200">
-                  <th className="text-left text-xs font-semibold text-gray-500 uppercase px-6 py-3">Inmueble</th>
-                  <th className="text-left text-xs font-semibold text-gray-500 uppercase px-6 py-3">Código</th>
-                  <th className="text-left text-xs font-semibold text-gray-500 uppercase px-6 py-3">Superficie</th>
-                  <th className="text-left text-xs font-semibold text-gray-500 uppercase px-6 py-3">Precio</th>
-                  <th className="text-left text-xs font-semibold text-gray-500 uppercase px-6 py-3">Estatus</th>
-                </tr>
-              </thead>
-              <tbody>
-                {paginados.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="px-6 py-12 text-center text-gray-400 text-sm">
-                      No se encontraron inmuebles.
-                    </td>
-                  </tr>
-                ) : paginados.map((inmueble) => (
-                  <tr key={inmueble.id} className="border-b border-gray-100 hover:bg-gray-50">
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        {tipoIcono[inmueble.tipoInmueble] || <Home size={18} className="text-gray-400" />}
-                        <div>
-                          <p className="text-sm font-semibold text-navy-900">{inmueble.nombre}</p>
-                          <p className="text-xs text-gray-500">{inmueble.tipoInmueble}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600 font-mono">{inmueble.codigo}</td>
-                    <td className="px-6 py-4 text-sm text-gray-600">{inmueble.superficie}</td>
-                    <td className="px-6 py-4 text-sm font-medium text-navy-900">{inmueble.precio}</td>
-                    <td className="px-6 py-4">
-                      <span className={`text-xs font-bold px-2.5 py-1 rounded ${estatusStyle[inmueble.estatus] || 'bg-gray-100 text-gray-600'}`}>
-                        {inmueble.estatus}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            </div>
-
-            {/* Pagination */}
-            <div className="flex flex-col sm:flex-row items-center justify-between px-4 sm:px-6 py-3 border-t border-gray-200 gap-2">
-              <p className="text-sm text-gray-500">
-                {filtrados.length === 0
-                  ? 'Sin resultados'
-                  : `Mostrando ${(paginaActual - 1) * PER_PAGE + 1}-${Math.min(paginaActual * PER_PAGE, filtrados.length)} de ${filtrados.length} activos`}
-              </p>
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={() => setPagina(Math.max(1, paginaActual - 1))}
-                  disabled={paginaActual <= 1}
-                  className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 disabled:opacity-30"
-                >
-                  <ChevronLeft size={18} />
-                </button>
-                {Array.from({ length: Math.min(totalPaginas, 3) }, (_, i) => i + 1).map((p) => (
-                  <button
-                    key={p}
-                    onClick={() => setPagina(p)}
-                    className={`w-8 h-8 rounded-lg text-sm font-medium ${
-                      paginaActual === p ? 'bg-navy-900 text-white' : 'text-gray-600 hover:bg-gray-100'
-                    }`}
-                  >
-                    {p}
-                  </button>
-                ))}
-                <button
-                  onClick={() => setPagina(Math.min(totalPaginas, paginaActual + 1))}
-                  disabled={paginaActual >= totalPaginas}
-                  className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 disabled:opacity-30"
-                >
-                  <ChevronRight size={18} />
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+function Field({ label, error, children }: { label: string; error?: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="text-sm text-gray-600 mb-1 block">{label}</label>
+      {children}
+      {error && <p className="text-xs text-red-500 mt-1 flex items-center gap-1"><XCircle size={12} />{error}</p>}
     </div>
   );
 }

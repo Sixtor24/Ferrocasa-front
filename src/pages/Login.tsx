@@ -110,7 +110,7 @@ export default function Login() {
 
           {/* Footer */}
           <div className="flex items-center justify-between mt-6 pt-4 border-t border-gray-100 text-xs text-gray-400">
-            <span>v2.4.0</span>
+            <span>v1.0</span>
             <span className="flex items-center gap-1">
               <Info size={12} />
               Soporte Interno

@@ -17,6 +17,7 @@ import {
   LogOut,
   X,
   Menu,
+  Truck,
 } from 'lucide-react';
 
 const searchablePages = [
@@ -27,6 +28,7 @@ const searchablePages = [
   { label: 'Ventas', path: '/ventas', keywords: 'ventas comercial factura cliente' },
   { label: 'Cementerio', path: '/cementerio', keywords: 'cementerio parcela' },
   { label: 'Reportes', path: '/reportes', keywords: 'reportes reporte auditoría pdf excel export' },
+  { label: 'Vehículos', path: '/vehiculos', keywords: 'vehículos flota camioneta camión maquinaria placa' },
   { label: 'Auditoría', path: '/auditoria', keywords: 'auditoría trazabilidad registro log seguridad' },
   { label: 'Configuración', path: '/configuracion', keywords: 'configuración ajustes sistema preferencias' },
 ];
@@ -42,6 +44,7 @@ const navItems = [
   { to: '/almacen', label: 'Almacén', icon: Package },
   { to: '/ventas', label: 'Ventas', icon: ShoppingCart },
   { to: '/cementerio', label: 'Cementerio', icon: Landmark },
+  { to: '/vehiculos', label: 'Vehículos', icon: Truck },
   { to: '/reportes', label: 'Reportes', icon: FileText },
   { to: '/auditoria', label: 'Auditoría', icon: Shield },
 ];
@@ -230,15 +233,6 @@ export default function Layout() {
               <span className="capitalize">{today}</span>
             </div>
             <div className="relative" ref={notifRef}>
-              <button
-                onClick={() => setShowNotif(!showNotif)}
-                className="relative text-gray-500 hover:text-navy-900"
-              >
-                <Bell size={20} />
-                <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[10px] rounded-full flex items-center justify-center">
-                  {mockNotifications.filter((n) => !n.read).length}
-                </span>
-              </button>
               {showNotif && (
                 <div className="absolute top-full right-0 mt-2 w-72 sm:w-80 bg-white border border-gray-200 rounded-xl shadow-lg z-50 overflow-hidden">
                   <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
@@ -271,7 +265,7 @@ export default function Layout() {
 
         {/* Footer */}
         <footer className="bg-white border-t border-gray-200 px-4 sm:px-6 py-2 flex items-center justify-between text-xs text-gray-400">
-          <span className="truncate">© 2024 C.V.G. FERROCASA - v2.4.0</span>
+          <span className="truncate">© 2024 C.V.G. FERROCASA - v1.0</span>
           <div className="hidden sm:flex gap-4">
             <span className="hover:text-navy-600 cursor-pointer">Privacidad</span>
             <span className="hover:text-navy-600 cursor-pointer">Soporte Técnico</span>
