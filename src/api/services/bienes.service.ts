@@ -7,6 +7,12 @@ import type {
 } from '../types';
 import { mapApiBienToBienMueble } from '../mappers/bien.mapper';
 import type { BienMueble } from '../../types/bien';
+import { allowMockFallback, useMockDataOnly } from '../mockConfig';
+import {
+  getMockBienById,
+  getMockBienes,
+  mockBienesEstadisticas,
+} from '../mockResponses';
 
 export type BienesQuery = {
   page?: number;
@@ -15,27 +21,50 @@ export type BienesQuery = {
 };
 
 export async function fetchBienes(query: BienesQuery = {}) {
-  const res = await apiRequest<ApiListResponse<ApiBien>>('/bienes', {
-    params: {
-      page: query.page ?? 1,
-      limit: query.limit ?? 100,
-      search: query.search,
-    },
-  });
-  return {
-    data: res.data.map(mapApiBienToBienMueble),
-    meta: res.meta,
-  };
+  if (useMockDataOnly()) return getMockBienes(query);
+
+  try {
+    const res = await apiRequest<ApiListResponse<ApiBien>>('/bienes', {
+      params: {
+        page: query.page ?? 1,
+        limit: query.limit ?? 100,
+        search: query.search,
+      },
+    });
+    const rows = res.data ?? [];
+    return {
+      data: rows.map(mapApiBienToBienMueble),
+      meta: res.meta ?? { page: 1, limit: 100, total: rows.length, totalPages: 1 },
+    };
+  } catch (err) {
+    if (!allowMockFallback()) throw err;
+    return getMockBienes(query);
+  }
 }
 
 export async function fetchBienByCodigo(codigo: number): Promise<BienMueble> {
-  const res = await apiRequest<ApiItemResponse<ApiBien>>(`/bienes/${codigo}`);
-  return mapApiBienToBienMueble(res.data);
+  if (useMockDataOnly()) return getMockBienById(codigo);
+
+  try {
+    const res = await apiRequest<ApiItemResponse<ApiBien>>(`/bienes/${codigo}`);
+    if (!res.data) throw new Error('Respuesta vacía del API');
+    return mapApiBienToBienMueble(res.data);
+  } catch (err) {
+    if (!allowMockFallback()) throw err;
+    return getMockBienById(codigo);
+  }
 }
 
 export async function fetchBienesEstadisticas(): Promise<ApiBienesEstadisticas> {
-  const res = await apiRequest<ApiItemResponse<ApiBienesEstadisticas>>('/bienes/estadisticas');
-  return res.data;
+  if (useMockDataOnly()) return mockBienesEstadisticas;
+
+  try {
+    const res = await apiRequest<ApiItemResponse<ApiBienesEstadisticas>>('/bienes/estadisticas');
+    return res.data ?? mockBienesEstadisticas;
+  } catch (err) {
+    if (!allowMockFallback()) throw err;
+    return mockBienesEstadisticas;
+  }
 }
 
 export async function createBien(body: Record<string, unknown>) {
