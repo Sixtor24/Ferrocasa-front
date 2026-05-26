@@ -12,7 +12,7 @@ import {
 } from '../mappers/parcela.mapper';
 import type { Terreno } from '../../types/terreno';
 import type { Inmueble } from '../../types/inmueble';
-import { allowMockFallback, useMockDataOnly } from '../mockConfig';
+import { allowMockFallback, shouldFallbackToMockList, useMockDataOnly } from '../mockConfig';
 import {
   getMockParcelaById,
   getMockParcelas,
@@ -41,6 +41,7 @@ export async function fetchParcelas(query: ParcelasQuery = {}) {
       },
     });
     const rows = res.data ?? [];
+    if (shouldFallbackToMockList(rows.length)) return getMockParcelas(query);
     return {
       data: rows,
       terrenos: rows.map(mapApiParcelaToTerreno),

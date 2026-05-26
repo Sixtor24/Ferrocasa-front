@@ -7,7 +7,7 @@ import type {
 } from '../types';
 import { mapApiVehiculoToVehiculo } from '../mappers/vehiculo.mapper';
 import type { Vehiculo } from '../../types/vehiculo';
-import { allowMockFallback, useMockDataOnly } from '../mockConfig';
+import { allowMockFallback, shouldFallbackToMockList, useMockDataOnly } from '../mockConfig';
 import {
   getMockVehiculoById,
   getMockVehiculos,
@@ -32,6 +32,7 @@ export async function fetchVehiculos(query: VehiculosQuery = {}) {
       },
     });
     const rows = res.data ?? [];
+    if (shouldFallbackToMockList(rows.length)) return getMockVehiculos(query);
     return {
       data: rows.map(mapApiVehiculoToVehiculo),
       meta: res.meta ?? { page: 1, limit: 100, total: rows.length, totalPages: 1 },

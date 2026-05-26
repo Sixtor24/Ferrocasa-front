@@ -3,7 +3,7 @@ import type { Vehiculo } from '../types/vehiculo';
 export const vehiculos: Vehiculo[] = [
   {
     id: 1, codigoInterno: 'VH-001', descripcion: 'Camioneta Toyota Hilux 4x4 doble cabina',
-    marca: 'Toyota', modelo: 'Hilux 4x4', color: 'Blanco', almacen: 'Almacén Central', sede: 'Sede Principal', departamento: 'Ingeniería',
+    marca: 'Toyota', modelo: 'Hilux 4x4', color: 'Blanco', almacen: 'Almacén Central', sede: 'Sede Principal', departamento: 'Gerencia General',
     fechaAdquisicion: '2019-06-15', numeroDocumento: 'OC-2019-0456',
     anioFabricacion: 2019, serialMotor: '2TR-FE-482913', sinSerialMotor: false, serialCarroceria: '', sinSerialCarroceria: true,
     placa: 'AB123CD', sinPlaca: false, condicionFisica: 'Bueno', estadoUso: 'En uso', categoriaGeneral: 'Camioneta',
@@ -46,13 +46,32 @@ export const vehiculos: Vehiculo[] = [
     subcategoria: 'Retroexcavadora', documentoAdquisicion: '', valorAdquisicion: 120000, estatusCarga: 'Parcial',
     observaciones: 'Maquinaria pesada, no requiere placa. Motor con daño severo, pendiente de desincorporación formal.',
   },
+  {
+    id: 6, codigoInterno: 'VH-006', descripcion: 'Furgón Iveco Daily 35S14',
+    marca: 'Iveco', modelo: 'Daily 35S14', color: 'Blanco', almacen: 'Almacén Central', sede: 'Ciudad Bolívar', departamento: 'Logística',
+    fechaAdquisicion: '2021-05-18', numeroDocumento: 'OC-2021-0334',
+    anioFabricacion: 2021, serialMotor: 'F1C-078234', sinSerialMotor: false, serialCarroceria: '', sinSerialCarroceria: true,
+    placa: 'MN012OP', sinPlaca: false, condicionFisica: 'Bueno', estadoUso: 'Disponible', categoriaGeneral: 'Camión',
+    subcategoria: 'Furgón de carga', documentoAdquisicion: 'OC-2021-0334', valorAdquisicion: 42000, estatusCarga: 'Completo',
+    observaciones: 'Disponible para asignación a proyectos regionales.',
+  },
+  {
+    id: 7, codigoInterno: 'VH-007', descripcion: 'Motocicleta Honda XR190L',
+    marca: 'Honda', modelo: 'XR190L', color: 'Rojo', almacen: 'Sede Principal', sede: 'Sede Principal', departamento: 'Mantenimiento',
+    fechaAdquisicion: '2023-11-02', numeroDocumento: 'OC-2023-0412',
+    anioFabricacion: 2023, serialMotor: 'KC26E-901122', sinSerialMotor: false, serialCarroceria: '', sinSerialCarroceria: true,
+    placa: 'QR345ST', sinPlaca: false, condicionFisica: 'Bueno', estadoUso: 'Por verificar', categoriaGeneral: 'Motocicleta',
+    subcategoria: 'Uso operativo', documentoAdquisicion: 'OC-2023-0412', valorAdquisicion: 2800, estatusCarga: 'Parcial',
+    observaciones: 'Pendiente verificación de inventario físico.',
+  },
 ];
 
 export const vehiculosStats = {
-  total: 5,
+  total: 7,
   enUso: 3,
   enTaller: 1,
   desincorporado: 1,
+  disponible: 1,
   sinPlaca: 2,
   sinSerialCarroceria: 5,
   condicionBueno: 2,

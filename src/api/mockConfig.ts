@@ -18,3 +18,8 @@ export function listMeta(total: number, page = 1, limit = 100) {
     totalPages: Math.max(1, Math.ceil(total / limit)),
   };
 }
+
+/** API respondió OK pero sin filas (backend incompleto); usar mock en dev. */
+export function shouldFallbackToMockList(apiRowCount: number): boolean {
+  return apiRowCount === 0 && allowMockFallback();
+}

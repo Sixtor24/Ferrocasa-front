@@ -7,7 +7,7 @@ import type {
 } from '../types';
 import { mapApiBienToBienMueble } from '../mappers/bien.mapper';
 import type { BienMueble } from '../../types/bien';
-import { allowMockFallback, useMockDataOnly } from '../mockConfig';
+import { allowMockFallback, shouldFallbackToMockList, useMockDataOnly } from '../mockConfig';
 import {
   getMockBienById,
   getMockBienes,
@@ -32,6 +32,7 @@ export async function fetchBienes(query: BienesQuery = {}) {
       },
     });
     const rows = res.data ?? [];
+    if (shouldFallbackToMockList(rows.length)) return getMockBienes(query);
     return {
       data: rows.map(mapApiBienToBienMueble),
       meta: res.meta ?? { page: 1, limit: 100, total: rows.length, totalPages: 1 },
