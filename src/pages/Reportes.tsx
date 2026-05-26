@@ -1,37 +1,42 @@
 import { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  reporteStats,
   materialesReporte,
   categoriasMaterial,
   tiposMovimiento,
 } from '../data/reportes';
+import { inventarioCementerio } from '../data/cementerio';
+import { fetchBienesEstadisticas } from '../api/services/bienes.service';
+import { fetchParcelasEstadisticas } from '../api/services/parcelas.service';
+import { useApiQuery } from '../hooks/useApiQuery';
+import ModuleMetricCard from '../components/module/ModuleMetricCard';
+import StatusBadge from '../components/StatusBadge';
 import {
   FileSpreadsheet,
   FileText,
-  TrendingUp,
-  TrendingDown,
-  Minus,
   Package,
-  Eye,
   ChevronRight,
   Search,
-  BarChart3,
-  PieChart,
   Filter,
   X,
   RefreshCw,
-  CheckCircle2,
+  Landmark,
+  Building2,
+  Map,
 } from 'lucide-react';
 
-const tendenciaIcon: Record<string, React.ReactNode> = {
-  up: <TrendingUp size={16} className="text-green-500" />,
-  down: <TrendingDown size={16} className="text-red-500" />,
-  stable: <Minus size={16} className="text-gray-400" />,
-};
-const tendenciaLabel: Record<string, string> = { up: 'Alza', down: 'Baja', stable: 'Estable' };
-
 export default function Reportes() {
+  const bienesStatsQuery = useApiQuery(() => fetchBienesEstadisticas(), []);
+  const parcelasStatsQuery = useApiQuery(() => fetchParcelasEstadisticas(), []);
+
+  const metricas = useMemo(() => {
+    const totalBienes = bienesStatsQuery.data?.total ?? 0;
+    const bienesCementerio = inventarioCementerio.length;
+    const bienesEdificioAdmin = Math.max(0, totalBienes - bienesCementerio);
+    const parcelas = parcelasStatsQuery.data?.total ?? 0;
+    return { totalBienes, bienesCementerio, bienesEdificioAdmin, parcelas };
+  }, [bienesStatsQuery.data?.total, parcelasStatsQuery.data?.total]);
+
   const [fechaDesde, setFechaDesde] = useState('2024-01-01');
   const [fechaHasta, setFechaHasta] = useState('2024-12-31');
   const [tipoMovimiento, setTipoMovimiento] = useState(tiposMovimiento[0]);
@@ -115,56 +120,35 @@ export default function Reportes() {
         </div>
       </div>
 
-      {/* Stats row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-sm text-gray-500">Total Ventas</p>
-            <div className="w-9 h-9 bg-green-100 rounded-lg flex items-center justify-center">
-              <BarChart3 size={18} className="text-green-600" />
-            </div>
-          </div>
-          <p className="text-2xl font-bold text-navy-900">{reporteStats.totalVentas}</p>
-          <p className="text-sm text-green-500 font-medium mt-1 flex items-center gap-1">
-            <TrendingUp size={14} />
-            {reporteStats.cambioVentas} vs Mes Anterior
-          </p>
-        </div>
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-sm text-gray-500">Activos en Stock</p>
-            <div className="w-9 h-9 bg-navy-100 rounded-lg flex items-center justify-center">
-              <Package size={18} className="text-navy-600" />
-            </div>
-          </div>
-          <p className="text-2xl font-bold text-navy-900">{reporteStats.activosStock}</p>
-          <p className="text-xs text-gray-500 mt-1">{reporteStats.capacidadAlmacen} Capacidad Almacén</p>
-        </div>
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-sm text-gray-500">Items Filtrados</p>
-            <div className="w-9 h-9 bg-amber-100 rounded-lg flex items-center justify-center">
-              <PieChart size={18} className="text-amber-600" />
-            </div>
-          </div>
-          <p className="text-2xl font-bold text-navy-900">{filteredMateriales.length}</p>
-          <p className="text-xs text-gray-500 mt-1">de {materialesReporte.length} activos totales</p>
-        </div>
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-sm text-gray-500">Estado de Auditoría</p>
-            <div className="w-9 h-9 bg-blue-100 rounded-lg flex items-center justify-center">
-              <CheckCircle2 size={18} className="text-blue-600" />
-            </div>
-          </div>
-          <p className="text-lg font-bold text-navy-900">{reporteStats.estadoAuditoria}</p>
-          <div className="mt-2">
-            <div className="w-full bg-gray-200 rounded-full h-2">
-              <div className="bg-navy-600 h-2 rounded-full transition-all" style={{ width: `${reporteStats.porcentajeRevisado}%` }} />
-            </div>
-            <p className="text-xs text-navy-600 font-medium mt-1 text-right">{reporteStats.porcentajeRevisado}%</p>
-          </div>
-        </div>
+        <ModuleMetricCard
+          label="Total Bienes"
+          value={(metricas.totalBienes ?? 0).toLocaleString('es-VE')}
+          icon={<Package size={22} className="text-navy-600" />}
+          iconWrapClassName="bg-navy-100"
+        />
+        <ModuleMetricCard
+          label="Bienes Cementerio"
+          value={(metricas.bienesCementerio ?? 0).toLocaleString('es-VE')}
+          icon={<Landmark size={22} className="text-blue-600" />}
+          iconWrapClassName="bg-blue-100"
+          valueClassName="text-blue-700"
+        />
+        <ModuleMetricCard
+          label="Bienes Edificio Administrativo"
+          value={(metricas.bienesEdificioAdmin ?? 0).toLocaleString('es-VE')}
+          icon={<Building2 size={22} className="text-green-600" />}
+          iconWrapClassName="bg-green-100"
+          valueClassName="text-green-700"
+        />
+        <ModuleMetricCard
+          label="Parcelas"
+          value={(metricas.parcelas ?? 0).toLocaleString('es-VE')}
+          icon={<Map size={22} className="text-amber-600" />}
+          iconWrapClassName="bg-amber-100"
+          borderClassName="border-amber-200"
+          valueClassName="text-amber-700"
+        />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
@@ -303,8 +287,8 @@ export default function Reportes() {
                         </>
                       )}
                       <th className="text-left text-xs font-semibold text-gray-500 uppercase px-4 sm:px-6 py-3">Stock</th>
-                      <th className="text-left text-xs font-semibold text-gray-500 uppercase px-4 sm:px-6 py-3">Ventas Q4</th>
-                      <th className="text-left text-xs font-semibold text-gray-500 uppercase px-4 sm:px-6 py-3">Tendencia</th>
+                      <th className="text-left text-xs font-semibold text-gray-500 uppercase px-4 sm:px-6 py-3">Estado de uso</th>
+                      <th className="text-left text-xs font-semibold text-gray-500 uppercase px-4 sm:px-6 py-3">Estado Físico</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -325,11 +309,11 @@ export default function Reportes() {
                           </>
                         )}
                         <td className="px-4 sm:px-6 py-4 text-sm font-medium text-navy-900">{mat.stockActual}</td>
-                        <td className="px-4 sm:px-6 py-4 text-sm text-gray-600">{mat.ventasQ4}</td>
                         <td className="px-4 sm:px-6 py-4">
-                          <span className="flex items-center gap-1.5 text-xs font-medium">
-                            {tendenciaIcon[mat.tendencia]} {tendenciaLabel[mat.tendencia]}
-                          </span>
+                          <StatusBadge status={mat.estadoUso} size="sm" />
+                        </td>
+                        <td className="px-4 sm:px-6 py-4">
+                          <StatusBadge status={mat.estadoFisico} showDot size="sm" />
                         </td>
                       </tr>
                     ))}

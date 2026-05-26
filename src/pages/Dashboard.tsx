@@ -1,6 +1,10 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { fetchBienesEstadisticas } from '../api/services/bienes.service';
+import { fetchVehiculosEstadisticas } from '../api/services/vehiculos.service';
+import { fetchParcelasEstadisticas } from '../api/services/parcelas.service';
+import { useApiQuery } from '../hooks/useApiQuery';
 import {
   dashboardStats,
   resumenGeneral,
@@ -10,9 +14,8 @@ import {
   ultimaAuditoria,
 } from '../data/dashboard';
 import {
-  Package, Building2, Landmark, Truck,
+  Package, Building2, Landmark, Truck, Map, FileText, Shield,
   RefreshCw, Clock, ChevronRight,
-  ClipboardList, MapPin, FileBarChart, Settings,
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -26,16 +29,34 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const [periodo, setPeriodo] = useState(0);
 
+  const statsQuery = useApiQuery(
+    async () => {
+      const [bienes, vehiculos, parcelas] = await Promise.all([
+        fetchBienesEstadisticas(),
+        fetchVehiculosEstadisticas(),
+        fetchParcelasEstadisticas(),
+      ]);
+      return { bienes, vehiculos, parcelas };
+    },
+    [],
+  );
+
+  const liveStats = statsQuery.data;
+  const totalBienes = liveStats?.bienes.total ?? dashboardStats.totalBienesMuebles.valor;
+  const totalVehiculos = liveStats?.vehiculos.total ?? dashboardStats.totalVehiculos.valor;
+  const totalParcelas = liveStats?.parcelas.total ?? estatusInmuebles.total;
+  const parcelasDisponibles = liveStats?.parcelas.disponibles ?? estatusInmuebles.disponible;
+
   const now = new Date().toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit', hour12: true });
 
   const accionesRapidas = [
-    { nombre: 'Bienes Admin.', icon: ClipboardList, ruta: '/almacen' },
-    { nombre: 'Inmuebles', icon: MapPin, ruta: '/almacen/inmuebles' },
+    { nombre: 'Bienes Admin.', icon: Package, ruta: '/almacen' },
+    { nombre: 'Inmuebles', icon: Building2, ruta: '/almacen/inmuebles' },
     { nombre: 'Cementerio', icon: Landmark, ruta: '/cementerio' },
-    { nombre: 'Terrenos', icon: MapPin, ruta: '/terrenos' },
+    { nombre: 'Terrenos', icon: Map, ruta: '/terrenos' },
     { nombre: 'Vehículos', icon: Truck, ruta: '/vehiculos' },
-    { nombre: 'Reportes', icon: FileBarChart, ruta: '/reportes' },
-    { nombre: 'Auditoría', icon: Settings, ruta: '/auditoria' },
+    { nombre: 'Reportes', icon: FileText, ruta: '/reportes' },
+    { nombre: 'Auditoría', icon: Shield, ruta: '/auditoria' },
   ];
 
   const factorPeriodo = periodo === 0 ? 1 : periodo === 1 ? 2.5 : 6;
@@ -45,13 +66,19 @@ export default function Dashboard() {
     salidas: Math.round(d.salidas * factorPeriodo),
   }));
 
-  const donutData = [
-    { name: 'Disponible', value: estatusInmuebles.disponible },
-    { name: 'Ocupado', value: estatusInmuebles.ocupado },
-    { name: 'Comprometido', value: estatusInmuebles.comprometido },
-    { name: 'Desincorporado', value: estatusInmuebles.desincorporado },
-    { name: 'En litigio', value: estatusInmuebles.enLitigio },
-  ];
+  const donutData = liveStats
+    ? [
+        { name: 'Áreas totales', value: liveStats.parcelas.disponibles },
+        { name: 'Áreas comprometidas', value: liveStats.parcelas.comprometidas },
+        { name: 'Áreas desincorporadas', value: liveStats.parcelas.desincorporadas },
+      ]
+    : [
+        { name: 'Áreas totales', value: estatusInmuebles.disponible },
+        { name: 'Áreas ocupadas', value: estatusInmuebles.ocupado },
+        { name: 'Áreas comprometidas', value: estatusInmuebles.comprometido },
+        { name: 'Áreas desincorporadas', value: estatusInmuebles.desincorporado },
+        { name: 'Áreas en litigio', value: estatusInmuebles.enLitigio },
+      ];
   const DONUT_COLORS = ['#22c55e', '#102a43', '#f59e0b', '#ef4444', '#8b5cf6'];
 
   return (
@@ -84,19 +111,19 @@ export default function Dashboard() {
       {/* Stat Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard icon={<Package size={22} className="text-navy-600" />} label={dashboardStats.totalBienesMuebles.label}
-          value={dashboardStats.totalBienesMuebles.valor.toLocaleString()}
-          badge={dashboardStats.totalBienesMuebles.cambio ? <span className="text-green-500 text-xs font-medium">{dashboardStats.totalBienesMuebles.cambio}</span> : undefined}
+          value={totalBienes.toLocaleString()}
+          badge={statsQuery.loading ? <span className="text-gray-400 text-xs">...</span> : undefined}
           onClick={() => navigate('/almacen')} />
         <StatCard icon={<Landmark size={22} className="text-blue-600" />} label={dashboardStats.inventarioCementerio.label}
           value={dashboardStats.inventarioCementerio.valor.toLocaleString()}
           badge={dashboardStats.inventarioCementerio.cambio ? <span className="text-green-500 text-xs font-medium">{dashboardStats.inventarioCementerio.cambio}</span> : undefined}
           onClick={() => navigate('/cementerio')} />
         <StatCard icon={<Building2 size={22} className="text-navy-600" />} label={dashboardStats.totalInmuebles.label}
-          value={dashboardStats.totalInmuebles.valor.toString()}
-          badge={<span className="text-navy-500 text-xs font-medium">{estatusInmuebles.disponible} disponibles</span>}
+          value={totalParcelas.toString()}
+          badge={<span className="text-navy-500 text-xs font-medium">{parcelasDisponibles} disponibles</span>}
           onClick={() => navigate('/almacen/inmuebles')} />
         <StatCard icon={<Truck size={22} className="text-amber-600" />} label={dashboardStats.totalVehiculos.label}
-          value={dashboardStats.totalVehiculos.valor.toString()}
+          value={totalVehiculos.toString()}
           badge={<span className="text-green-500 text-xs font-medium">{resumenGeneral.vehiculosActivos} activos</span>}
           onClick={() => navigate('/vehiculos')} />
       </div>
@@ -104,12 +131,12 @@ export default function Dashboard() {
       {/* Summary bar */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         {[
-          { label: 'Bienes completos', value: resumenGeneral.bienesCompletos, color: 'text-green-700' },
-          { label: 'Bienes parciales', value: resumenGeneral.bienesParciales, color: 'text-amber-700' },
-          { label: 'Bienes con error', value: resumenGeneral.bienesError, color: 'text-red-600' },
+          { label: 'Bienes en bienes en uso', value: resumenGeneral.bienesCompletos, color: 'text-green-700' },
+          { label: 'Bienes regulares', value: resumenGeneral.bienesParciales, color: 'text-amber-700' },
+          { label: 'Bienes dañados', value: resumenGeneral.bienesError, color: 'text-red-600' },
           { label: 'Parcelas libres', value: resumenGeneral.parcelasDisponibles, color: 'text-green-700' },
-          { label: 'Parcelas ocupadas', value: resumenGeneral.parcelasOcupadas, color: 'text-navy-800' },
-          { label: 'Inm. comprometidos', value: resumenGeneral.inmComprometidos, color: 'text-amber-700' },
+          { label: 'Parcelas Parcialmente ocupadas', value: resumenGeneral.parcelasOcupadas, color: 'text-navy-800' },
+          { label: 'Parcelas ocupadas', value: resumenGeneral.inmComprometidos, color: 'text-amber-700' },
         ].map((item) => (
           <div key={item.label} className="bg-white rounded-xl border border-gray-200 p-4 text-center">
             <p className={`text-xl font-bold ${item.color}`}>{item.value}</p>
@@ -147,7 +174,7 @@ export default function Dashboard() {
         {/* Donut: Inmuebles */}
         <div className="bg-white rounded-xl border border-gray-200 p-6 cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate('/almacen/inmuebles')}>
           <h3 className="text-lg font-semibold text-navy-900">Inmuebles por Estado</h3>
-          <p className="text-sm text-gray-500 mb-4">Distribución de {estatusInmuebles.total} activos</p>
+          <p className="text-sm text-gray-500 mb-4">Distribución de {totalParcelas} parcelas</p>
           <div className="flex justify-center">
             <div className="relative">
               <ResponsiveContainer width={180} height={180}>
@@ -160,7 +187,9 @@ export default function Dashboard() {
               </ResponsiveContainer>
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                 <div className="text-center">
-                  <p className="text-2xl font-bold text-navy-900">{estatusInmuebles.porcentajeDisponible}%</p>
+                  <p className="text-2xl font-bold text-navy-900">
+                    {totalParcelas > 0 ? Math.round((parcelasDisponibles / totalParcelas) * 100) : estatusInmuebles.porcentajeDisponible}%
+                  </p>
                   <p className="text-xs text-gray-500 uppercase">Disponible</p>
                 </div>
               </div>
@@ -223,7 +252,13 @@ function StatCard({ icon, label, value, badge, borderColor = 'border-gray-200', 
   icon: React.ReactNode; label: string; value: string; badge?: React.ReactNode; borderColor?: string; onClick?: () => void;
 }) {
   return (
-    <div className={`bg-white rounded-xl border ${borderColor} p-5 cursor-pointer hover:shadow-md transition-shadow`} onClick={onClick}>
+    <div
+      className={`bg-white rounded-xl border ${borderColor} p-5 cursor-pointer shadow-sm hover:shadow-md hover:border-navy-200 hover:-translate-y-0.5 transition-all duration-200`}
+      onClick={onClick}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => e.key === 'Enter' && onClick?.()}
+    >
       <div className="flex items-start justify-between mb-3">
         <div className="w-11 h-11 bg-gray-50 rounded-xl flex items-center justify-center">{icon}</div>
         {badge}

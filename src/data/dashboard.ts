@@ -1,8 +1,8 @@
 // KPIs consolidados basados en data real
 export const dashboardStats = {
-  totalBienesMuebles: { valor: 1640, cambio: '+3.2%', label: 'Bienes Muebles' },
-  inventarioCementerio: { valor: 304, cambio: '+1.8%', label: 'Inv. Cementerio' },
-  totalInmuebles: { valor: 136, cambio: '', label: 'Inmuebles' },
+  totalBienesMuebles: { valor: 1640, cambio: '+3.2%', label: 'Bienes Administrativos ' },
+  inventarioCementerio: { valor: 304, cambio: '+1.8%', label: 'Bienes de Cementerio' },
+  totalInmuebles: { valor: 136, cambio: '', label: 'Parcelas' },
   totalVehiculos: { valor: 5, cambio: '', label: 'Vehículos' },
 };
 
@@ -29,9 +29,9 @@ export const movimientosAlmacen = [
 ];
 
 export const distribucionActivos = [
-  { name: 'Bienes Muebles', value: 1640, color: '#102a43' },
-  { name: 'Inv. Cementerio', value: 304, color: '#334e68' },
-  { name: 'Inmuebles', value: 136, color: '#627d98' },
+  { name: 'Bienes Administrativos  ', value: 1640, color: '#102a43' },
+  { name: 'Bienes de Cementerio', value: 304, color: '#334e68' },
+  { name: 'Parcelas', value: 136, color: '#627d98' },
   { name: 'Vehículos', value: 5, color: '#9fb3c8' },
 ];
 

@@ -1,29 +1,57 @@
-import { useState } from 'react';
-import { bienesMuebles, bienesStats } from '../data/bienes';
+import { useMemo, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { fetchBienes, fetchBienesEstadisticas, fetchBienByCodigo } from '../api/services/bienes.service';
+import { useApiQuery } from '../hooks/useApiQuery';
+import ApiState from '../components/ApiState';
+import AssetDetailView from '../components/module/AssetDetailView';
 import {
   SEDES, CONDICIONES_FISICAS, ESTADOS_USO, CATEGORIAS_GENERALES,
   FORMAS_ADQUISICION, MONEDAS,
 } from '../types/bien';
 import { bienMuebleSchema } from '../schemas/bien.schema';
 import { validarConZod } from '../utils/validators';
-import { formatMoneda } from '../utils/formatters';
+import { formatFecha, formatMoneda } from '../utils/formatters';
 import DataTable, { type Column, type FilterOption } from '../components/DataTable';
 import StatusBadge from '../components/StatusBadge';
 import ImportExcelModal from '../components/ImportExcelModal';
 import type { BienMueble } from '../types/bien';
 import ModulePageHeader from '../components/module/ModulePageHeader';
 import {
-  Plus, Package, AlertTriangle, Upload,
-  X, Save, XCircle, BarChart3, AlertCircle,
+  Package, AlertTriangle, Upload,
+  X, Save, XCircle, BarChart3, AlertCircle, ArrowLeft,
 } from 'lucide-react';
 
 export default function Materiales() {
-  const [lista, setLista] = useState(bienesMuebles);
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const bienesQuery = useApiQuery(() => fetchBienes({ limit: 500 }), []);
+  const statsQuery = useApiQuery(() => fetchBienesEstadisticas(), []);
+  const detailQuery = useApiQuery(
+    () => fetchBienByCodigo(Number(id)),
+    [id],
+    Boolean(id),
+  );
+  const lista = bienesQuery.data?.data ?? [];
+  const [localExtras, setLocalExtras] = useState<BienMueble[]>([]);
+  const displayList = [...localExtras, ...lista];
   const [showModal, setShowModal] = useState(false);
   const [showImport, setShowImport] = useState(false);
-  const [detalle, setDetalle] = useState<BienMueble | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [successMsg, setSuccessMsg] = useState('');
+
+  const bienesStats = useMemo(() => ({
+    total: statsQuery.data?.total ?? displayList.length,
+    enUso: displayList.filter((b) => b.estadoUso === 'En uso').length,
+    regulares: displayList.filter((b) => b.condicionFisica === 'Regular').length,
+    danados: displayList.filter((b) =>
+      ['Dañado', 'Averiado', 'Inservible'].includes(b.condicionFisica)
+    ).length,
+  }), [displayList, statsQuery.data?.total]);
+
+  const almacenOptions = useMemo(() => {
+    const names = [...new Set(displayList.map((b) => b.ubicacion).filter(Boolean))].sort();
+    return ['Todas', ...names];
+  }, [displayList]);
 
   // Form state
   const [form, setForm] = useState({
@@ -51,7 +79,7 @@ export default function Materiales() {
       return;
     }
     const nuevo: BienMueble = {
-      id: lista.length + 1,
+      id: displayList.length + 1,
       ...parsed,
       valorAdquisicion: parsed.valorAdquisicion,
       condicionFisica: parsed.condicionFisica as BienMueble['condicionFisica'],
@@ -63,7 +91,7 @@ export default function Materiales() {
       creadoEn: new Date().toISOString().split('T')[0],
       actualizadoEn: new Date().toISOString().split('T')[0],
     };
-    setLista([nuevo, ...lista]);
+    setLocalExtras([nuevo, ...localExtras]);
     setShowModal(false);
     resetForm();
     setSuccessMsg('Bien mueble registrado exitosamente');
@@ -96,25 +124,102 @@ export default function Materiales() {
       </div>
     )},
     { key: 'marca', label: 'Marca', sortable: true, render: (b) => (
-      <div>
-        <p className="text-sm text-gray-700">{b.marca}</p>
-        {b.modelo && <p className="text-xs text-gray-400">{b.modelo}</p>}
-      </div>
+      <span className="text-sm text-gray-700">{b.marca || '—'}</span>
     )},
-    { key: 'sede', label: 'Sede', sortable: true },
+    { key: 'modelo', label: 'Modelo', sortable: true, render: (b) => (
+      <span className="text-sm text-gray-600">{b.modelo || '—'}</span>
+    )},
+    { key: 'ubicacion', label: 'Almacén', sortable: true },
     { key: 'valorAdquisicion', label: 'Valor', align: 'right', sortable: true, render: (b) => (
       <span className="text-sm font-medium">{formatMoneda(b.valorAdquisicion, b.moneda)}</span>
     )},
     { key: 'condicionFisica', label: 'Condición', render: (b) => <StatusBadge status={b.condicionFisica} showDot size="sm" /> },
     { key: 'estadoUso', label: 'Estado', render: (b) => <StatusBadge status={b.estadoUso} size="sm" /> },
-    { key: 'estatusCarga', label: 'Carga', render: (b) => <StatusBadge status={b.estatusCarga} showDot size="sm" /> },
   ];
 
   const filters: FilterOption[] = [
     { key: 'condicionFisica', label: 'Condición física', options: ['Todas', ...CONDICIONES_FISICAS] },
     { key: 'estadoUso', label: 'Estado de uso', options: ['Todos', ...ESTADOS_USO] },
-    { key: 'sede', label: 'Sede', options: ['Todas', ...SEDES] },
+    { key: 'ubicacion', label: 'Almacén', options: almacenOptions },
   ];
+
+  if (id) {
+    const bienId = Number(id);
+    const bien =
+      detailQuery.data ??
+      displayList.find((b) => b.id === bienId) ??
+      null;
+
+    return (
+      <ApiState loading={detailQuery.loading && !bien} error={detailQuery.error} onRetry={detailQuery.refetch}>
+        {bien && (
+          <AssetDetailView
+            title="Bienes e Inmuebles Administrativos"
+            breadcrumb={[
+              { label: 'Dashboard', to: '/dashboard' },
+              { label: 'Bienes Administrativos', to: '/almacen' },
+              { label: bien.codigoInterno },
+            ]}
+            categoryFields={[
+              { label: 'Categoría', value: bien.categoriaGeneral },
+              { label: 'Sub Categoría', value: bien.subcategoria },
+              { label: 'Categoría Específica', value: bien.categoriaEspecifica },
+            ]}
+            sections={[
+              {
+                title: 'Detalles',
+                fields: [
+                  { label: 'Descripción', value: bien.descripcion },
+                  { label: 'Fecha de Ingreso', value: formatFecha(bien.fechaAdquisicion) },
+                  { label: 'Color', value: bien.color || '—' },
+                  { label: 'Marca', value: bien.marca },
+                  { label: 'Modelo', value: bien.modelo || '—' },
+                  { label: 'Estado', value: <StatusBadge status={bien.estadoUso} size="sm" /> },
+                  { label: 'Código', value: bien.sinCodigo ? 'Sin código' : bien.codigoInterno },
+                  { label: 'Serial', value: bien.sinSerial ? 'Sin serial' : (bien.serial || '—') },
+                  { label: 'Responsable', value: bien.unidadAdministrativa },
+                  { label: 'Unidad Administrativa', value: bien.unidadAdministrativa },
+                  { label: 'Estado de uso', value: <StatusBadge status={bien.estadoUso} size="sm" /> },
+                  { label: 'Condición Física', value: <StatusBadge status={bien.condicionFisica} showDot size="sm" /> },
+                  { label: 'Almacén', value: bien.ubicacion },
+                  { label: 'Sede', value: bien.sede },
+                  { label: 'Valor de Adquisición', value: formatMoneda(bien.valorAdquisicion, bien.moneda) },
+                ],
+              },
+              {
+                title: 'Detalles del documento de Ingreso',
+                fields: [
+                  { label: 'Nro de Documento', value: bien.numeroDocumento },
+                  { label: 'Fecha Adquisición', value: formatFecha(bien.fechaAdquisicion) },
+                  { label: 'Forma de Adquisición', value: bien.formaAdquisicion },
+                  { label: 'Fuente de registro', value: bien.fuenteRegistro },
+                  { label: 'Valor Total de Documento', value: formatMoneda(bien.valorAdquisicion, bien.moneda) },
+                ],
+              },
+            ]}
+            actions={
+              <>
+                <button
+                  type="button"
+                  onClick={() => navigate('/almacen')}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  <ArrowLeft size={16} />
+                  Volver al listado
+                </button>
+                <button type="button" className="px-5 py-2.5 border border-navy-200 text-navy-800 rounded-lg text-sm font-semibold hover:bg-navy-50">
+                  Transferir a otro almacén
+                </button>
+                <button type="button" className="px-5 py-2.5 border border-red-200 text-red-700 rounded-lg text-sm font-semibold hover:bg-red-50">
+                  Retirar de Inventario
+                </button>
+              </>
+            }
+          />
+        )}
+      </ApiState>
+    );
+  }
 
   return (
     <div className="p-4 md:p-6 space-y-6">
@@ -138,91 +243,50 @@ export default function Materiales() {
           <div className="w-11 h-11 bg-navy-100 rounded-xl flex items-center justify-center"><Package size={22} className="text-navy-600" /></div>
           <div>
             <p className="text-sm text-gray-500">Total Bienes</p>
-            <p className="text-2xl font-bold text-navy-900">{bienesStats.totalRegistros.toLocaleString()}</p>
+            <p className="text-2xl font-bold text-navy-900">{(bienesStats.total ?? 0).toLocaleString()}</p>
           </div>
         </div>
         <div className="bg-white rounded-xl border border-gray-200 p-5 flex items-center gap-4">
           <div className="w-11 h-11 bg-green-100 rounded-xl flex items-center justify-center"><BarChart3 size={22} className="text-green-600" /></div>
           <div>
-            <p className="text-sm text-gray-500">Carga Completa</p>
-            <p className="text-2xl font-bold text-green-700">{bienesStats.cargaCompleta}</p>
+            <p className="text-sm text-gray-500">Bienes en uso</p>
+            <p className="text-2xl font-bold text-green-700">{(bienesStats.enUso ?? 0).toLocaleString()}</p>
           </div>
         </div>
         <div className="bg-white rounded-xl border border-amber-200 p-5 flex items-center gap-4">
           <div className="w-11 h-11 bg-amber-100 rounded-xl flex items-center justify-center"><AlertTriangle size={22} className="text-amber-500" /></div>
           <div>
-            <p className="text-sm text-gray-500">Carga Parcial</p>
-            <p className="text-2xl font-bold text-amber-700">{bienesStats.cargaParcial}</p>
+            <p className="text-sm text-gray-500">Bienes Regulares</p>
+            <p className="text-2xl font-bold text-amber-700">{(bienesStats.regulares ?? 0).toLocaleString()}</p>
           </div>
         </div>
         <div className="bg-white rounded-xl border border-red-200 p-5 flex items-center gap-4">
           <div className="w-11 h-11 bg-red-100 rounded-xl flex items-center justify-center"><AlertCircle size={22} className="text-red-500" /></div>
           <div>
-            <p className="text-sm text-gray-500">Con Errores</p>
-            <p className="text-2xl font-bold text-red-700">{bienesStats.cargaError}</p>
+            <p className="text-sm text-gray-500">Bienes dañados</p>
+            <p className="text-2xl font-bold text-red-700">{(bienesStats.danados ?? 0).toLocaleString()}</p>
           </div>
         </div>
       </div>
 
-      {/* Table */}
-      <DataTable
-        data={lista}
-        columns={columns}
-        filters={filters}
-        searchPlaceholder="Buscar por código, descripción, marca, serial..."
-        searchKeys={['codigoInterno', 'descripcion', 'marca', 'serial', 'ubicacion']}
-        perPage={10}
-        onRowClick={setDetalle}
-      />
-
-      {/* Detail Panel */}
-      {detalle && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex justify-end" onClick={() => setDetalle(null)}>
-          <div className="bg-white w-full max-w-lg h-full overflow-y-auto shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <div className="p-6 border-b border-gray-200 flex items-center justify-between">
-              <h3 className="text-lg font-bold text-navy-900">Detalle del Bien</h3>
-              <button onClick={() => setDetalle(null)} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
-            </div>
-            <div className="p-6 space-y-5">
-              <div className="flex gap-3 flex-wrap">
-                <StatusBadge status={detalle.condicionFisica} showDot size="md" />
-                <StatusBadge status={detalle.estadoUso} size="md" />
-                <StatusBadge status={detalle.estatusCarga} showDot size="md" />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                {[
-                  ['Código', detalle.codigoInterno + (detalle.sinCodigo ? ' (Sin código)' : '')],
-                  ['Descripción', detalle.descripcion],
-                  ['Marca', detalle.marca],
-                  ['Modelo', detalle.modelo || '—'],
-                  ['Color', detalle.color || '—'],
-                  ['Serial', detalle.sinSerial ? 'Sin serial' : (detalle.serial || '—')],
-                  ['Sede', detalle.sede],
-                  ['Unidad', detalle.unidadAdministrativa],
-                  ['Ubicación', detalle.ubicacion],
-                  ['Categoría', detalle.categoriaGeneral],
-                  ['Forma adquisición', detalle.formaAdquisicion],
-                  ['Fecha adquisición', detalle.fechaAdquisicion || '—'],
-                  ['Documento', detalle.numeroDocumento || '—'],
-                  ['Valor', formatMoneda(detalle.valorAdquisicion, detalle.moneda)],
-                  ['Fuente', detalle.fuenteRegistro],
-                ].map(([label, value]) => (
-                  <div key={label}>
-                    <p className="text-xs text-gray-500">{label}</p>
-                    <p className="text-sm font-medium text-navy-900">{value}</p>
-                  </div>
-                ))}
-              </div>
-              {detalle.observaciones && (
-                <div>
-                  <p className="text-xs text-gray-500 mb-1">Observaciones</p>
-                  <p className="text-sm text-gray-700 bg-gray-50 rounded-lg p-3">{detalle.observaciones}</p>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      <ApiState
+        loading={bienesQuery.loading}
+        error={bienesQuery.error}
+        onRetry={bienesQuery.refetch}
+        empty={!bienesQuery.loading && displayList.length === 0}
+        emptyMessage="No hay bienes registrados. Los registros nuevos requieren almacén y categoría en la base de datos."
+      >
+        <DataTable
+          data={displayList}
+          columns={columns}
+          filters={filters}
+          searchPlaceholder="Buscar por código, descripción, marca, serial..."
+          searchKeys={['codigoInterno', 'descripcion', 'marca', 'modelo', 'serial', 'ubicacion']}
+          perPage={10}
+          exportFormats={['PDF']}
+          onDetails={(b) => navigate(`/almacen/${b.id}`)}
+        />
+      </ApiState>
 
       {/* New Item Modal */}
       {showModal && (

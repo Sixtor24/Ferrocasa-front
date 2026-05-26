@@ -130,7 +130,6 @@ export default function Login() {
 
       {/* Location label */}
       <div className="absolute bottom-6 right-6 z-10 text-right text-white">
-        <p className="text-sm opacity-80">Vivienda y Hábitat</p>
         <p className="font-bold text-lg">C.V.G. FERROCASA, Venezuela</p>
       </div>
     </div>

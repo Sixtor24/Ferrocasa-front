@@ -64,7 +64,7 @@ export default function ModulePageHeader({
           className="inline-flex items-center gap-2 px-4 py-2.5 border border-gray-200 bg-white text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
         >
           <FileText size={16} />
-          Formato Clásico
+          Formato Interno
         </button>
       </div>
     </div>

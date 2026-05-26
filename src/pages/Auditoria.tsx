@@ -1,13 +1,8 @@
 import { useState, useMemo } from 'react';
-import { registrosAuditoria, seguridadStats } from '../data/auditoria';
+import { registrosAuditoria } from '../data/auditoria';
 import {
-  Search,
   FileText,
   FileSpreadsheet,
-  Filter,
-  Shield,
-  Activity,
-  Fingerprint,
   ChevronLeft,
   ChevronRight,
   X,
@@ -299,30 +294,6 @@ export default function Auditoria() {
         </div>
       </div>
 
-      {/* Security Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-navy-900 rounded-xl p-6 text-white flex items-center gap-4">
-          <Shield size={32} className="opacity-80" />
-          <div>
-            <p className="text-sm text-white/70">Integridad del Sistema</p>
-            <p className="text-xl font-bold">{seguridadStats.integridad}</p>
-          </div>
-        </div>
-        <div className="bg-navy-700 rounded-xl p-6 text-white flex items-center gap-4">
-          <Activity size={32} className="opacity-80" />
-          <div>
-            <p className="text-sm text-white/70">Acciones hoy</p>
-            <p className="text-xl font-bold">{seguridadStats.accionesHoy.toLocaleString()}</p>
-          </div>
-        </div>
-        <div className="bg-gray-100 rounded-xl p-6 flex items-center gap-4">
-          <Fingerprint size={32} className="text-gray-500" />
-          <div>
-            <p className="text-sm text-gray-500">Hash de Seguridad</p>
-            <p className="text-base font-bold text-navy-900">{seguridadStats.hashSeguridad}</p>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }

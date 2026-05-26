@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { inmueblesList, inmuebleStats } from '../data/inmuebles';
+import { fetchParcelas } from '../api/services/parcelas.service';
+import { useApiQuery } from '../hooks/useApiQuery';
+import ApiState from '../components/ApiState';
+import { inmuebleStats as inmuebleStatsMock } from '../data/inmuebles';
 import { ESTADOS_OCUPACION, ZONIFICACIONES, TIPOS_INMUEBLE } from '../types/inmueble';
 import { inmuebleSchema } from '../schemas/inmueble.schema';
 import { validarConZod } from '../utils/validators';
@@ -15,7 +18,20 @@ import {
 } from 'lucide-react';
 
 export default function Inmuebles() {
-  const [lista, setLista] = useState(inmueblesList);
+  const parcelasQuery = useApiQuery(() => fetchParcelas({ limit: 500 }), []);
+  const listaFromApi = parcelasQuery.data?.inmuebles ?? [];
+  const [localExtras, setLocalExtras] = useState<Inmueble[]>([]);
+  const lista = [...localExtras, ...listaFromApi];
+  const inmuebleStats = {
+    ...inmuebleStatsMock,
+    totalRegistros: parcelasQuery.data?.meta.total ?? lista.length,
+    disponibles: listaFromApi.length
+      ? listaFromApi.filter((i) => i.estadoOcupacion === 'Disponible').length
+      : inmuebleStatsMock.disponibles,
+    comprometidos: listaFromApi.filter((i) => i.estadoOcupacion === 'Comprometido').length,
+    desincorporados: listaFromApi.filter((i) => i.estadoOcupacion === 'Desincorporado').length,
+    ocupados: listaFromApi.filter((i) => i.estadoOcupacion === 'Ocupado').length,
+  };
   const [showModal, setShowModal] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [detalle, setDetalle] = useState<Inmueble | null>(null);
@@ -50,7 +66,7 @@ export default function Inmuebles() {
       estadoOcupacion: parsed.estadoOcupacion as Inmueble['estadoOcupacion'],
       usoActual: parsed.usoActual as Inmueble['usoActual'],
     };
-    setLista([nuevo, ...lista]);
+    setLocalExtras([nuevo, ...localExtras]);
     setShowModal(false);
     resetForm();
     setSuccessMsg('Inmueble registrado exitosamente');
@@ -125,16 +141,23 @@ export default function Inmuebles() {
         </div>
       </div>
 
-      {/* Table */}
-      <DataTable
-        data={lista}
-        columns={columns}
-        filters={filters}
-        searchPlaceholder="Buscar por parcela, ubicación, proyecto..."
-        searchKeys={['identificacionParcela', 'ubicacion', 'proyecto', 'tipoInmueble']}
-        perPage={8}
-        onRowClick={setDetalle}
-      />
+      <ApiState
+        loading={parcelasQuery.loading}
+        error={parcelasQuery.error}
+        onRetry={parcelasQuery.refetch}
+        empty={!parcelasQuery.loading && lista.length === 0}
+        emptyMessage="No hay parcelas/inmuebles en el sistema."
+      >
+        <DataTable
+          data={lista}
+          columns={columns}
+          filters={filters}
+          searchPlaceholder="Buscar por parcela, ubicación, proyecto..."
+          searchKeys={['identificacionParcela', 'ubicacion', 'proyecto', 'tipoInmueble']}
+          perPage={8}
+          onRowClick={setDetalle}
+        />
+      </ApiState>
 
       {/* Summary bar */}
       <div className="bg-navy-900 rounded-xl p-5 text-white">

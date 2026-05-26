@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import {
   Search, X, ChevronLeft, ChevronRight,
   ArrowUpDown, ArrowUp, ArrowDown,
-  Download, FileText,
+  Download, FileText, Eye,
 } from 'lucide-react';
 
 export interface Column<T> {
@@ -29,7 +29,9 @@ interface DataTableProps<T> {
   searchKeys?: (keyof T)[];
   perPage?: number;
   onRowClick?: (item: T) => void;
+  onDetails?: (item: T) => void;
   onExport?: (type: 'PDF' | 'Excel' | 'CSV') => void;
+  exportFormats?: ('PDF' | 'Excel' | 'CSV')[];
   emptyMessage?: string;
   title?: string;
 }
@@ -44,7 +46,9 @@ export default function DataTable<T extends { id: number | string }>({
   searchKeys = [],
   perPage = 10,
   onRowClick,
+  onDetails,
   onExport,
+  exportFormats = ['PDF', 'Excel'],
   emptyMessage = 'No se encontraron registros.',
 }: DataTableProps<T>) {
   const [search, setSearch] = useState('');
@@ -125,7 +129,30 @@ export default function DataTable<T extends { id: number | string }>({
 
   const totalPages = Math.ceil(filtered.length / perPage);
   const paginated = filtered.slice((page - 1) * perPage, page * perPage);
-  const visibleCols = columns.filter((c) => !c.hidden);
+  const baseCols = columns.filter((c) => !c.hidden);
+  const visibleCols = onDetails
+    ? [
+        ...baseCols,
+        {
+          key: '_detalles',
+          label: 'Detalles',
+          align: 'center' as const,
+          render: (item: T) => (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDetails(item);
+              }}
+              className="inline-flex items-center justify-center w-9 h-9 rounded-full border border-navy-200 text-navy-600 hover:bg-navy-900 hover:text-white hover:border-navy-900 transition-colors"
+              title="Ver detalles"
+            >
+              <Eye size={16} />
+            </button>
+          ),
+        },
+      ]
+    : baseCols;
 
   const hasActiveFilters = search !== '' || filters.some((f) => filterValues[f.key] !== f.options[0]);
 
@@ -158,12 +185,16 @@ export default function DataTable<T extends { id: number | string }>({
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {exportMsg && <span className="text-sm text-green-600 font-medium animate-pulse">{exportMsg}</span>}
-          <button onClick={() => handleExport('PDF')} className="flex items-center gap-1.5 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50">
-            <FileText size={14} /> PDF
-          </button>
-          <button onClick={() => handleExport('Excel')} className="flex items-center gap-1.5 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50">
-            <Download size={14} /> Excel
-          </button>
+          {exportFormats.includes('PDF') && (
+            <button onClick={() => handleExport('PDF')} className="flex items-center gap-1.5 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50">
+              <FileText size={14} /> PDF
+            </button>
+          )}
+          {exportFormats.includes('Excel') && (
+            <button onClick={() => handleExport('Excel')} className="flex items-center gap-1.5 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50">
+              <Download size={14} /> Excel
+            </button>
+          )}
         </div>
       </div>
 

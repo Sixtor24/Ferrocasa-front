@@ -37,9 +37,12 @@ function AppRoutes() {
       >
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/almacen" element={<Materiales />} />
+        <Route path="/almacen/:id" element={<Materiales />} />
         <Route path="/almacen/proyectos" element={<Almacen />} />
         <Route path="/almacen/inmuebles" element={<Inmuebles />} />
         <Route path="/cementerio" element={<Cementerio />} />
+        <Route path="/cementerio/parcela/:id" element={<Cementerio />} />
+        <Route path="/cementerio/:id" element={<Cementerio />} />
         <Route path="/terrenos" element={<Terrenos />} />
         <Route path="/terrenos/:id" element={<Terrenos />} />
         <Route path="/vehiculos" element={<Vehiculos />} />

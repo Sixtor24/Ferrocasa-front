@@ -82,9 +82,3 @@ export const registrosAuditoria = [
 ];
 
 export const totalRegistros = 128;
-
-export const seguridadStats = {
-  integridad: 'Nivel Alto',
-  accionesHoy: 1284,
-  hashSeguridad: 'SHA-256: 4f8a...9c22',
-};
