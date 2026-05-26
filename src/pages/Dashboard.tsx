@@ -31,21 +31,25 @@ export default function Dashboard() {
 
   const statsQuery = useApiQuery(
     async () => {
-      const [bienes, vehiculos, parcelas] = await Promise.all([
+      const [bienesResult, vehiculosResult, parcelasResult] = await Promise.allSettled([
         fetchBienesEstadisticas(),
         fetchVehiculosEstadisticas(),
         fetchParcelasEstadisticas(),
       ]);
-      return { bienes, vehiculos, parcelas };
+      return {
+        bienes: bienesResult.status === 'fulfilled' ? bienesResult.value : null,
+        vehiculos: vehiculosResult.status === 'fulfilled' ? vehiculosResult.value : null,
+        parcelas: parcelasResult.status === 'fulfilled' ? parcelasResult.value : null,
+      };
     },
     [],
   );
 
   const liveStats = statsQuery.data;
-  const totalBienes = liveStats?.bienes.total ?? dashboardStats.totalBienesMuebles.valor;
-  const totalVehiculos = liveStats?.vehiculos.total ?? dashboardStats.totalVehiculos.valor;
-  const totalParcelas = liveStats?.parcelas.total ?? estatusInmuebles.total;
-  const parcelasDisponibles = liveStats?.parcelas.disponibles ?? estatusInmuebles.disponible;
+  const totalBienes = liveStats?.bienes?.total ?? dashboardStats.totalBienesMuebles.valor;
+  const totalVehiculos = liveStats?.vehiculos?.total ?? dashboardStats.totalVehiculos.valor;
+  const totalParcelas = liveStats?.parcelas?.total ?? estatusInmuebles.total;
+  const parcelasDisponibles = liveStats?.parcelas?.disponibles ?? estatusInmuebles.disponible;
 
   const now = new Date().toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit', hour12: true });
 
@@ -66,11 +70,11 @@ export default function Dashboard() {
     salidas: Math.round(d.salidas * factorPeriodo),
   }));
 
-  const donutData = liveStats
+  const donutData = liveStats?.parcelas
     ? [
-        { name: 'Áreas totales', value: liveStats.parcelas.disponibles },
-        { name: 'Áreas comprometidas', value: liveStats.parcelas.comprometidas },
-        { name: 'Áreas desincorporadas', value: liveStats.parcelas.desincorporadas },
+        { name: 'Áreas totales', value: liveStats.parcelas.disponibles ?? 0 },
+        { name: 'Áreas comprometidas', value: liveStats.parcelas.comprometidas ?? 0 },
+        { name: 'Áreas desincorporadas', value: liveStats.parcelas.desincorporadas ?? 0 },
       ]
     : [
         { name: 'Áreas totales', value: estatusInmuebles.disponible },

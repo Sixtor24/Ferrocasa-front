@@ -24,7 +24,7 @@ export default function Inmuebles() {
   const lista = [...localExtras, ...listaFromApi];
   const inmuebleStats = {
     ...inmuebleStatsMock,
-    totalRegistros: parcelasQuery.data?.meta.total ?? lista.length,
+    totalRegistros: parcelasQuery.data?.meta?.total ?? lista.length,
     disponibles: listaFromApi.length
       ? listaFromApi.filter((i) => i.estadoOcupacion === 'Disponible').length
       : inmuebleStatsMock.disponibles,
