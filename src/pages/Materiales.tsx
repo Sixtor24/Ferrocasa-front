@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
 import { bienesMuebles, bienesStats } from '../data/bienes';
 import {
   SEDES, CONDICIONES_FISICAS, ESTADOS_USO, CATEGORIAS_GENERALES,
@@ -12,6 +11,7 @@ import DataTable, { type Column, type FilterOption } from '../components/DataTab
 import StatusBadge from '../components/StatusBadge';
 import ImportExcelModal from '../components/ImportExcelModal';
 import type { BienMueble } from '../types/bien';
+import ModulePageHeader from '../components/module/ModulePageHeader';
 import {
   Plus, Package, AlertTriangle, Upload,
   X, Save, XCircle, BarChart3, AlertCircle,
@@ -118,27 +118,19 @@ export default function Materiales() {
 
   return (
     <div className="p-4 md:p-6 space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 text-sm text-gray-500 mb-1">
-            <Link to="/dashboard" className="hover:text-navy-600">Dashboard</Link>
-            <span>/</span>
-            <span className="font-medium text-navy-800">Bienes Muebles</span>
-          </div>
-          <h1 className="text-2xl font-bold text-navy-900">Inventario de Bienes Muebles</h1>
-          <p className="text-sm text-gray-500 mt-1">SUDEBIP — Control patrimonial de activos institucionales</p>
-        </div>
-        <div className="flex flex-wrap gap-3">
-          {successMsg && <span className="text-sm text-green-600 font-medium animate-pulse self-center">{successMsg}</span>}
-          <button onClick={() => setShowImport(true)} className="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50">
-            <Upload size={16} /> Importar Excel
-          </button>
-          <button onClick={() => setShowModal(true)} className="flex items-center gap-2 px-5 py-2.5 bg-navy-900 text-white rounded-lg text-sm font-medium hover:bg-navy-800">
-            <Plus size={18} /> Nuevo Bien
-          </button>
-        </div>
-      </div>
+      <ModulePageHeader
+        title="Bienes e Inmuebles Administrativos"
+        breadcrumb={[{ label: 'Dashboard', to: '/dashboard' }, { label: 'Bienes Administrativos' }]}
+        onCreate={() => setShowModal(true)}
+        extraActions={
+          <>
+            {successMsg && <span className="text-sm text-green-600 font-medium animate-pulse self-center">{successMsg}</span>}
+            <button type="button" onClick={() => setShowImport(true)} className="inline-flex items-center gap-2 px-4 py-2.5 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50">
+              <Upload size={16} /> Importar Excel
+            </button>
+          </>
+        }
+      />
 
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

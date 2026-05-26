@@ -29,9 +29,10 @@ export default function Dashboard() {
   const now = new Date().toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit', hour12: true });
 
   const accionesRapidas = [
-    { nombre: 'Bienes Muebles', icon: ClipboardList, ruta: '/almacen' },
+    { nombre: 'Bienes Admin.', icon: ClipboardList, ruta: '/almacen' },
     { nombre: 'Inmuebles', icon: MapPin, ruta: '/almacen/inmuebles' },
     { nombre: 'Cementerio', icon: Landmark, ruta: '/cementerio' },
+    { nombre: 'Terrenos', icon: MapPin, ruta: '/terrenos' },
     { nombre: 'Vehículos', icon: Truck, ruta: '/vehiculos' },
     { nombre: 'Reportes', icon: FileBarChart, ruta: '/reportes' },
     { nombre: 'Auditoría', icon: Settings, ruta: '/auditoria' },

@@ -94,8 +94,14 @@ export default function Cementerio() {
             <span>/</span>
             <span className="font-medium text-navy-800">Cementerio</span>
           </div>
-          <h1 className="text-2xl font-bold text-navy-900">Gestión de Cementerio Municipal</h1>
-          <p className="text-sm text-gray-500 mt-1">Inventario físico ({cementerioStats.totalInventario} bienes) y parcelas ({cementerioStats.totalParcelas} registros).</p>
+          <h1 className="text-2xl font-bold text-navy-900 font-display">
+            {tab === 'inventario' ? 'Bienes e Inmuebles del Cementerio' : 'Gestión de Parcelas'}
+          </h1>
+          <p className="text-sm text-gray-500 mt-1">
+            {tab === 'inventario'
+              ? `Inventario físico — ${cementerioStats.totalInventario} bienes registrados`
+              : `Control de parcelas — ${cementerioStats.totalParcelas} registros`}
+          </p>
         </div>
         <div className="flex flex-wrap gap-3">
           {successMsg && <span className="text-sm text-green-600 font-medium animate-pulse self-center">{successMsg}</span>}

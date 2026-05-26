@@ -12,7 +12,12 @@
   --color-navy-800: #243b53;
   --color-navy-900: #102a43;
   --color-navy-950: #0a1929;
-  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-sans: 'DM Sans', system-ui, -apple-system, sans-serif;
+  --font-display: 'Libre Baskerville', Georgia, serif;
+}
+
+.font-display {
+  font-family: var(--font-display);
 }
 
 #root {

@@ -153,7 +153,6 @@ export default function Auditoria() {
             >
               <option>Todos los módulos</option>
               <option>Almacén</option>
-              <option>Ventas</option>
               <option>Sistema</option>
             </select>
           </div>

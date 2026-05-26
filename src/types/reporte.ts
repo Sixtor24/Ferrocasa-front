@@ -1,7 +1,7 @@
 // Reportes y auditoría
 
 export type TipoMovimiento = 'Entrada' | 'Salida' | 'Traslado' | 'Baja' | 'Asignación' | 'Corrección' | 'Importación';
-export type ModuloSistema = 'Bienes' | 'Cementerio' | 'Inmuebles' | 'Vehículos' | 'Ventas' | 'Sistema';
+export type ModuloSistema = 'Bienes' | 'Cementerio' | 'Inmuebles' | 'Vehículos' | 'Terrenos' | 'Sistema';
 
 export interface MovimientoAuditoria {
   id: number;
