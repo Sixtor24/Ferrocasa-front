@@ -28,7 +28,7 @@ const searchablePages = [
   { label: 'Bienes Administrativos', path: '/almacen', keywords: 'materiales bienes muebles administrativos inventario' },
   { label: 'Proyectos Habitacionales', path: '/almacen/proyectos', keywords: 'proyectos edificio urbanismo villa residencias' },
   { label: 'Registro de Parcelas', path: '/almacen/inmuebles', keywords: 'inmuebles propiedad apartamento casa terreno parcela' },
-  { label: 'Bienes Cementerio', path: '/cementerio', keywords: 'cementerio parcela bienes inmuebles' },
+  { label: 'Bienes Cementerio', path: '/cementerio', keywords: 'cementerio inventario bienes inmuebles' },
   { label: 'Terrenos', path: '/terrenos', keywords: 'terrenos parcelas zonificación topografía' },
   { label: 'Vehículos y Maquinaria', path: '/vehiculos', keywords: 'vehículos flota camioneta camión maquinaria placa' },
   { label: 'Reportes', path: '/reportes', keywords: 'reportes reporte auditoría pdf excel export' },

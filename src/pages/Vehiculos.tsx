@@ -22,6 +22,140 @@ import { ArrowLeft } from 'lucide-react';
 
 const PER_PAGE = 5;
 
+function formaAdquisicionVehiculo(v: Vehiculo) {
+  if (v.numeroDocumento.startsWith('TR-')) return 'Transferencia';
+  if (v.numeroDocumento.startsWith('OC-')) return 'Compra';
+  return 'Compra';
+}
+
+function proveedorVehiculo(v: Vehiculo) {
+  if (!v.numeroDocumento || v.numeroDocumento === '—') return '—';
+  return '—';
+}
+
+function VehiculoDetail({ vehiculo, onVolver }: { vehiculo: Vehiculo; onVolver: () => void }) {
+  const [estadoUso, setEstadoUso] = useState(vehiculo.estadoUso);
+  const [condicionFisica, setCondicionFisica] = useState(vehiculo.condicionFisica);
+
+  const placaDisplay = vehiculo.sinPlaca ? 'Sin placa' : vehiculo.placa;
+  const serialMotorDisplay = vehiculo.sinSerialMotor ? 'Sin serial' : vehiculo.serialMotor;
+  const serialCarroceriaDisplay = vehiculo.sinSerialCarroceria
+    ? 'Sin serial'
+    : (vehiculo.serialCarroceria || '—');
+
+  return (
+    <AssetDetailView
+      title="Vehículos y Maquinaria"
+      breadcrumb={[
+        { label: 'Dashboard', to: '/dashboard' },
+        { label: 'Vehículos', to: '/vehiculos' },
+        { label: vehiculo.codigoInterno },
+      ]}
+      categoryFields={[
+        { label: 'Categoría', value: vehiculo.categoriaGeneral },
+        { label: 'Sub Categoría', value: vehiculo.subcategoria },
+        { label: 'Categoría Específica', value: vehiculo.subcategoria },
+      ]}
+      sections={[
+        {
+          title: 'Detalles',
+          fields: [
+            { label: 'Descripción', value: vehiculo.descripcion },
+            { label: 'Código', value: vehiculo.codigoInterno },
+            {
+              label: 'Estado de uso',
+              value: (
+                <select
+                  value={estadoUso}
+                  onChange={(e) => setEstadoUso(e.target.value as Vehiculo['estadoUso'])}
+                  className="input-field max-w-xs"
+                >
+                  {ESTADOS_USO_VEHICULO.map((opt) => (
+                    <option key={opt} value={opt}>
+                      {opt}
+                    </option>
+                  ))}
+                </select>
+              ),
+            },
+            { label: 'Fecha de Ingreso', value: formatFecha(vehiculo.fechaAdquisicion) },
+            { label: 'Placa', value: placaDisplay },
+            {
+              label: 'Condición Física',
+              value: (
+                <select
+                  value={condicionFisica}
+                  onChange={(e) => setCondicionFisica(e.target.value as Vehiculo['condicionFisica'])}
+                  className="input-field max-w-xs"
+                >
+                  {CONDICIONES_VEHICULO.map((opt) => (
+                    <option key={opt} value={opt}>
+                      {opt}
+                    </option>
+                  ))}
+                </select>
+              ),
+            },
+            { label: 'Color', value: vehiculo.color },
+            { label: 'Serial del motor', value: serialMotorDisplay },
+            { label: 'Almacén', value: vehiculo.almacen },
+            { label: 'Marca', value: vehiculo.marca },
+            { label: 'Serial de carrocería', value: serialCarroceriaDisplay },
+            { label: 'Departamento', value: vehiculo.departamento },
+            { label: 'Modelo', value: vehiculo.modelo },
+            { label: 'Responsable', value: vehiculo.departamento },
+            { label: 'Sede', value: vehiculo.sede },
+            { label: 'Año de fabricación', value: vehiculo.anioFabricacion?.toString() ?? '—' },
+            { label: 'Unidad Administrativa', value: vehiculo.departamento },
+            { label: 'Estado', value: <StatusBadge status={estadoUso} size="sm" /> },
+            {
+              label: 'Valor de Adquisición',
+              value: vehiculo.valorAdquisicion ? formatMoneda(vehiculo.valorAdquisicion, 'USD') : '—',
+            },
+          ],
+        },
+        {
+          title: 'Detalles del documento de Ingreso',
+          fields: [
+            { label: 'Nro de Documento', value: vehiculo.numeroDocumento || '—' },
+            { label: 'Forma de Adquisición', value: formaAdquisicionVehiculo(vehiculo) },
+            {
+              label: 'Valor Total de Documento',
+              value: vehiculo.valorAdquisicion ? formatMoneda(vehiculo.valorAdquisicion, 'USD') : '—',
+            },
+            { label: 'Fecha Adquisición', value: formatFecha(vehiculo.fechaAdquisicion) },
+            { label: 'Nombre de Proveedor', value: proveedorVehiculo(vehiculo) },
+          ],
+        },
+      ]}
+      actions={
+        <>
+          <button
+            type="button"
+            onClick={onVolver}
+            className="inline-flex items-center gap-2 px-4 py-2.5 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50"
+          >
+            <ArrowLeft size={16} />
+            Volver al listado
+          </button>
+          <button
+            type="button"
+            className="px-5 py-2.5 border border-navy-200 text-navy-800 rounded-lg text-sm font-semibold hover:bg-navy-50"
+          >
+            Transferir a otro almacén
+          </button>
+          <button
+            type="button"
+            className="px-5 py-2.5 border border-red-200 text-red-700 rounded-lg text-sm font-semibold hover:bg-red-50"
+          >
+            Retirar de Inventario
+          </button>
+        </>
+      }
+    />
+  );
+}
+
 export default function Vehiculos() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -89,75 +223,7 @@ export default function Vehiculos() {
   if (id) {
     return (
       <ApiState loading={detailQuery.loading} error={detailQuery.error} onRetry={detailQuery.refetch}>
-        {vehiculo && (
-          <AssetDetailView
-            title="Vehículos y Maquinaria"
-            breadcrumb={[
-              { label: 'Dashboard', to: '/dashboard' },
-              { label: 'Vehículos', to: '/vehiculos' },
-              { label: vehiculo.codigoInterno },
-            ]}
-            categoryFields={[
-              { label: 'Categoría', value: vehiculo.categoriaGeneral },
-              { label: 'Sub Categoría', value: vehiculo.subcategoria },
-              { label: 'Categoría Específica', value: vehiculo.subcategoria },
-            ]}
-            sections={[
-              {
-                title: 'Detalles',
-                fields: [
-                  { label: 'Descripción', value: vehiculo.descripcion },
-                  { label: 'Fecha de Ingreso', value: formatFecha(vehiculo.fechaAdquisicion) },
-                  { label: 'Color', value: vehiculo.color },
-                  { label: 'Marca', value: vehiculo.marca },
-                  { label: 'Modelo', value: vehiculo.modelo },
-                  { label: 'Año de fabricación', value: vehiculo.anioFabricacion?.toString() ?? '—' },
-                  { label: 'Estado', value: <StatusBadge status={vehiculo.estadoUso} size="sm" /> },
-                  { label: 'Código', value: vehiculo.codigoInterno },
-                  { label: 'Placa', value: vehiculo.sinPlaca ? 'Sin placa' : vehiculo.placa },
-                  { label: 'Serial del motor', value: vehiculo.sinSerialMotor ? 'Sin serial' : vehiculo.serialMotor },
-                  { label: 'Serial de carrocería', value: vehiculo.sinSerialCarroceria ? 'Sin serial' : (vehiculo.serialCarroceria || '—') },
-                  { label: 'Responsable', value: vehiculo.departamento },
-                  { label: 'Unidad Administrativa', value: vehiculo.departamento },
-                  { label: 'Estado de uso', value: <StatusBadge status={vehiculo.estadoUso} size="sm" /> },
-                  { label: 'Condición Física', value: <StatusBadge status={vehiculo.condicionFisica} showDot size="sm" /> },
-                  { label: 'Almacén', value: vehiculo.almacen },
-                  { label: 'Departamento', value: vehiculo.departamento },
-                  { label: 'Sede', value: vehiculo.sede },
-                  { label: 'Valor de Adquisición', value: vehiculo.valorAdquisicion ? formatMoneda(vehiculo.valorAdquisicion, 'USD') : '—' },
-                ],
-              },
-              {
-                title: 'Detalles del documento de Ingreso',
-                fields: [
-                  { label: 'Nro de Documento', value: vehiculo.numeroDocumento },
-                  { label: 'Fecha Adquisición', value: formatFecha(vehiculo.fechaAdquisicion) },
-                  { label: 'Forma de Adquisición', value: 'Compra' },
-                  { label: 'Nombre de Proveedor', value: '—' },
-                  { label: 'Valor Total de Documento', value: vehiculo.valorAdquisicion ? formatMoneda(vehiculo.valorAdquisicion, 'USD') : '—' },
-                ],
-              },
-            ]}
-            actions={
-              <>
-                <button
-                  type="button"
-                  onClick={() => navigate('/vehiculos')}
-                  className="inline-flex items-center gap-2 px-4 py-2.5 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50"
-                >
-                  <ArrowLeft size={16} />
-                  Volver al listado
-                </button>
-                <button type="button" className="px-5 py-2.5 border border-navy-200 text-navy-800 rounded-lg text-sm font-semibold hover:bg-navy-50">
-                  Transferir a otro almacén
-                </button>
-                <button type="button" className="px-5 py-2.5 border border-red-200 text-red-700 rounded-lg text-sm font-semibold hover:bg-red-50">
-                  Retirar de Inventario
-                </button>
-              </>
-            }
-          />
-        )}
+        {vehiculo && <VehiculoDetail vehiculo={vehiculo} onVolver={() => navigate('/vehiculos')} />}
       </ApiState>
     );
   }

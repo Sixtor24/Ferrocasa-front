@@ -1,6 +1,7 @@
 // Cementerio — inventario físico simple (304 filas reales) + gestión de parcelas
 
 export type EstadoBienCementerio = 'Bueno' | 'Regular' | 'Dañado' | 'Averiado' | 'Inservible';
+export type EstadoUsoCementerio = 'En uso' | 'En almacén' | 'En tránsito' | 'Desincorporado' | 'Por verificar';
 
 export type AreaCementerio =
   | 'Cocina' | 'Galpón' | 'Taller' | 'Oficinas'
@@ -9,6 +10,8 @@ export type AreaCementerio =
 
 export type EstatusParcela = 'Disponible' | 'Ocupada' | 'Reservada' | 'Mantenimiento' | 'Vencida';
 export type TipoParcela = 'Individual' | 'Familiar' | 'Nicho' | 'Osario' | 'Cremación';
+export type FormaAdquisicionCementerio = 'Compra' | 'Donación' | 'Transferencia' | 'Asignación';
+export type MonedaCementerio = 'Bs' | 'USD' | 'Bs.F';
 
 export interface InventarioCementerio {
   id: number;
@@ -20,6 +23,20 @@ export interface InventarioCementerio {
   serial: string;
   estadoBien: EstadoBienCementerio;
   area: AreaCementerio;
+  sede: string;
+  almacen: string;
+  departamento: string;
+  numeroDocumento: string;
+  estadoUso: EstadoUsoCementerio;
+  categoriaGeneral: string;
+  subcategoria: string;
+  categoriaEspecifica: string;
+  fechaIngreso: string;
+  formaAdquisicion: FormaAdquisicionCementerio;
+  valorAdquisicion: number | null;
+  moneda: MonedaCementerio;
+  nombreProveedor: string;
+  responsable: string;
   observaciones: string;
 }
 
@@ -43,6 +60,15 @@ export const AREAS_CEMENTERIO: AreaCementerio[] = [
 ];
 
 export const ESTADOS_BIEN_CEMENTERIO: EstadoBienCementerio[] = ['Bueno', 'Regular', 'Dañado', 'Averiado', 'Inservible'];
+export const ESTADOS_USO_CEMENTERIO: EstadoUsoCementerio[] = ['En uso', 'En almacén', 'En tránsito', 'Desincorporado', 'Por verificar'];
+export const SEDES_CEMENTERIO = ['Cementerio Municipal'] as const;
+export const DEPARTAMENTOS_CEMENTERIO = [
+  'Administración',
+  'Crematorio',
+  'Mantenimiento y Jardinería',
+  'Sala Velatoria',
+  'Servicios Generales',
+] as const;
 export const ESTATUS_PARCELA: EstatusParcela[] = ['Disponible', 'Ocupada', 'Reservada', 'Mantenimiento', 'Vencida'];
 export const TIPOS_PARCELA: TipoParcela[] = ['Individual', 'Familiar', 'Nicho', 'Osario', 'Cremación'];
 export const SECTORES_CEMENTERIO = ['Sector A', 'Sector B', 'Sector C', 'Sector D', 'Sector E'] as const;

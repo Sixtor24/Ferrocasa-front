@@ -4,7 +4,7 @@ import { fetchParcelas, fetchParcelaById, fetchParcelasEstadisticas } from '../a
 import { useApiQuery } from '../hooks/useApiQuery';
 import ModuleMetricCard, { formatAreaM2 } from '../components/module/ModuleMetricCard';
 import { ZONIFICACIONES, ESTADOS_TRAMITE } from '../types/terreno';
-import type { Terreno } from '../types/terreno';
+import type { ProtocolizacionTerreno, Terreno } from '../types/terreno';
 import ModulePageHeader from '../components/module/ModulePageHeader';
 import ModuleFilterBar from '../components/module/ModuleFilterBar';
 import ModuleDataTable from '../components/module/ModuleDataTable';
@@ -16,6 +16,153 @@ import type { Column } from '../components/DataTable';
 import { ArrowLeft, Map, MapPin, Layers, MinusCircle } from 'lucide-react';
 
 const PER_PAGE = 5;
+
+function formatAreaM2Detail(value: number) {
+  return `${value.toLocaleString('es-VE')} m²`;
+}
+
+function TerrenoParcelaDetail({
+  terreno,
+  protocolos,
+  onVolver,
+}: {
+  terreno: Terreno;
+  protocolos: ProtocolizacionTerreno[];
+  onVolver: () => void;
+}) {
+  const [acreditacion, setAcreditacion] = useState(terreno.acreditacionTecnicaAmbiental);
+  const [levantamiento, setLevantamiento] = useState(terreno.levantamientoTopografico);
+
+  return (
+    <>
+      <AssetDetailView
+        title="Terrenos: Control de Parcelas"
+        breadcrumb={[
+          { label: 'Dashboard', to: '/dashboard' },
+          { label: 'Terrenos', to: '/terrenos' },
+          { label: terreno.codigo },
+        ]}
+        sections={[
+          {
+            title: 'Detalles',
+            fields: [
+              { label: 'Identificación', value: terreno.identificacion },
+              { label: 'Código', value: terreno.codigo },
+              {
+                label: 'Acreditación Técnica Ambiental',
+                value: (
+                  <select
+                    value={acreditacion}
+                    onChange={(e) => setAcreditacion(e.target.value as Terreno['acreditacionTecnicaAmbiental'])}
+                    className="input-field max-w-xs"
+                  >
+                    {ESTADOS_TRAMITE.map((opt) => (
+                      <option key={opt} value={opt}>
+                        {opt}
+                      </option>
+                    ))}
+                  </select>
+                ),
+              },
+              { label: 'Fecha de Ingreso', value: formatFecha(terreno.fechaIngreso) },
+              { label: 'Ubicación Adicional', value: terreno.ubicacionAdicional || '—' },
+              {
+                label: 'Levantamiento topográfico',
+                value: (
+                  <select
+                    value={levantamiento}
+                    onChange={(e) => setLevantamiento(e.target.value as Terreno['levantamientoTopografico'])}
+                    className="input-field max-w-xs"
+                  >
+                    {ESTADOS_TRAMITE.map((opt) => (
+                      <option key={opt} value={opt}>
+                        {opt}
+                      </option>
+                    ))}
+                  </select>
+                ),
+              },
+              { label: 'Número de Propiedad', value: terreno.nroPropiedad },
+              { label: 'Responsable', value: terreno.responsable },
+              { label: 'Área Desincorporada', value: formatAreaM2Detail(terreno.areaDesincorporada) },
+              { label: 'Zona', value: terreno.zona },
+              { label: 'Observación', value: terreno.observacion || '—' },
+              { label: 'Área Comprometida', value: formatAreaM2Detail(terreno.areaComprometida) },
+              { label: 'Ubicación', value: terreno.ubicacion },
+              { label: 'Zonificación', value: terreno.zonificacion },
+              { label: 'Área Disponible', value: formatAreaM2Detail(terreno.areaDisponible) },
+            ],
+          },
+          {
+            title: 'Detalles del documento de Ingreso',
+            fields: [
+              { label: 'Nro de Documento', value: terreno.numeroDocumento },
+              { label: 'Número de Propiedad', value: terreno.nroPropiedad },
+              { label: 'Área Total M²', value: formatAreaM2Detail(terreno.areaTotalM2) },
+              { label: 'Fecha Adquisición', value: formatFecha(terreno.fechaAdquisicion) },
+              { label: 'Forma de Adquisición', value: terreno.formaAdquisicion },
+            ],
+          },
+        ]}
+        actions={
+          <>
+            <button
+              type="button"
+              onClick={onVolver}
+              className="inline-flex items-center gap-2 px-4 py-2.5 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50"
+            >
+              <ArrowLeft size={16} />
+              Volver al listado
+            </button>
+            <button type="button" className="px-5 py-2.5 bg-navy-900 text-white rounded-lg text-sm font-semibold hover:bg-navy-800">
+              Agregar Protocolización
+            </button>
+            <button type="button" className="px-5 py-2.5 border border-red-200 text-red-700 rounded-lg text-sm font-semibold hover:bg-red-50">
+              Retirar de Inventario
+            </button>
+          </>
+        }
+      />
+
+      {protocolos.length > 0 && (
+        <div className="px-4 md:px-6 pb-8 max-w-7xl mx-auto space-y-4">
+          <h2 className="text-lg font-bold text-navy-900 font-display">Detalles de área</h2>
+          {protocolos.map((p) => (
+            <div
+              key={p.id}
+              className="bg-white rounded-xl border border-gray-200/80 shadow-sm p-5 grid grid-cols-1 md:grid-cols-2 gap-6"
+            >
+              <div className="space-y-4">
+                <div>
+                  <p className="text-xs text-gray-500">Tipo de Protocolización</p>
+                  <p className="text-sm font-medium text-navy-900">{p.tipoProtocolizacion}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Motivo</p>
+                  <p className="text-sm font-medium text-navy-900">{p.motivo}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Beneficiario</p>
+                  <p className="text-sm font-medium text-navy-900">{p.beneficiario}</p>
+                </div>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <p className="text-xs text-gray-500">Fecha</p>
+                  <p className="text-sm font-medium text-navy-900">{formatFecha(p.fecha)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Cantidad de Área Comprometida o desincorporada M²</p>
+                  <p className="text-sm font-medium text-navy-900">{formatAreaM2Detail(p.areaComprometidaM2)}</p>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
 
 export default function Terrenos() {
   const { id } = useParams();
@@ -94,100 +241,11 @@ export default function Terrenos() {
     return (
       <ApiState loading={detailQuery.loading} error={detailQuery.error} onRetry={detailQuery.refetch}>
         {terreno && (
-          <>
-            <AssetDetailView
-              title="Terrenos: Control de Parcelas"
-              breadcrumb={[
-                { label: 'Dashboard', to: '/dashboard' },
-                { label: 'Terrenos', to: '/terrenos' },
-                { label: terreno.codigo },
-              ]}
-              sections={[
-                {
-                  title: 'Detalles',
-                  fields: [
-                    { label: 'Identificación', value: terreno.identificacion },
-                    { label: 'Fecha de Ingreso', value: formatFecha(terreno.fechaIngreso) },
-                    { label: 'Número de Propiedad', value: terreno.nroPropiedad },
-                    { label: 'Zona', value: terreno.zona },
-                    { label: 'Ubicación', value: terreno.ubicacion },
-                    { label: 'Zonificación', value: terreno.zonificacion },
-                    { label: 'Código', value: terreno.codigo },
-                    { label: 'Ubicación Adicional', value: terreno.ubicacionAdicional },
-                    { label: 'Responsable', value: terreno.responsable },
-                    { label: 'Observación', value: terreno.observacion },
-                    { label: 'Acreditación Técnica Ambiental', value: terreno.acreditacionTecnicaAmbiental },
-                    { label: 'Levantamiento topográfico', value: terreno.levantamientoTopografico },
-                    { label: 'Área Desincorporada', value: `${terreno.areaDesincorporada.toLocaleString('es-VE')} m²` },
-                    { label: 'Área Comprometida', value: `${terreno.areaComprometida.toLocaleString('es-VE')} m²` },
-                    { label: 'Área Disponible', value: `${terreno.areaDisponible.toLocaleString('es-VE')} m²` },
-                  ],
-                },
-                {
-                  title: 'Detalles del documento de Ingreso',
-                  fields: [
-                    { label: 'Nro de Documento', value: terreno.numeroDocumento },
-                    { label: 'Fecha Adquisición', value: formatFecha(terreno.fechaAdquisicion) },
-                    { label: 'Número de Propiedad', value: terreno.nroPropiedad },
-                    { label: 'Forma de Adquisición', value: terreno.formaAdquisicion },
-                    { label: 'Área Total M²', value: `${terreno.areaTotalM2.toLocaleString('es-VE')} m²` },
-                  ],
-                },
-              ]}
-              actions={
-                <>
-                  <button
-                    type="button"
-                    onClick={() => navigate('/terrenos')}
-                    className="inline-flex items-center gap-2 px-4 py-2.5 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50"
-                  >
-                    <ArrowLeft size={16} />
-                    Volver al listado
-                  </button>
-                  <button type="button" className="px-5 py-2.5 bg-navy-900 text-white rounded-lg text-sm font-semibold hover:bg-navy-800">
-                    Agregar Protocolización
-                  </button>
-                  <button type="button" className="px-5 py-2.5 border border-red-200 text-red-700 rounded-lg text-sm font-semibold hover:bg-red-50">
-                    Retirar de Inventario
-                  </button>
-                </>
-              }
-            />
-
-            {protos.length > 0 && (
-              <div className="px-4 md:px-6 pb-8 max-w-7xl space-y-4">
-                <h2 className="text-lg font-bold text-navy-900 font-display">Detalles de área</h2>
-                {protos.map((p) => (
-                  <div key={p.id} className="bg-white rounded-xl border border-gray-200/80 shadow-sm p-5 grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-4">
-                      <div>
-                        <p className="text-xs text-gray-500">Tipo de Protocolización</p>
-                        <p className="text-sm font-medium text-navy-900">{p.tipoProtocolizacion}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-gray-500">Motivo</p>
-                        <p className="text-sm font-medium text-navy-900">{p.motivo}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-gray-500">Beneficiario</p>
-                        <p className="text-sm font-medium text-navy-900">{p.beneficiario}</p>
-                      </div>
-                    </div>
-                    <div className="space-y-4">
-                      <div>
-                        <p className="text-xs text-gray-500">Fecha</p>
-                        <p className="text-sm font-medium text-navy-900">{formatFecha(p.fecha)}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-gray-500">Cantidad de Área Comprometida o desincorporada M²</p>
-                        <p className="text-sm font-medium text-navy-900">{p.areaComprometidaM2.toLocaleString('es-VE')} m²</p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </>
+          <TerrenoParcelaDetail
+            terreno={terreno}
+            protocolos={protos}
+            onVolver={() => navigate('/terrenos')}
+          />
         )}
       </ApiState>
     );
