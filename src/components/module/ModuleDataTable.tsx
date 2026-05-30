@@ -1,5 +1,6 @@
 import { Eye, Loader2 } from 'lucide-react';
 import type { Column } from '../DataTable';
+import { sortByNaturalCode } from '../../utils/codeSort';
 
 interface ModuleDataTableProps<T extends { id: number | string }> {
   data: T[];
@@ -16,6 +17,7 @@ export default function ModuleDataTable<T extends { id: number | string }>({
   emptyMessage = 'No se encontraron registros.',
   loading = false,
 }: ModuleDataTableProps<T>) {
+  const sortedData = sortByNaturalCode(data);
   const cols = onDetails
     ? [
         ...columns,
@@ -66,7 +68,7 @@ export default function ModuleDataTable<T extends { id: number | string }>({
                 </td>
               </tr>
             ) : (
-              data.map((item, rowIdx) => (
+              sortedData.map((item, rowIdx) => (
                 <tr
                   key={item.id}
                   className={`border-b border-gray-100 transition-colors hover:bg-navy-50/40 ${

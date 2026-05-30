@@ -4,6 +4,7 @@ import { fetchBienes, fetchBienesEstadisticas } from '../api/services/bienes.ser
 import { fetchVehiculos } from '../api/services/vehiculos.service';
 import { fetchParcelasEstadisticas } from '../api/services/parcelas.service';
 import { useApiQuery } from '../hooks/useApiQuery';
+import { sortByNaturalCode } from '../utils/codeSort';
 import ModuleMetricCard from '../components/module/ModuleMetricCard';
 import StatusBadge from '../components/StatusBadge';
 import {
@@ -98,7 +99,7 @@ export default function Reportes() {
         m.categoria.toLowerCase().includes(q)
       );
     }
-    return list;
+    return sortByNaturalCode(list, ['codigo']);
   }, [reporteActivos, categoriasSeleccionadas, tipoMovimiento, busqueda]);
 
   const handleGenerar = () => {
