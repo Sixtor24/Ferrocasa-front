@@ -2,6 +2,7 @@ import { AlertCircle, Loader2, RefreshCw } from 'lucide-react';
 
 type Props = {
   loading?: boolean;
+  preserveContentOnLoading?: boolean;
   error?: string | null;
   onRetry?: () => void;
   empty?: boolean;
@@ -11,12 +12,29 @@ type Props = {
 
 export default function ApiState({
   loading,
+  preserveContentOnLoading = false,
   error,
   onRetry,
   empty,
   emptyMessage = 'No hay registros.',
   children,
 }: Props) {
+  if (loading && preserveContentOnLoading) {
+    return (
+      <div className="relative">
+        <div className="pointer-events-none opacity-60 transition-opacity">
+          {children}
+        </div>
+        <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-white/55 backdrop-blur-[1px]">
+          <div className="inline-flex items-center gap-2 rounded-full border border-navy-100 bg-white px-4 py-2 text-sm font-medium text-navy-800 shadow-sm">
+            <Loader2 className="animate-spin text-navy-600" size={16} />
+            Actualizando datos...
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center gap-3 py-16 text-gray-500">

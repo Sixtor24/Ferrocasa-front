@@ -1,12 +1,7 @@
 import { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import {
-  materialesReporte,
-  categoriasMaterial,
-  tiposMovimiento,
-} from '../data/reportes';
-import { inventarioCementerio } from '../data/cementerio';
-import { fetchBienesEstadisticas } from '../api/services/bienes.service';
+import { fetchBienes, fetchBienesEstadisticas } from '../api/services/bienes.service';
+import { fetchVehiculos } from '../api/services/vehiculos.service';
 import { fetchParcelasEstadisticas } from '../api/services/parcelas.service';
 import { useApiQuery } from '../hooks/useApiQuery';
 import ModuleMetricCard from '../components/module/ModuleMetricCard';
@@ -25,38 +20,71 @@ import {
   Map,
 } from 'lucide-react';
 
+const tiposMovimiento = ['Todos los movimientos', 'Inventario'] as const;
+
 export default function Reportes() {
   const bienesStatsQuery = useApiQuery(() => fetchBienesEstadisticas(), []);
   const parcelasStatsQuery = useApiQuery(() => fetchParcelasEstadisticas(), []);
+  const bienesQuery = useApiQuery(() => fetchBienes({ page: 1, limit: 100 }), []);
+  const vehiculosQuery = useApiQuery(() => fetchVehiculos({ page: 1, limit: 100 }), []);
 
   const metricas = useMemo(() => {
     const totalBienes = bienesStatsQuery.data?.total ?? 0;
-    const bienesCementerio = inventarioCementerio.length;
-    const bienesEdificioAdmin = Math.max(0, totalBienes - bienesCementerio);
+    const parcelasCementerio = parcelasStatsQuery.data?.total ?? 0;
+    const bienesEdificioAdmin = totalBienes;
     const parcelas = parcelasStatsQuery.data?.total ?? 0;
-    return { totalBienes, bienesCementerio, bienesEdificioAdmin, parcelas };
+    return { totalBienes, parcelasCementerio, bienesEdificioAdmin, parcelas };
   }, [bienesStatsQuery.data?.total, parcelasStatsQuery.data?.total]);
 
   const [fechaDesde, setFechaDesde] = useState('2024-01-01');
   const [fechaHasta, setFechaHasta] = useState('2024-12-31');
-  const [tipoMovimiento, setTipoMovimiento] = useState(tiposMovimiento[0]);
-  const [categoriasSeleccionadas, setCategoriasSeleccionadas] = useState<string[]>([
-    'Construcción', 'Maquinaria Pesada', 'Mobiliario', 'Vehículos',
-  ]);
+  const [tipoMovimiento, setTipoMovimiento] = useState<string>(tiposMovimiento[0]);
   const [formato, setFormato] = useState<'Resumido' | 'Detallado'>('Resumido');
   const [generado, setGenerado] = useState(true);
   const [exportMsg, setExportMsg] = useState('');
   const [busqueda, setBusqueda] = useState('');
 
+  const reporteActivos = useMemo(() => {
+    const bienes = (bienesQuery.data?.data ?? []).map((bien) => ({
+      id: `bien-${bien.id}`,
+      codigo: bien.codigoInterno,
+      descripcion: bien.descripcion,
+      categoria: bien.categoriaGeneral,
+      tipoMov: 'Inventario',
+      stockActual: 1,
+      estadoUso: bien.estadoUso,
+      estadoFisico: bien.condicionFisica,
+    }));
+    const vehiculos = (vehiculosQuery.data?.data ?? []).map((vehiculo) => ({
+      id: `vehiculo-${vehiculo.id}`,
+      codigo: vehiculo.codigoInterno,
+      descripcion: vehiculo.descripcion,
+      categoria: 'Vehículos',
+      tipoMov: 'Inventario',
+      stockActual: 1,
+      estadoUso: vehiculo.estadoUso,
+      estadoFisico: vehiculo.condicionFisica,
+    }));
+    return [...bienes, ...vehiculos];
+  }, [bienesQuery.data?.data, vehiculosQuery.data?.data]);
+
+  const categoriasMaterial = useMemo(() => {
+    return [...new Set(reporteActivos.map((item) => item.categoria).filter(Boolean))].sort();
+  }, [reporteActivos]);
+  const [categoriasSeleccionadas, setCategoriasSeleccionadas] = useState<string[]>([]);
+  const categoriasActivas = categoriasSeleccionadas.length ? categoriasSeleccionadas : categoriasMaterial;
+
   const toggleCategoria = (cat: string) => {
-    setCategoriasSeleccionadas((prev) =>
-      prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat]
-    );
+    setCategoriasSeleccionadas((prev) => {
+      if (prev.length === 0) return categoriasMaterial.filter((item) => item !== cat);
+      const next = prev.includes(cat) ? prev.filter((item) => item !== cat) : [...prev, cat];
+      return next.length === categoriasMaterial.length ? [] : next;
+    });
   };
 
   const filteredMateriales = useMemo(() => {
-    let list = materialesReporte;
-    if (categoriasSeleccionadas.length > 0 && categoriasSeleccionadas.length < categoriasMaterial.length) {
+    let list = reporteActivos;
+    if (categoriasSeleccionadas.length > 0) {
       list = list.filter((m) => categoriasSeleccionadas.includes(m.categoria));
     }
     if (tipoMovimiento !== 'Todos los movimientos') {
@@ -71,7 +99,7 @@ export default function Reportes() {
       );
     }
     return list;
-  }, [categoriasSeleccionadas, tipoMovimiento, busqueda]);
+  }, [reporteActivos, categoriasSeleccionadas, tipoMovimiento, busqueda]);
 
   const handleGenerar = () => {
     setGenerado(false);
@@ -84,7 +112,7 @@ export default function Reportes() {
     setTimeout(() => setExportMsg(''), 4000);
   };
 
-  const activeFilterCount = (categoriasSeleccionadas.length < categoriasMaterial.length ? 1 : 0) +
+  const activeFilterCount = (categoriasSeleccionadas.length > 0 ? 1 : 0) +
     (tipoMovimiento !== 'Todos los movimientos' ? 1 : 0) +
     (busqueda ? 1 : 0);
 
@@ -128,8 +156,8 @@ export default function Reportes() {
           iconWrapClassName="bg-navy-100"
         />
         <ModuleMetricCard
-          label="Bienes Cementerio"
-          value={(metricas.bienesCementerio ?? 0).toLocaleString('es-VE')}
+          label="Parcelas Cementerio"
+          value={(metricas.parcelasCementerio ?? 0).toLocaleString('es-VE')}
           icon={<Landmark size={22} className="text-blue-600" />}
           iconWrapClassName="bg-blue-100"
           valueClassName="text-blue-700"
@@ -191,10 +219,10 @@ export default function Reportes() {
               <div className="space-y-2">
                 {categoriasMaterial.map((cat) => (
                   <label key={cat} className="flex items-center gap-2.5 cursor-pointer group">
-                    <input type="checkbox" checked={categoriasSeleccionadas.includes(cat)} onChange={() => toggleCategoria(cat)}
+                    <input type="checkbox" checked={categoriasActivas.includes(cat)} onChange={() => toggleCategoria(cat)}
                       className="w-4 h-4 rounded border-gray-300 text-navy-900 focus:ring-navy-500" />
                     <span className="text-sm text-gray-700 group-hover:text-navy-900">{cat}</span>
-                    <span className="text-xs text-gray-400 ml-auto">{materialesReporte.filter((m) => m.categoria === cat).length}</span>
+                    <span className="text-xs text-gray-400 ml-auto">{reporteActivos.filter((m) => m.categoria === cat).length}</span>
                   </label>
                 ))}
               </div>
@@ -249,7 +277,7 @@ export default function Reportes() {
                   {tipoMovimiento} <X size={12} className="cursor-pointer" onClick={() => setTipoMovimiento('Todos los movimientos')} />
                 </span>
               )}
-              {categoriasSeleccionadas.length < categoriasMaterial.length && (
+              {categoriasSeleccionadas.length > 0 && (
                 <span className="bg-navy-100 text-navy-800 text-xs font-medium px-2.5 py-1 rounded-full">
                   {categoriasSeleccionadas.length} categorías
                 </span>
@@ -331,7 +359,7 @@ export default function Reportes() {
               <div className="text-center">
                 <div className="w-10 h-10 border-4 border-navy-900 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
                 <p className="text-sm text-gray-500 font-medium">Generando reporte...</p>
-                <p className="text-xs text-gray-400 mt-1">Procesando {materialesReporte.length} activos</p>
+                <p className="text-xs text-gray-400 mt-1">Procesando {reporteActivos.length} activos</p>
               </div>
             </div>
           )}

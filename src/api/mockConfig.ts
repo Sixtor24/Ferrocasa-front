@@ -3,14 +3,10 @@ export function useMockDataOnly(): boolean {
   return import.meta.env.VITE_USE_MOCK_DATA === 'true';
 }
 
-/**
- * Permite usar datos mock si el API falla o devuelve listas vacías.
- * Activo en dev y prod salvo VITE_USE_MOCK_DATA=false (cuando el backend esté completo).
- */
+/** Permite fallback a mock solo cuando se habilita explícitamente para desarrollo local. */
 export function allowMockFallback(): boolean {
   if (useMockDataOnly()) return true;
-  if (import.meta.env.VITE_USE_MOCK_DATA === 'false') return false;
-  return true;
+  return import.meta.env.VITE_ALLOW_MOCK_FALLBACK === 'true';
 }
 
 export function listMeta(total: number, page = 1, limit = 100) {
@@ -22,7 +18,7 @@ export function listMeta(total: number, page = 1, limit = 100) {
   };
 }
 
-/** API respondió OK pero sin filas (backend incompleto); usar mock. */
+/** API respondió OK pero sin filas; solo usa mock con fallback explícito. */
 export function shouldFallbackToMockList(apiRowCount: number): boolean {
   return apiRowCount === 0 && allowMockFallback();
 }

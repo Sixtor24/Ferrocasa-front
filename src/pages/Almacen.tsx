@@ -1,6 +1,13 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { fetchBienes, fetchBienesEstadisticas, fetchBienByCodigo } from '../api/services/bienes.service';
+import { ZodError } from 'zod';
+import {
+  createBien,
+  fetchBienes,
+  fetchBienesEstadisticas,
+  fetchBienByCodigo,
+  type BienPayload,
+} from '../api/services/bienes.service';
 import { useApiQuery } from '../hooks/useApiQuery';
 import ApiState from '../components/ApiState';
 import AssetDetailView from '../components/module/AssetDetailView';
@@ -18,6 +25,7 @@ import type { Column } from '../components/DataTable';
 import StatusBadge from '../components/StatusBadge';
 import { ImportExcelModal, NuevoBienMuebleModal, type NuevoBienMueblePayload } from '../components/modals';
 import type { BienMueble } from '../types/bien';
+import { bienMuebleBackendIdsSchema } from '../schemas/bien.schema';
 import ModulePageHeader from '../components/module/ModulePageHeader';
 import {
   Package,
@@ -30,6 +38,17 @@ import {
 } from 'lucide-react';
 
 const PER_PAGE = 10;
+
+function toBackendEstadoUso(value: BienMueble['estadoUso']): BienPayload['estado_uso'] {
+  if (value === 'En uso') return 'En_Uso';
+  if (value === 'Desincorporado') return 'Dado_de_Baja';
+  if (value === 'En almacén') return 'Almacenado';
+  return 'En_Reparacion';
+}
+
+function toBackendConsumibilidad(_value: BienMueble): BienPayload['consumibilidad'] {
+  return 'No_Perecederos';
+}
 
 function proveedorDesdeBien(bien: BienMueble) {
   if (!bien.marca || bien.marca === 'Desconocida') return '—';
@@ -160,8 +179,8 @@ export default function Almacen() {
   });
 
   const bienesQuery = useApiQuery(
-    () => fetchBienes({ limit: 500, search: filtros.buscar || undefined }),
-    [filtros.buscar],
+    () => fetchBienes({ page, limit: PER_PAGE, search: filtros.buscar || undefined }),
+    [page, filtros.buscar],
   );
   const statsQuery = useApiQuery(() => fetchBienesEstadisticas(), []);
   const detailQuery = useApiQuery(
@@ -170,11 +189,11 @@ export default function Almacen() {
     Boolean(id),
   );
   const lista = bienesQuery.data?.data ?? [];
-  const [localExtras, setLocalExtras] = useState<BienMueble[]>([]);
-  const displayList = [...localExtras, ...lista];
+  const displayList = lista;
   const [showModal, setShowModal] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
+  const [errorMsg, setErrorMsg] = useState('');
 
   const bienesStats = useMemo(() => ({
     total: statsQuery.data?.total ?? displayList.length,
@@ -203,8 +222,8 @@ export default function Almacen() {
     });
   }, [displayList, filtros]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
-  const paginated = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
+  const totalPages = Math.max(1, bienesQuery.data?.meta.totalPages ?? 1);
+  const paginated = filtered;
 
   const setFiltro = (key: keyof typeof filtros, value: string) => {
     setFiltros((prev) => ({ ...prev, [key]: value }));
@@ -217,19 +236,49 @@ export default function Almacen() {
     setTimeout(() => setExportMsg(''), 4000);
   };
 
-  const handleNuevoBien = (payload: NuevoBienMueblePayload) => {
-    const nuevo: BienMueble = {
-      id: displayList.length + 1,
-      ...payload,
-      fuenteRegistro: 'Manual',
-      estatusCarga: 'Completo',
-      creadoEn: new Date().toISOString().split('T')[0],
-      actualizadoEn: new Date().toISOString().split('T')[0],
-    };
-    setLocalExtras([nuevo, ...localExtras]);
-    setShowModal(false);
-    setSuccessMsg('Bien mueble registrado exitosamente');
-    setTimeout(() => setSuccessMsg(''), 3000);
+  const handleNuevoBien = async (payload: NuevoBienMueblePayload) => {
+    try {
+      setErrorMsg('');
+      const backendIds = bienMuebleBackendIdsSchema.parse({
+        numeroDocumento: payload.numeroDocumento,
+        ubicacion: payload.ubicacion,
+        codigoCategoria: payload.codigoCategoria,
+      });
+      const body: BienPayload = {
+        descripcion: payload.descripcion,
+        id_doc: backendIds.numeroDocumento,
+        fecha_ingreso: payload.fechaAdquisicion || new Date().toISOString(),
+        fecha_egreso: null,
+        valor_adquisicion: payload.valorAdquisicion ?? 0,
+        marca: payload.marca,
+        modelo: payload.modelo,
+        color: payload.color,
+        material: null,
+        serial: payload.sinSerial ? null : payload.serial,
+        estado_uso: toBackendEstadoUso(payload.estadoUso),
+        condicion_fisica: payload.condicionFisica,
+        id_almacen: backendIds.ubicacion,
+        cantidad: 1,
+        consumibilidad: toBackendConsumibilidad(payload as BienMueble),
+        usuario_carga: null,
+        id_categoria_especifica: backendIds.codigoCategoria,
+        unidad_administrativa: payload.unidadAdministrativa,
+      };
+
+      await createBien(body);
+      bienesQuery.refetch();
+      statsQuery.refetch();
+      setShowModal(false);
+      setSuccessMsg('Bien mueble registrado exitosamente');
+      setTimeout(() => setSuccessMsg(''), 3000);
+    } catch (err) {
+      const message = err instanceof ZodError
+        ? (err.issues[0]?.message ?? 'Datos inválidos')
+        : err instanceof Error
+          ? err.message
+          : 'No se pudo registrar el bien';
+      setErrorMsg(message);
+    }
   };
 
   const columns: Column<BienMueble>[] = [
@@ -296,6 +345,7 @@ export default function Almacen() {
         extraActions={
           <>
             {successMsg && <span className="text-sm text-green-600 font-medium animate-pulse self-center">{successMsg}</span>}
+            {errorMsg && <span className="text-sm text-red-600 font-medium self-center">{errorMsg}</span>}
             <button type="button" onClick={() => setShowImport(true)} className="inline-flex items-center gap-2 px-4 py-2.5 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50">
               <Upload size={16} /> Importar Excel
             </button>
@@ -403,7 +453,7 @@ export default function Almacen() {
       </ModuleFilterBar>
 
       <ApiState
-        loading={bienesQuery.loading}
+        loading={bienesQuery.loading && !bienesQuery.data}
         error={bienesQuery.error}
         onRetry={bienesQuery.refetch}
         empty={!bienesQuery.loading && filtered.length === 0}
@@ -412,6 +462,7 @@ export default function Almacen() {
         <ModuleDataTable
           data={paginated}
           columns={columns}
+          loading={bienesQuery.loading && Boolean(bienesQuery.data)}
           onDetails={(b) => navigate(`/almacen/${b.id}`)}
         />
         <ModulePagination page={page} totalPages={totalPages} onPageChange={setPage} />

@@ -20,17 +20,23 @@ export interface ApiItemResponse<T> {
 export interface ApiSede {
   id_sede: number;
   nombre: string;
+  ubicacion?: string | null;
+  tipo?: string | null;
 }
 
 export interface ApiDepartamento {
   id_departamento: number;
   nombre: string;
+  id_sede?: number | null;
   sede?: ApiSede;
 }
 
 export interface ApiAlmacen {
   id_almacen: number;
   nombre: string;
+  id_sede?: number | null;
+  ci_responsable?: string | null;
+  id_departamento?: number | null;
   sede?: ApiSede;
   departamento?: ApiDepartamento;
   responsable?: ApiResponsable;
@@ -39,6 +45,7 @@ export interface ApiAlmacen {
 export interface ApiResponsable {
   ci_responsable: string;
   nombre: string;
+  id_departamento?: number | null;
   departamento?: ApiDepartamento;
 }
 
@@ -50,12 +57,14 @@ export interface ApiCategoriaGeneral {
 export interface ApiSubcategoria {
   id_subcategoria: number;
   nombre: string;
+  id_categoria_general?: number | null;
   categoria_general?: ApiCategoriaGeneral;
 }
 
 export interface ApiCategoriaEspecifica {
   id_categoria_especifica: number;
   nombre: string;
+  id_subcategoria?: number | null;
   subcategoria?: ApiSubcategoria;
 }
 
@@ -65,6 +74,21 @@ export interface ApiDocumento {
   forma_adquisicion?: string;
   fecha_adquisicion?: string | null;
   moneda?: string;
+}
+
+export interface ApiDocumentosTotalesPorMes {
+  anio: number;
+  data: {
+    anio: number;
+    mes: number;
+    mes_label: string;
+    total_documentos: number;
+    monto_total: string | number;
+  }[];
+  resumen: {
+    total_documentos: number;
+    monto_total_anual: string | number;
+  };
 }
 
 export interface ApiBien {
@@ -149,6 +173,7 @@ export interface ApiCompromisoTerreno {
   cantidad_m2: string | number;
   fecha_compromiso?: string | null;
   protocolo?: ApiProtocolo;
+  parcelas?: ApiParcela[];
 }
 
 export interface ApiDesincorporacionTerreno {
@@ -157,6 +182,7 @@ export interface ApiDesincorporacionTerreno {
   cantidad_m2: string | number;
   fecha_desincorporacion?: string | null;
   protocolo?: ApiProtocolo;
+  parcelas?: ApiParcela[];
 }
 
 export interface ApiParcela {
@@ -189,6 +215,10 @@ export interface ApiBienesEstadisticas {
 
 export interface ApiVehiculosEstadisticas {
   total: number;
+  disponibles?: number;
+  asignados?: number;
+  enMantenimiento?: number;
+  valorTotal?: string | number | null;
   porEstadoUso?: { estado_uso: string; _count: number }[];
   porCondicionFisica?: { condicion_fisica: string; _count: number }[];
   porEstadoVehiculo?: { estado_vehiculo: string; _count: number }[];

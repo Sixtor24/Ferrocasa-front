@@ -7,10 +7,7 @@ import { fetchParcelasEstadisticas } from '../api/services/parcelas.service';
 import { useApiQuery } from '../hooks/useApiQuery';
 import {
   dashboardStats,
-  resumenGeneral,
   movimientosAlmacen,
-  distribucionActivos,
-  estatusInmuebles,
   ultimaAuditoria,
 } from '../data/dashboard';
 import {
@@ -46,10 +43,19 @@ export default function Dashboard() {
   );
 
   const liveStats = statsQuery.data;
-  const totalBienes = liveStats?.bienes?.total ?? dashboardStats.totalBienesMuebles.valor;
-  const totalVehiculos = liveStats?.vehiculos?.total ?? dashboardStats.totalVehiculos.valor;
-  const totalParcelas = liveStats?.parcelas?.total ?? estatusInmuebles.total;
-  const parcelasDisponibles = liveStats?.parcelas?.disponibles ?? estatusInmuebles.disponible;
+  const totalBienes = liveStats?.bienes?.total ?? 0;
+  const totalVehiculos = liveStats?.vehiculos?.total ?? 0;
+  const totalParcelas = liveStats?.parcelas?.total ?? 0;
+  const totalCementerio = totalParcelas;
+  const parcelasDisponibles = liveStats?.parcelas?.disponibles ?? 0;
+  const parcelasComprometidas = liveStats?.parcelas?.comprometidas ?? 0;
+  const parcelasDesincorporadas = liveStats?.parcelas?.desincorporadas ?? 0;
+  const bienesEnUso = liveStats?.bienes?.porEstadoUso.find((item) => item.estado_uso === 'En_Uso')?._count ?? 0;
+  const bienesRegulares = liveStats?.bienes?.porCondicionFisica.find((item) => item.condicion_fisica === 'Regular')?._count ?? 0;
+  const bienesDanados = liveStats?.bienes?.porCondicionFisica
+    .filter((item) => ['Dañado', 'Averiado', 'Inservible'].includes(item.condicion_fisica))
+    .reduce((sum, item) => sum + item._count, 0) ?? 0;
+  const vehiculosActivos = liveStats?.vehiculos?.disponibles ?? liveStats?.vehiculos?.asignados ?? 0;
 
   const now = new Date().toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit', hour12: true });
 
@@ -70,19 +76,17 @@ export default function Dashboard() {
     salidas: Math.round(d.salidas * factorPeriodo),
   }));
 
-  const donutData = liveStats?.parcelas
-    ? [
-        { name: 'Áreas totales', value: liveStats.parcelas.disponibles ?? 0 },
-        { name: 'Áreas comprometidas', value: liveStats.parcelas.comprometidas ?? 0 },
-        { name: 'Áreas desincorporadas', value: liveStats.parcelas.desincorporadas ?? 0 },
-      ]
-    : [
-        { name: 'Áreas totales', value: estatusInmuebles.disponible },
-        { name: 'Áreas ocupadas', value: estatusInmuebles.ocupado },
-        { name: 'Áreas comprometidas', value: estatusInmuebles.comprometido },
-        { name: 'Áreas desincorporadas', value: estatusInmuebles.desincorporado },
-        { name: 'Áreas en litigio', value: estatusInmuebles.enLitigio },
-      ];
+  const donutData = [
+    { name: 'Áreas disponibles', value: parcelasDisponibles },
+    { name: 'Áreas comprometidas', value: parcelasComprometidas },
+    { name: 'Áreas desincorporadas', value: parcelasDesincorporadas },
+  ];
+  const distribucionActivosLive = [
+    { name: 'Bienes Administrativos', value: totalBienes, color: '#102a43' },
+    { name: 'Parcelas de Cementerio', value: totalCementerio, color: '#334e68' },
+    { name: 'Parcelas', value: totalParcelas, color: '#627d98' },
+    { name: 'Vehículos', value: totalVehiculos, color: '#9fb3c8' },
+  ];
   const DONUT_COLORS = ['#22c55e', '#102a43', '#f59e0b', '#ef4444', '#8b5cf6'];
 
   return (
@@ -118,9 +122,9 @@ export default function Dashboard() {
           value={totalBienes.toLocaleString()}
           badge={statsQuery.loading ? <span className="text-gray-400 text-xs">...</span> : undefined}
           onClick={() => navigate('/almacen')} />
-        <StatCard icon={<Landmark size={22} className="text-blue-600" />} label={dashboardStats.inventarioCementerio.label}
-          value={dashboardStats.inventarioCementerio.valor.toLocaleString()}
-          badge={dashboardStats.inventarioCementerio.cambio ? <span className="text-green-500 text-xs font-medium">{dashboardStats.inventarioCementerio.cambio}</span> : undefined}
+        <StatCard icon={<Landmark size={22} className="text-blue-600" />} label="Parcelas de Cementerio"
+          value={totalCementerio.toLocaleString()}
+          badge={statsQuery.loading ? <span className="text-gray-400 text-xs">...</span> : undefined}
           onClick={() => navigate('/cementerio')} />
         <StatCard icon={<Building2 size={22} className="text-navy-600" />} label={dashboardStats.totalInmuebles.label}
           value={totalParcelas.toString()}
@@ -128,19 +132,19 @@ export default function Dashboard() {
           onClick={() => navigate('/almacen/inmuebles')} />
         <StatCard icon={<Truck size={22} className="text-amber-600" />} label={dashboardStats.totalVehiculos.label}
           value={totalVehiculos.toString()}
-          badge={<span className="text-green-500 text-xs font-medium">{resumenGeneral.vehiculosActivos} activos</span>}
+          badge={<span className="text-green-500 text-xs font-medium">{vehiculosActivos} activos</span>}
           onClick={() => navigate('/vehiculos')} />
       </div>
 
       {/* Summary bar */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         {[
-          { label: 'Bienes en bienes en uso', value: resumenGeneral.bienesCompletos, color: 'text-green-700' },
-          { label: 'Bienes regulares', value: resumenGeneral.bienesParciales, color: 'text-amber-700' },
-          { label: 'Bienes dañados', value: resumenGeneral.bienesError, color: 'text-red-600' },
-          { label: 'Parcelas libres', value: resumenGeneral.parcelasDisponibles, color: 'text-green-700' },
-          { label: 'Parcelas Parcialmente ocupadas', value: resumenGeneral.parcelasOcupadas, color: 'text-navy-800' },
-          { label: 'Parcelas ocupadas', value: resumenGeneral.inmComprometidos, color: 'text-amber-700' },
+          { label: 'Bienes en uso', value: bienesEnUso, color: 'text-green-700' },
+          { label: 'Bienes regulares', value: bienesRegulares, color: 'text-amber-700' },
+          { label: 'Bienes dañados', value: bienesDanados, color: 'text-red-600' },
+          { label: 'Parcelas libres', value: parcelasDisponibles, color: 'text-green-700' },
+          { label: 'Parcelas comprometidas', value: parcelasComprometidas, color: 'text-navy-800' },
+          { label: 'Parcelas desincorporadas', value: parcelasDesincorporadas, color: 'text-amber-700' },
         ].map((item) => (
           <div key={item.label} className="bg-white rounded-xl border border-gray-200 p-4 text-center">
             <p className={`text-xl font-bold ${item.color}`}>{item.value}</p>
@@ -192,7 +196,7 @@ export default function Dashboard() {
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                 <div className="text-center">
                   <p className="text-2xl font-bold text-navy-900">
-                    {totalParcelas > 0 ? Math.round((parcelasDisponibles / totalParcelas) * 100) : estatusInmuebles.porcentajeDisponible}%
+                    {totalParcelas > 0 ? Math.round((parcelasDisponibles / totalParcelas) * 100) : 0}%
                   </p>
                   <p className="text-xs text-gray-500 uppercase">Disponible</p>
                 </div>
@@ -216,9 +220,9 @@ export default function Dashboard() {
         <div className="bg-white rounded-xl border border-gray-200 p-6">
           <h3 className="text-lg font-semibold text-navy-900 mb-4">Distribución de Activos</h3>
           <div className="space-y-3">
-            {distribucionActivos.map((item) => {
-              const total = distribucionActivos.reduce((s, d) => s + d.value, 0);
-              const pct = Math.round((item.value / total) * 100);
+            {distribucionActivosLive.map((item) => {
+              const total = distribucionActivosLive.reduce((s, d) => s + d.value, 0);
+              const pct = total > 0 ? Math.round((item.value / total) * 100) : 0;
               return (
                 <div key={item.name}>
                   <div className="flex items-center justify-between text-sm mb-1">

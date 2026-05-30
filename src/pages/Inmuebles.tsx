@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 import { fetchParcelas } from '../api/services/parcelas.service';
 import { useApiQuery } from '../hooks/useApiQuery';
 import ApiState from '../components/ApiState';
-import { inmuebleStats as inmuebleStatsMock } from '../data/inmuebles';
 import { ESTADOS_OCUPACION, ZONIFICACIONES, TIPOS_INMUEBLE } from '../types/inmueble';
 import { formatArea, formatMoneda } from '../utils/formatters';
 import DataTable, { type Column, type FilterOption } from '../components/DataTable';
@@ -25,15 +24,17 @@ export default function Inmuebles() {
   const listaFromApi = parcelasQuery.data?.inmuebles ?? [];
   const [localExtras, setLocalExtras] = useState<Inmueble[]>([]);
   const lista = [...localExtras, ...listaFromApi];
+  const areaTotal = listaFromApi.reduce((total, item) => total + (item.areaSegunDocumento ?? 0), 0);
+  const areaDisponible = listaFromApi.reduce((total, item) => total + (item.areaDisponible ?? 0), 0);
   const inmuebleStats = {
-    ...inmuebleStatsMock,
     totalRegistros: parcelasQuery.data?.meta?.total ?? lista.length,
-    disponibles: listaFromApi.length
-      ? listaFromApi.filter((i) => i.estadoOcupacion === 'Disponible').length
-      : inmuebleStatsMock.disponibles,
+    disponibles: listaFromApi.filter((i) => i.estadoOcupacion === 'Disponible').length,
     comprometidos: listaFromApi.filter((i) => i.estadoOcupacion === 'Comprometido').length,
     desincorporados: listaFromApi.filter((i) => i.estadoOcupacion === 'Desincorporado').length,
     ocupados: listaFromApi.filter((i) => i.estadoOcupacion === 'Ocupado').length,
+    enLitigio: listaFromApi.filter((i) => i.estadoOcupacion === 'En litigio').length,
+    areaTotal,
+    areaDisponible,
   };
   const [showModal, setShowModal] = useState(false);
   const [showImport, setShowImport] = useState(false);
@@ -68,7 +69,9 @@ export default function Inmuebles() {
     { key: 'tipoInmueble', label: 'Tipo', options: ['Todos', ...TIPOS_INMUEBLE] },
   ];
 
-  const dispPct = Math.round((inmuebleStats.disponibles / inmuebleStats.totalRegistros) * 100);
+  const dispPct = inmuebleStats.totalRegistros > 0
+    ? Math.round((inmuebleStats.disponibles / inmuebleStats.totalRegistros) * 100)
+    : 0;
 
   return (
     <div className="p-4 md:p-6 space-y-6">

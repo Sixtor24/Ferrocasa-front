@@ -172,8 +172,8 @@ export default function Vehiculos() {
   });
 
   const listQuery = useApiQuery(
-    () => fetchVehiculos({ page: 1, limit: 500, search: filtros.buscar || undefined }),
-    [filtros.buscar],
+    () => fetchVehiculos({ page, limit: PER_PAGE, search: filtros.buscar || undefined }),
+    [page, filtros.buscar],
   );
 
   const detailQuery = useApiQuery(
@@ -198,8 +198,8 @@ export default function Vehiculos() {
     });
   }, [vehiculos, filtros]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
-  const paginated = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
+  const totalPages = Math.max(1, listQuery.data?.meta.totalPages ?? 1);
+  const paginated = filtered;
 
   const setFiltro = (key: keyof typeof filtros, value: string) => {
     setFiltros((prev) => ({ ...prev, [key]: value }));
@@ -250,7 +250,7 @@ export default function Vehiculos() {
       />
 
       <ApiState
-        loading={listQuery.loading}
+        loading={listQuery.loading && !listQuery.data}
         error={listQuery.error}
         onRetry={listQuery.refetch}
         empty={!listQuery.loading && filtered.length === 0}
@@ -259,6 +259,7 @@ export default function Vehiculos() {
         <ModuleDataTable
           data={paginated}
           columns={columns}
+          loading={listQuery.loading && Boolean(listQuery.data)}
           onDetails={(v) => navigate(`/vehiculos/${v.id}`)}
         />
 

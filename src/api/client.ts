@@ -1,3 +1,5 @@
+import { ApiValidationError, validateApiPayload, validateApiResponse } from './validation';
+
 const API_BASE = import.meta.env.VITE_API_URL ?? '/api/v1';
 
 export class ApiError extends Error {
@@ -39,11 +41,12 @@ export async function apiRequest<T>(
 ): Promise<T> {
   const { method = 'GET', body, params } = options;
   const url = buildUrl(path, params);
+  const validatedBody = validateApiPayload(path, method, body);
 
   const res = await fetch(url, {
     method,
-    headers: body ? { 'Content-Type': 'application/json' } : undefined,
-    body: body ? JSON.stringify(body) : undefined,
+    headers: validatedBody ? { 'Content-Type': 'application/json' } : undefined,
+    body: validatedBody ? JSON.stringify(validatedBody) : undefined,
   });
 
   const json = await res.json().catch(() => ({}));
@@ -56,5 +59,12 @@ export async function apiRequest<T>(
     throw new ApiError(json.error ?? json.message ?? fallback, res.status, json);
   }
 
-  return json as T;
+  try {
+    return validateApiResponse<T>(path, method, json);
+  } catch (err) {
+    if (err instanceof ApiValidationError) {
+      throw new ApiError(err.message, res.status, { issues: err.issues, body: json });
+    }
+    throw err;
+  }
 }

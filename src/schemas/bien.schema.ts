@@ -33,3 +33,17 @@ export const bienMuebleSchema = z.object({
 );
 
 export type BienMuebleForm = z.infer<typeof bienMuebleSchema>;
+
+const backendId = (label: string) =>
+  z.coerce
+    .number({ error: `${label} debe ser numérico` })
+    .int(`${label} debe ser un entero`)
+    .positive(`${label} debe ser un ID válido del backend`);
+
+export const bienMuebleBackendIdsSchema = z.object({
+  numeroDocumento: backendId('Número de documento'),
+  ubicacion: backendId('Almacén'),
+  codigoCategoria: backendId('Categoría específica'),
+});
+
+export type BienMuebleBackendIds = z.infer<typeof bienMuebleBackendIdsSchema>;

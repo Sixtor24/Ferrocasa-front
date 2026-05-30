@@ -16,6 +16,7 @@ import type { Column } from '../components/DataTable';
 import { ArrowLeft, Map, MapPin, Layers, MinusCircle } from 'lucide-react';
 
 const PER_PAGE = 5;
+const ESTADOS_PARCELA = ['disponible', 'comprometida', 'desincorporada'] as const;
 
 function formatAreaM2Detail(value: number) {
   return `${value.toLocaleString('es-VE')} m²`;
@@ -171,12 +172,21 @@ export default function Terrenos() {
   const [filtros, setFiltros] = useState({
     codigo: '',
     nombre: '',
+    zona: '',
+    estado: '',
     zonificacion: '',
     nroPropiedad: '',
     levantamiento: '',
     acreditacion: '',
     buscar: '',
   });
+
+  const apiSearch = useMemo(() => {
+    return [filtros.buscar, filtros.nombre, filtros.zonificacion && filtros.zonificacion !== 'Todas' ? filtros.zonificacion : '']
+      .map((value) => value.trim())
+      .filter(Boolean)
+      .join(' ') || undefined;
+  }, [filtros.buscar, filtros.nombre, filtros.zonificacion]);
 
   const detailQuery = useApiQuery(
     () => fetchParcelaById(Number(id)),
@@ -185,8 +195,16 @@ export default function Terrenos() {
   );
 
   const listQuery = useApiQuery(
-    () => fetchParcelas({ page: 1, limit: 500, search: filtros.buscar || undefined }),
-    [filtros.buscar],
+    () => fetchParcelas({
+      page,
+      limit: PER_PAGE,
+      search: apiSearch,
+      zona: filtros.zona || undefined,
+      estado: filtros.estado && filtros.estado !== 'Todos'
+        ? (filtros.estado as (typeof ESTADOS_PARCELA)[number])
+        : undefined,
+    }),
+    [page, apiSearch, filtros.zona, filtros.estado],
   );
 
   const statsQuery = useApiQuery(() => fetchParcelasEstadisticas(), []);
@@ -194,19 +212,17 @@ export default function Terrenos() {
   const terrenos = listQuery.data?.terrenos ?? [];
 
   const metricas = useMemo(() => {
-    const totalParcelas = terrenos.length > 0 ? terrenos.length : (statsQuery.data?.total ?? 0);
+    const totalParcelas = statsQuery.data?.total ?? listQuery.data?.meta.total ?? terrenos.length;
     const areaDisponible = terrenos.reduce((s, t) => s + (t.areaDisponible ?? 0), 0);
     const areaDesincorporada = terrenos.reduce((s, t) => s + (t.areaDesincorporada ?? 0), 0);
     const areaComprometida = terrenos.reduce((s, t) => s + (t.areaComprometida ?? 0), 0);
     const areaDocumento = terrenos.reduce((s, t) => s + (t.areaDocumento ?? 0), 0);
     return { totalParcelas, areaDisponible, areaDesincorporada, areaComprometida, areaDocumento };
-  }, [terrenos, statsQuery.data?.total]);
+  }, [terrenos, statsQuery.data?.total, listQuery.data?.meta.total]);
 
   const filtered = useMemo(() => {
     return terrenos.filter((t) => {
       if (filtros.codigo && !t.codigo.toLowerCase().includes(filtros.codigo.toLowerCase())) return false;
-      if (filtros.nombre && !t.nombre.toLowerCase().includes(filtros.nombre.toLowerCase())) return false;
-      if (filtros.zonificacion && filtros.zonificacion !== 'Todas' && t.zonificacion !== filtros.zonificacion) return false;
       if (filtros.nroPropiedad && !t.nroPropiedad.includes(filtros.nroPropiedad)) return false;
       if (filtros.levantamiento && filtros.levantamiento !== 'Todos' && t.levantamientoTopografico !== filtros.levantamiento) return false;
       if (filtros.acreditacion && filtros.acreditacion !== 'Todos' && t.acreditacionTecnicaAmbiental !== filtros.acreditacion) return false;
@@ -214,8 +230,8 @@ export default function Terrenos() {
     });
   }, [terrenos, filtros]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
-  const paginated = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
+  const totalPages = Math.max(1, listQuery.data?.meta.totalPages ?? 1);
+  const paginated = filtered;
 
   const setFiltro = (key: keyof typeof filtros, value: string) => {
     setFiltros((prev) => ({ ...prev, [key]: value }));
@@ -300,6 +316,8 @@ export default function Terrenos() {
         fields={[
           { key: 'codigo', label: 'Código', type: 'text', value: filtros.codigo, onChange: (v) => setFiltro('codigo', v) },
           { key: 'nombre', label: 'Nombre', type: 'text', value: filtros.nombre, onChange: (v) => setFiltro('nombre', v) },
+          { key: 'zona', label: 'Zona', type: 'text', value: filtros.zona, onChange: (v) => setFiltro('zona', v) },
+          { key: 'estado', label: 'Estado', type: 'select', value: filtros.estado, onChange: (v) => setFiltro('estado', v), options: ['Todos', ...ESTADOS_PARCELA] },
           { key: 'zonificacion', label: 'Zonificación', type: 'select', value: filtros.zonificacion, onChange: (v) => setFiltro('zonificacion', v), options: ['Todas', ...ZONIFICACIONES] },
           { key: 'nroPropiedad', label: 'Nro de Propiedad', type: 'text', value: filtros.nroPropiedad, onChange: (v) => setFiltro('nroPropiedad', v) },
           { key: 'levantamiento', label: 'Levantamiento Topográfico', type: 'select', value: filtros.levantamiento, onChange: (v) => setFiltro('levantamiento', v), options: ['Todos', ...ESTADOS_TRAMITE] },
@@ -309,7 +327,7 @@ export default function Terrenos() {
       />
 
       <ApiState
-        loading={listQuery.loading}
+        loading={listQuery.loading && !listQuery.data}
         error={listQuery.error}
         onRetry={listQuery.refetch}
         empty={!listQuery.loading && filtered.length === 0}
@@ -318,6 +336,7 @@ export default function Terrenos() {
         <ModuleDataTable
           data={paginated}
           columns={columns}
+          loading={listQuery.loading && Boolean(listQuery.data)}
           onDetails={(t) => navigate(`/terrenos/${t.id}`)}
         />
 

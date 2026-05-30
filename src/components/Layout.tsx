@@ -28,7 +28,7 @@ const searchablePages = [
   { label: 'Bienes Administrativos', path: '/almacen', keywords: 'materiales bienes muebles administrativos inventario' },
   { label: 'Proyectos Habitacionales', path: '/almacen/proyectos', keywords: 'proyectos edificio urbanismo villa residencias' },
   { label: 'Registro de Parcelas', path: '/almacen/inmuebles', keywords: 'inmuebles propiedad apartamento casa terreno parcela' },
-  { label: 'Bienes Cementerio', path: '/cementerio', keywords: 'cementerio inventario bienes inmuebles' },
+  { label: 'Parcelas Cementerio', path: '/cementerio', keywords: 'cementerio parcelas terrenos inmuebles' },
   { label: 'Terrenos', path: '/terrenos', keywords: 'terrenos parcelas zonificación topografía' },
   { label: 'Vehículos y Maquinaria', path: '/vehiculos', keywords: 'vehículos flota camioneta camión maquinaria placa' },
   { label: 'Reportes', path: '/reportes', keywords: 'reportes reporte auditoría pdf excel export' },
@@ -174,25 +174,6 @@ export default function Layout() {
           ))}
         </nav>
 
-        <div className="px-2 pb-2">
-          <NavLink
-            to="/configuracion"
-            title={sidebarCollapsed ? 'Configuración' : undefined}
-            className={({ isActive }) =>
-              `flex items-center gap-3 rounded-lg text-sm font-medium transition-colors ${
-                sidebarCollapsed ? 'justify-center px-2 py-3' : 'px-3 py-2.5'
-              } ${
-                isActive
-                  ? 'bg-navy-900 text-white'
-                  : 'text-gray-600 hover:bg-gray-100'
-              }`
-            }
-          >
-            <Settings size={20} className="shrink-0" />
-            {!sidebarCollapsed && 'Configuración'}
-          </NavLink>
-        </div>
-
         <div className={`p-2 border-t border-gray-200 ${sidebarCollapsed ? 'flex justify-center' : ''}`}>
           {sidebarCollapsed ? (
             <button
@@ -293,6 +274,21 @@ export default function Layout() {
               <Calendar size={16} />
               <span className="capitalize">{today}</span>
             </div>
+            <NavLink
+              to="/configuracion"
+              className={({ isActive }) =>
+                `inline-flex items-center justify-center gap-2 h-9 rounded-lg border px-2.5 sm:px-3 text-sm font-semibold transition-colors ${
+                  isActive
+                    ? 'border-navy-900 bg-navy-900 text-white shadow-sm'
+                    : 'border-gray-200 bg-white text-navy-700 hover:border-navy-200 hover:bg-navy-50'
+                }`
+              }
+              aria-label="Abrir configuración"
+              title="Configuración"
+            >
+              <Settings size={17} />
+              <span className="hidden lg:inline">Configuración</span>
+            </NavLink>
             <div className="relative" ref={notifRef}>
               {showNotif && (
                 <div className="absolute top-full right-0 mt-2 w-72 sm:w-80 bg-white border border-gray-200 rounded-xl shadow-lg z-50 overflow-hidden">
