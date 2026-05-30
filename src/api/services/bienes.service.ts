@@ -8,6 +8,7 @@ import type {
 import { mapApiBienToBienMueble } from '../mappers/bien.mapper';
 import type { BienMueble } from '../../types/bien';
 import { allowMockFallback, shouldFallbackToMockList, useMockDataOnly } from '../mockConfig';
+import { shouldUseMockForListEndpoint } from '../mockListProbe';
 import {
   getMockBienById,
   getMockBienes,
@@ -60,6 +61,7 @@ export async function fetchBienesEstadisticas(): Promise<ApiBienesEstadisticas> 
   if (useMockDataOnly()) return mockBienesEstadisticas;
 
   try {
+    if (await shouldUseMockForListEndpoint('/bienes')) return mockBienesEstadisticas;
     const res = await apiRequest<ApiItemResponse<ApiBienesEstadisticas>>('/bienes/estadisticas');
     return res.data ?? mockBienesEstadisticas;
   } catch (err) {

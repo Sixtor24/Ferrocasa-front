@@ -13,6 +13,7 @@ import {
 import type { Terreno } from '../../types/terreno';
 import type { Inmueble } from '../../types/inmueble';
 import { allowMockFallback, shouldFallbackToMockList, useMockDataOnly } from '../mockConfig';
+import { shouldUseMockForListEndpoint } from '../mockListProbe';
 import {
   getMockParcelaById,
   getMockParcelas,
@@ -76,6 +77,7 @@ export async function fetchParcelasEstadisticas(): Promise<ApiParcelasEstadistic
   if (useMockDataOnly()) return mockParcelasEstadisticas;
 
   try {
+    if (await shouldUseMockForListEndpoint('/parcelas')) return mockParcelasEstadisticas;
     const res = await apiRequest<ApiItemResponse<ApiParcelasEstadisticas>>('/parcelas/estadisticas');
     return res.data ?? mockParcelasEstadisticas;
   } catch (err) {

@@ -194,7 +194,7 @@ export default function Terrenos() {
   const terrenos = listQuery.data?.terrenos ?? [];
 
   const metricas = useMemo(() => {
-    const totalParcelas = statsQuery.data?.total ?? terrenos.length;
+    const totalParcelas = terrenos.length > 0 ? terrenos.length : (statsQuery.data?.total ?? 0);
     const areaDisponible = terrenos.reduce((s, t) => s + (t.areaDisponible ?? 0), 0);
     const areaDesincorporada = terrenos.reduce((s, t) => s + (t.areaDesincorporada ?? 0), 0);
     const areaComprometida = terrenos.reduce((s, t) => s + (t.areaComprometida ?? 0), 0);

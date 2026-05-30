@@ -8,6 +8,7 @@ import type {
 import { mapApiVehiculoToVehiculo } from '../mappers/vehiculo.mapper';
 import type { Vehiculo } from '../../types/vehiculo';
 import { allowMockFallback, shouldFallbackToMockList, useMockDataOnly } from '../mockConfig';
+import { shouldUseMockForListEndpoint } from '../mockListProbe';
 import {
   getMockVehiculoById,
   getMockVehiculos,
@@ -60,6 +61,7 @@ export async function fetchVehiculosEstadisticas(): Promise<ApiVehiculosEstadist
   if (useMockDataOnly()) return mockVehiculosEstadisticas;
 
   try {
+    if (await shouldUseMockForListEndpoint('/vehiculos')) return mockVehiculosEstadisticas;
     const res = await apiRequest<ApiItemResponse<ApiVehiculosEstadisticas>>('/vehiculos/estadisticas');
     return res.data ?? mockVehiculosEstadisticas;
   } catch (err) {
