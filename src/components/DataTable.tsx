@@ -4,7 +4,6 @@ import {
   ArrowUpDown, ArrowUp, ArrowDown,
   Download, FileText, Eye,
 } from 'lucide-react';
-import { compareNaturalCodes, sortByNaturalCode } from '../utils/codeSort';
 
 export interface Column<T> {
   key: string;
@@ -120,11 +119,9 @@ export default function DataTable<T extends { id: number | string }>({
         const bVal = (b as Record<string, unknown>)[sortKey];
         if (aVal === null || aVal === undefined) return 1;
         if (bVal === null || bVal === undefined) return -1;
-        const cmp = compareNaturalCodes(aVal, bVal);
+        const cmp = String(aVal).localeCompare(String(bVal), 'es', { numeric: true });
         return sortDir === 'asc' ? cmp : -cmp;
       });
-    } else {
-      result = sortByNaturalCode(result);
     }
 
     return result;

@@ -7,6 +7,8 @@ const STYLES: Record<string, string> = {
   'Inservible': 'bg-red-200 text-red-900',
   // Estado de uso
   'En uso': 'bg-blue-100 text-blue-800',
+  'En obsolescencia': 'bg-amber-100 text-amber-800',
+  'Obsoleto': 'bg-red-100 text-red-700',
   'En almacén': 'bg-gray-100 text-gray-700',
   'En tránsito': 'bg-purple-100 text-purple-800',
   'Desincorporado': 'bg-red-100 text-red-700',

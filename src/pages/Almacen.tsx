@@ -1,13 +1,14 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ZodError } from 'zod';
 import {
   createBien,
-  fetchBienes,
-  fetchBienesEstadisticas,
-  fetchBienByCodigo,
   type BienPayload,
 } from '../api/services/bienes.service';
+import { fetchAlmacenes } from '../api/services/almacenes.service';
+import {
+  fetchBienAdministrativoByCodigo,
+  fetchBienesAdministrativos,
+} from '../api/services/bienes-sedes.service';
 import { useApiQuery } from '../hooks/useApiQuery';
 import ApiState from '../components/ApiState';
 import AssetDetailView from '../components/module/AssetDetailView';
@@ -15,17 +16,18 @@ import ModuleFilterBar from '../components/module/ModuleFilterBar';
 import ModuleDataTable from '../components/module/ModuleDataTable';
 import ModulePagination from '../components/module/ModulePagination';
 import {
-  SEDES,
   CONDICIONES_FISICAS,
   ESTADOS_USO,
-  UNIDADES_ADMINISTRATIVAS,
 } from '../types/bien';
+import {
+  ALMACENES_BIENES_ADMINISTRATIVOS,
+  DEPARTAMENTOS_BIENES_ADMINISTRATIVOS,
+} from '../data/bienesCatalogos';
 import { formatFecha, formatMoneda } from '../utils/formatters';
 import type { Column } from '../components/DataTable';
 import StatusBadge from '../components/StatusBadge';
 import { ImportExcelModal, NuevoBienMuebleModal, type NuevoBienMueblePayload } from '../components/modals';
 import type { BienMueble } from '../types/bien';
-import { bienMuebleBackendIdsSchema } from '../schemas/bien.schema';
 import ModulePageHeader from '../components/module/ModulePageHeader';
 import {
   Package,
@@ -39,10 +41,25 @@ import {
 
 const PER_PAGE = 10;
 
+function normalizeCatalogValue(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
+function toPositiveInt(value: string, label: string) {
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new Error(`${label} debe ser un ID válido del backend`);
+  }
+  return parsed;
+}
+
 function toBackendEstadoUso(value: BienMueble['estadoUso']): BienPayload['estado_uso'] {
   if (value === 'En uso') return 'En_Uso';
-  if (value === 'Desincorporado') return 'Dado_de_Baja';
-  if (value === 'En almacén') return 'Almacenado';
+  if (value === 'Obsoleto') return 'Dado_de_Baja';
   return 'En_Reparacion';
 }
 
@@ -64,7 +81,7 @@ function AlmacenBienDetail({ bien, onVolver }: { bien: BienMueble; onVolver: () 
       title="Bienes e Inmuebles: Edificio Administrativo"
       breadcrumb={[
         { label: 'Dashboard', to: '/dashboard' },
-        { label: 'Bienes Administrativos', to: '/almacen' },
+        { label: 'Bienes en Edificio Administrativo', to: '/almacen' },
         { label: bien.sinCodigo ? 'Sin código' : bien.codigoInterno },
       ]}
       categoryFields={[
@@ -117,7 +134,7 @@ function AlmacenBienDetail({ bien, onVolver }: { bien: BienMueble; onVolver: () 
             { label: 'Almacén', value: bien.ubicacion },
             { label: 'Marca', value: bien.marca },
             { label: 'Unidad Administrativa', value: bien.unidadAdministrativa },
-            { label: 'Departamento', value: bien.unidadAdministrativa },
+            { label: 'Unidad Administrativa', value: bien.unidadAdministrativa },
             { label: 'Modelo', value: bien.modelo || '—' },
             { label: 'Sede', value: bien.sede },
             { label: 'Valor de Adquisición', value: formatMoneda(bien.valorAdquisicion, bien.moneda) },
@@ -178,17 +195,14 @@ export default function Almacen() {
     buscar: '',
   });
 
-  const bienesQuery = useApiQuery(
-    () => fetchBienes({ page, limit: PER_PAGE, search: filtros.buscar || undefined }),
-    [page, filtros.buscar],
-  );
-  const statsQuery = useApiQuery(() => fetchBienesEstadisticas(), []);
+  const bienesQuery = useApiQuery(() => fetchBienesAdministrativos({ page: 1, limit: 5000 }), []);
+  const almacenesQuery = useApiQuery(() => fetchAlmacenes({ page: 1, limit: 5000 }), []);
   const detailQuery = useApiQuery(
-    () => fetchBienByCodigo(Number(id)),
+    () => fetchBienAdministrativoByCodigo(Number(id)),
     [id],
     Boolean(id),
   );
-  const lista = bienesQuery.data?.data ?? [];
+  const lista = bienesQuery.data?.all ?? bienesQuery.data?.data ?? [];
   const displayList = lista;
   const [showModal, setShowModal] = useState(false);
   const [showImport, setShowImport] = useState(false);
@@ -196,18 +210,15 @@ export default function Almacen() {
   const [errorMsg, setErrorMsg] = useState('');
 
   const bienesStats = useMemo(() => ({
-    total: statsQuery.data?.total ?? displayList.length,
+    total: displayList.length,
     enUso: displayList.filter((b) => b.estadoUso === 'En uso').length,
     regulares: displayList.filter((b) => b.condicionFisica === 'Regular').length,
     danados: displayList.filter((b) =>
       ['Dañado', 'Averiado', 'Inservible'].includes(b.condicionFisica)
     ).length,
-  }), [displayList, statsQuery.data?.total]);
+  }), [displayList]);
 
-  const almacenOptions = useMemo(() => {
-    const names = [...new Set(displayList.map((b) => b.ubicacion).filter(Boolean))].sort();
-    return ['Todas', ...names];
-  }, [displayList]);
+  const almacenOptions = useMemo(() => ['Todas', ...ALMACENES_BIENES_ADMINISTRATIVOS], []);
 
   const filtered = useMemo(() => {
     return displayList.filter((b) => {
@@ -218,12 +229,22 @@ export default function Almacen() {
       if (filtros.departamento && filtros.departamento !== 'Todos' && b.unidadAdministrativa !== filtros.departamento) return false;
       if (filtros.numeroDocumento && !b.numeroDocumento.includes(filtros.numeroDocumento)) return false;
       if (filtros.estadoUso && filtros.estadoUso !== 'Todos' && b.estadoUso !== filtros.estadoUso) return false;
+      if (filtros.buscar) {
+        const q = filtros.buscar.toLowerCase();
+        const hay =
+          b.codigoInterno.toLowerCase().includes(q) ||
+          b.descripcion.toLowerCase().includes(q) ||
+          b.marca.toLowerCase().includes(q) ||
+          b.serial.toLowerCase().includes(q) ||
+          b.ubicacion.toLowerCase().includes(q);
+        if (!hay) return false;
+      }
       return true;
     });
   }, [displayList, filtros]);
 
-  const totalPages = Math.max(1, bienesQuery.data?.meta.totalPages ?? 1);
-  const paginated = filtered;
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
+  const paginated = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
   const setFiltro = (key: keyof typeof filtros, value: string) => {
     setFiltros((prev) => ({ ...prev, [key]: value }));
@@ -239,14 +260,16 @@ export default function Almacen() {
   const handleNuevoBien = async (payload: NuevoBienMueblePayload) => {
     try {
       setErrorMsg('');
-      const backendIds = bienMuebleBackendIdsSchema.parse({
-        numeroDocumento: payload.numeroDocumento,
-        ubicacion: payload.ubicacion,
-        codigoCategoria: payload.codigoCategoria,
-      });
+      const selectedAlmacen = almacenesQuery.data?.data.find(
+        (almacen) => normalizeCatalogValue(almacen.nombre) === normalizeCatalogValue(payload.ubicacion)
+      );
+      const idAlmacen = selectedAlmacen?.id_almacen ?? Number(payload.ubicacion);
+      if (!Number.isInteger(idAlmacen) || idAlmacen <= 0) {
+        throw new Error('El almacén seleccionado debe estar registrado en configuración antes de crear bienes');
+      }
       const body: BienPayload = {
         descripcion: payload.descripcion,
-        id_doc: backendIds.numeroDocumento,
+        id_doc: toPositiveInt(payload.numeroDocumento, 'Número de documento'),
         fecha_ingreso: payload.fechaAdquisicion || new Date().toISOString(),
         fecha_egreso: null,
         valor_adquisicion: payload.valorAdquisicion ?? 0,
@@ -257,24 +280,21 @@ export default function Almacen() {
         serial: payload.sinSerial ? null : payload.serial,
         estado_uso: toBackendEstadoUso(payload.estadoUso),
         condicion_fisica: payload.condicionFisica,
-        id_almacen: backendIds.ubicacion,
+        id_almacen: idAlmacen,
         cantidad: 1,
         consumibilidad: toBackendConsumibilidad(payload as BienMueble),
         usuario_carga: null,
-        id_categoria_especifica: backendIds.codigoCategoria,
+        id_categoria_especifica: toPositiveInt(payload.codigoCategoria, 'Categoría específica'),
         unidad_administrativa: payload.unidadAdministrativa,
       };
 
       await createBien(body);
       bienesQuery.refetch();
-      statsQuery.refetch();
       setShowModal(false);
       setSuccessMsg('Bien mueble registrado exitosamente');
       setTimeout(() => setSuccessMsg(''), 3000);
     } catch (err) {
-      const message = err instanceof ZodError
-        ? (err.issues[0]?.message ?? 'Datos inválidos')
-        : err instanceof Error
+      const message = err instanceof Error
           ? err.message
           : 'No se pudo registrar el bien';
       setErrorMsg(message);
@@ -340,7 +360,7 @@ export default function Almacen() {
     <div className="p-4 md:p-6 space-y-6 max-w-[1600px]">
       <ModulePageHeader
         title="Bienes e Inmuebles Administrativos"
-        breadcrumb={[{ label: 'Dashboard', to: '/dashboard' }, { label: 'Bienes Administrativos' }]}
+        breadcrumb={[{ label: 'Dashboard', to: '/dashboard' }, { label: 'Bienes en Edificio Administrativo' }]}
         onCreate={() => setShowModal(true)}
         extraActions={
           <>
@@ -407,11 +427,11 @@ export default function Almacen() {
           },
           {
             key: 'departamento',
-            label: 'Departamento',
+            label: 'Unidad Administrativa',
             type: 'select',
             value: filtros.departamento,
             onChange: (v) => setFiltro('departamento', v),
-            options: ['Todos', ...UNIDADES_ADMINISTRATIVAS],
+            options: ['Todos', ...DEPARTAMENTOS_BIENES_ADMINISTRATIVOS],
           },
           {
             key: 'documento',

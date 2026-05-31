@@ -3,13 +3,17 @@ import { Save } from 'lucide-react';
 import Modal from './Modal';
 import ModalField from './ModalField';
 import {
-  SEDES,
   CONDICIONES_FISICAS,
   ESTADOS_USO,
   CATEGORIAS_GENERALES,
   FORMAS_ADQUISICION,
   MONEDAS,
 } from '../../types/bien';
+import {
+  ALMACENES_BIENES_ADMINISTRATIVOS,
+  DEPARTAMENTOS_BIENES_ADMINISTRATIVOS,
+  SEDES_BIENES_ADMINISTRATIVOS,
+} from '../../data/bienesCatalogos';
 import type { BienMueble } from '../../types/bien';
 import { bienMuebleSchema } from '../../schemas/bien.schema';
 import { validarConZod } from '../../utils/validators';
@@ -26,8 +30,8 @@ type NuevoBienMuebleModalProps = {
 };
 
 const initialForm = {
-  sede: SEDES[0] as string,
-  unidadAdministrativa: '',
+  sede: SEDES_BIENES_ADMINISTRATIVOS[0] as string,
+  unidadAdministrativa: DEPARTAMENTOS_BIENES_ADMINISTRATIVOS[0] as string,
   codigoInterno: '',
   sinCodigo: false,
   descripcion: '',
@@ -47,7 +51,7 @@ const initialForm = {
   subcategoria: '',
   categoriaEspecifica: '',
   codigoCategoria: '',
-  ubicacion: '',
+  ubicacion: ALMACENES_BIENES_ADMINISTRATIVOS[0] as string,
   observaciones: '',
 };
 
@@ -97,17 +101,21 @@ export default function NuevoBienMuebleModal({ open, onClose, onSubmit }: NuevoB
         <div className="grid grid-cols-2 gap-3">
           <ModalField label="Sede *" error={errors.sede}>
             <select value={form.sede} onChange={(e) => updateForm('sede', e.target.value)} className="input-field">
-              {SEDES.map((s) => (
+              {SEDES_BIENES_ADMINISTRATIVOS.map((s) => (
                 <option key={s}>{s}</option>
               ))}
             </select>
           </ModalField>
           <ModalField label="Unidad administrativa *" error={errors.unidadAdministrativa}>
-            <input
+            <select
               value={form.unidadAdministrativa}
               onChange={(e) => updateForm('unidadAdministrativa', e.target.value)}
               className="input-field"
-            />
+            >
+              {DEPARTAMENTOS_BIENES_ADMINISTRATIVOS.map((departamento) => (
+                <option key={departamento}>{departamento}</option>
+              ))}
+            </select>
           </ModalField>
         </div>
         <ModalField label="Código interno *" error={errors.codigoInterno}>
@@ -233,12 +241,15 @@ export default function NuevoBienMuebleModal({ open, onClose, onSubmit }: NuevoB
             />
           </ModalField>
           <ModalField label="Ubicación *" error={errors.ubicacion}>
-            <input
+            <select
               value={form.ubicacion}
               onChange={(e) => updateForm('ubicacion', e.target.value)}
               className="input-field"
-              placeholder="Piso 3, Oficina 301"
-            />
+            >
+              {ALMACENES_BIENES_ADMINISTRATIVOS.map((almacen) => (
+                <option key={almacen}>{almacen}</option>
+              ))}
+            </select>
           </ModalField>
         </div>
         <ModalField label="Observaciones" error={errors.observaciones}>

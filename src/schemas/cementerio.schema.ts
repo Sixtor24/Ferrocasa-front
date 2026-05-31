@@ -7,7 +7,7 @@ export const inventarioCementerioSchema = z.object({
   modelo: z.string().optional().default(''),
   color: z.string().optional().default(''),
   serial: z.string().optional().default(''),
-  estadoBien: z.enum(['Bueno', 'Regular', 'Dañado', 'Averiado', 'Inservible']),
+  estadoBien: z.enum(['Bueno', 'Regular', 'Dañado']),
   area: z.enum([
     'Cocina', 'Galpón', 'Taller', 'Oficinas', 'Crematorio',
     'Sala Velatoria', 'Patio', 'Principal', 'Sala de Espera', 'Mantenimiento',

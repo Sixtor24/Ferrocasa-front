@@ -1,7 +1,7 @@
 // Cementerio — inventario físico simple (304 filas reales) + gestión de parcelas
 
-export type EstadoBienCementerio = 'Bueno' | 'Regular' | 'Dañado' | 'Averiado' | 'Inservible';
-export type EstadoUsoCementerio = 'En uso' | 'En almacén' | 'En tránsito' | 'Desincorporado' | 'Por verificar';
+export type EstadoBienCementerio = 'Bueno' | 'Regular' | 'Dañado';
+export type EstadoUsoCementerio = 'En uso' | 'En obsolescencia' | 'Obsoleto';
 
 export type AreaCementerio =
   | 'Cocina' | 'Galpón' | 'Taller' | 'Oficinas'
@@ -59,9 +59,9 @@ export const AREAS_CEMENTERIO: AreaCementerio[] = [
   'Sala Velatoria', 'Patio', 'Principal', 'Sala de Espera', 'Mantenimiento',
 ];
 
-export const ESTADOS_BIEN_CEMENTERIO: EstadoBienCementerio[] = ['Bueno', 'Regular', 'Dañado', 'Averiado', 'Inservible'];
-export const ESTADOS_USO_CEMENTERIO: EstadoUsoCementerio[] = ['En uso', 'En almacén', 'En tránsito', 'Desincorporado', 'Por verificar'];
-export const SEDES_CEMENTERIO = ['Cementerio Municipal'] as const;
+export const ESTADOS_BIEN_CEMENTERIO: EstadoBienCementerio[] = ['Bueno', 'Regular', 'Dañado'];
+export const ESTADOS_USO_CEMENTERIO: EstadoUsoCementerio[] = ['En uso', 'En obsolescencia', 'Obsoleto'];
+export const SEDES_CEMENTERIO = ['Cementerio'] as const;
 export const DEPARTAMENTOS_CEMENTERIO = [
   'Administración',
   'Crematorio',

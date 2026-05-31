@@ -4,11 +4,11 @@ import type { CondicionVehiculo, EstadoUsoVehiculo } from '../../types/vehiculo'
 export function mapEstadoUsoBien(api: string): EstadoUso {
   const map: Record<string, EstadoUso> = {
     En_Uso: 'En uso',
-    En_Reparacion: 'En almacén',
-    Dado_de_Baja: 'Desincorporado',
-    Almacenado: 'En almacén',
+    En_Reparacion: 'En obsolescencia',
+    Dado_de_Baja: 'Obsoleto',
+    Almacenado: 'En uso',
   };
-  return map[api] ?? 'Por verificar';
+  return map[api] ?? 'En uso';
 }
 
 export function mapEstadoUsoVehiculo(api: string): EstadoUsoVehiculo {
@@ -26,6 +26,8 @@ export function mapCondicionFisica(api: string): CondicionFisica {
     Bueno: 'Bueno',
     Regular: 'Regular',
     Dañado: 'Dañado',
+    Averiado: 'Dañado',
+    Inservible: 'Dañado',
   };
   return map[api] ?? 'Regular';
 }
@@ -58,6 +60,10 @@ export function toNumber(value: string | number | null | undefined): number | nu
 }
 
 export function toIsoDate(value?: string | null): string {
-  if (!value) return '';
-  return value.split('T')[0];
+  if (!value || value === '—') return '';
+  const iso = value.split('T')[0];
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return iso;
 }

@@ -1,10 +1,9 @@
 import { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { fetchBienes, fetchBienesEstadisticas } from '../api/services/bienes.service';
+import { fetchBienesAdministrativos, fetchBienesCementerio } from '../api/services/bienes-sedes.service';
 import { fetchVehiculos } from '../api/services/vehiculos.service';
 import { fetchParcelasEstadisticas } from '../api/services/parcelas.service';
 import { useApiQuery } from '../hooks/useApiQuery';
-import { sortByNaturalCode } from '../utils/codeSort';
 import ModuleMetricCard from '../components/module/ModuleMetricCard';
 import StatusBadge from '../components/StatusBadge';
 import {
@@ -24,18 +23,18 @@ import {
 const tiposMovimiento = ['Todos los movimientos', 'Inventario'] as const;
 
 export default function Reportes() {
-  const bienesStatsQuery = useApiQuery(() => fetchBienesEstadisticas(), []);
+  const bienesAdminQuery = useApiQuery(() => fetchBienesAdministrativos({ page: 1, limit: 5000 }), []);
+  const bienesCementerioQuery = useApiQuery(() => fetchBienesCementerio({ page: 1, limit: 5000 }), []);
   const parcelasStatsQuery = useApiQuery(() => fetchParcelasEstadisticas(), []);
-  const bienesQuery = useApiQuery(() => fetchBienes({ page: 1, limit: 100 }), []);
   const vehiculosQuery = useApiQuery(() => fetchVehiculos({ page: 1, limit: 100 }), []);
 
   const metricas = useMemo(() => {
-    const totalBienes = bienesStatsQuery.data?.total ?? 0;
-    const parcelasCementerio = parcelasStatsQuery.data?.total ?? 0;
-    const bienesEdificioAdmin = totalBienes;
+    const bienesEdificioAdmin = bienesAdminQuery.data?.meta.total ?? 0;
+    const bienesCementerio = bienesCementerioQuery.data?.meta.total ?? 0;
+    const totalBienes = bienesEdificioAdmin + bienesCementerio;
     const parcelas = parcelasStatsQuery.data?.total ?? 0;
-    return { totalBienes, parcelasCementerio, bienesEdificioAdmin, parcelas };
-  }, [bienesStatsQuery.data?.total, parcelasStatsQuery.data?.total]);
+    return { totalBienes, bienesCementerio, bienesEdificioAdmin, parcelas };
+  }, [bienesAdminQuery.data?.meta.total, bienesCementerioQuery.data?.meta.total, parcelasStatsQuery.data?.total]);
 
   const [fechaDesde, setFechaDesde] = useState('2024-01-01');
   const [fechaHasta, setFechaHasta] = useState('2024-12-31');
@@ -46,7 +45,7 @@ export default function Reportes() {
   const [busqueda, setBusqueda] = useState('');
 
   const reporteActivos = useMemo(() => {
-    const bienes = (bienesQuery.data?.data ?? []).map((bien) => ({
+    const bienes = (bienesAdminQuery.data?.all ?? bienesAdminQuery.data?.data ?? []).map((bien) => ({
       id: `bien-${bien.id}`,
       codigo: bien.codigoInterno,
       descripcion: bien.descripcion,
@@ -67,7 +66,7 @@ export default function Reportes() {
       estadoFisico: vehiculo.condicionFisica,
     }));
     return [...bienes, ...vehiculos];
-  }, [bienesQuery.data?.data, vehiculosQuery.data?.data]);
+  }, [bienesAdminQuery.data?.all, bienesAdminQuery.data?.data, vehiculosQuery.data?.data]);
 
   const categoriasMaterial = useMemo(() => {
     return [...new Set(reporteActivos.map((item) => item.categoria).filter(Boolean))].sort();
@@ -99,7 +98,7 @@ export default function Reportes() {
         m.categoria.toLowerCase().includes(q)
       );
     }
-    return sortByNaturalCode(list, ['codigo']);
+    return list;
   }, [reporteActivos, categoriasSeleccionadas, tipoMovimiento, busqueda]);
 
   const handleGenerar = () => {
@@ -157,8 +156,8 @@ export default function Reportes() {
           iconWrapClassName="bg-navy-100"
         />
         <ModuleMetricCard
-          label="Parcelas Cementerio"
-          value={(metricas.parcelasCementerio ?? 0).toLocaleString('es-VE')}
+          label="Bienes Cementerio"
+          value={(metricas.bienesCementerio ?? 0).toLocaleString('es-VE')}
           icon={<Landmark size={22} className="text-blue-600" />}
           iconWrapClassName="bg-blue-100"
           valueClassName="text-blue-700"

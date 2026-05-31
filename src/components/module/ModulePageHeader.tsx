@@ -8,6 +8,7 @@ interface ModulePageHeaderProps {
   onCreate?: () => void;
   createLabel?: string;
   extraActions?: ReactNode;
+  internalFormatLabel?: string;
 }
 
 export default function ModulePageHeader({
@@ -16,6 +17,7 @@ export default function ModulePageHeader({
   onCreate,
   createLabel = 'Crear Registro',
   extraActions,
+  internalFormatLabel = 'Formato Interno',
 }: ModulePageHeaderProps) {
   return (
     <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -64,7 +66,7 @@ export default function ModulePageHeader({
           className="inline-flex items-center gap-2 px-4 py-2.5 border border-gray-200 bg-white text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
         >
           <FileText size={16} />
-          Formato Interno
+          {internalFormatLabel}
         </button>
       </div>
     </div>

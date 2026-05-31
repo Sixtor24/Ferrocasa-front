@@ -1,6 +1,7 @@
 export { apiRequest, ApiError } from './client';
 export * from './types';
 export * from './services/bienes.service';
+export * from './services/bienes-sedes.service';
 export * from './services/vehiculos.service';
 export * from './services/parcelas.service';
 export * from './services/propiedades.service';
@@ -14,4 +15,3 @@ export * from './services/responsables.service';
 export * from './services/almacenes.service';
 export * from './services/categorias.service';
 export * from './services/documentos.service';
-export * from './services/cementerio.service';

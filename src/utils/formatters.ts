@@ -11,14 +11,14 @@ export function formatMoneda(valor: number | null, moneda: string = 'Bs'): strin
  * Formatea fecha ISO a formato legible
  */
 export function formatFecha(fecha: string): string {
-  if (!fecha) return '—';
-  try {
-    return new Date(fecha).toLocaleDateString('es-VE', {
-      day: '2-digit', month: '2-digit', year: 'numeric',
-    });
-  } catch {
-    return fecha;
-  }
+  if (!fecha || fecha === '—') return '—';
+  const d = new Date(fecha);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString('es-VE', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
 }
 
 /**

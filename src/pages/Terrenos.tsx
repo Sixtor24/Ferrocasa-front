@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { fetchParcelas, fetchParcelaById, fetchParcelasEstadisticas } from '../api/services/parcelas.service';
 import { useApiQuery } from '../hooks/useApiQuery';
 import ModuleMetricCard, { formatAreaM2 } from '../components/module/ModuleMetricCard';
-import { ZONIFICACIONES, ESTADOS_TRAMITE } from '../types/terreno';
+import { ESTADOS_TRAMITE } from '../types/terreno';
 import type { ProtocolizacionTerreno, Terreno } from '../types/terreno';
 import ModulePageHeader from '../components/module/ModulePageHeader';
 import ModuleFilterBar from '../components/module/ModuleFilterBar';
@@ -172,7 +172,6 @@ export default function Terrenos() {
   const [filtros, setFiltros] = useState({
     codigo: '',
     nombre: '',
-    zona: '',
     estado: '',
     zonificacion: '',
     nroPropiedad: '',
@@ -182,7 +181,7 @@ export default function Terrenos() {
   });
 
   const apiSearch = useMemo(() => {
-    return [filtros.buscar, filtros.nombre, filtros.zonificacion && filtros.zonificacion !== 'Todas' ? filtros.zonificacion : '']
+    return [filtros.buscar, filtros.nombre, filtros.zonificacion]
       .map((value) => value.trim())
       .filter(Boolean)
       .join(' ') || undefined;
@@ -199,12 +198,11 @@ export default function Terrenos() {
       page,
       limit: PER_PAGE,
       search: apiSearch,
-      zona: filtros.zona || undefined,
       estado: filtros.estado && filtros.estado !== 'Todos'
         ? (filtros.estado as (typeof ESTADOS_PARCELA)[number])
         : undefined,
     }),
-    [page, apiSearch, filtros.zona, filtros.estado],
+    [page, apiSearch, filtros.estado],
   );
 
   const statsQuery = useApiQuery(() => fetchParcelasEstadisticas(), []);
@@ -316,9 +314,8 @@ export default function Terrenos() {
         fields={[
           { key: 'codigo', label: 'Código', type: 'text', value: filtros.codigo, onChange: (v) => setFiltro('codigo', v) },
           { key: 'nombre', label: 'Nombre', type: 'text', value: filtros.nombre, onChange: (v) => setFiltro('nombre', v) },
-          { key: 'zona', label: 'Zona', type: 'text', value: filtros.zona, onChange: (v) => setFiltro('zona', v) },
           { key: 'estado', label: 'Estado', type: 'select', value: filtros.estado, onChange: (v) => setFiltro('estado', v), options: ['Todos', ...ESTADOS_PARCELA] },
-          { key: 'zonificacion', label: 'Zonificación', type: 'select', value: filtros.zonificacion, onChange: (v) => setFiltro('zonificacion', v), options: ['Todas', ...ZONIFICACIONES] },
+          { key: 'zonificacion', label: 'Zonificación', type: 'text', value: filtros.zonificacion, onChange: (v) => setFiltro('zonificacion', v) },
           { key: 'nroPropiedad', label: 'Nro de Propiedad', type: 'text', value: filtros.nroPropiedad, onChange: (v) => setFiltro('nroPropiedad', v) },
           { key: 'levantamiento', label: 'Levantamiento Topográfico', type: 'select', value: filtros.levantamiento, onChange: (v) => setFiltro('levantamiento', v), options: ['Todos', ...ESTADOS_TRAMITE] },
           { key: 'acreditacion', label: 'Acreditación Técnica Ambiental', type: 'select', value: filtros.acreditacion, onChange: (v) => setFiltro('acreditacion', v), options: ['Todos', ...ESTADOS_TRAMITE] },

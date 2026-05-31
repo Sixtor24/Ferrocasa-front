@@ -1,7 +1,7 @@
 // Bienes muebles / SUDEBIP — basado en data real extraída (1640 filas)
 
 export type CondicionFisica = 'Bueno' | 'Regular' | 'Dañado' | 'Averiado' | 'Inservible';
-export type EstadoUso = 'En uso' | 'En almacén' | 'En tránsito' | 'Desincorporado' | 'Por verificar';
+export type EstadoUso = 'En uso' | 'En obsolescencia' | 'Obsoleto';
 export type EstatusCarga = 'Completo' | 'Parcial' | 'Pendiente' | 'Error';
 export type FormaAdquisicion = 'Compra' | 'Donación' | 'Transferencia' | 'Asignación' | 'Comodato' | 'Desconocida';
 export type MonedaBien = 'Bs' | 'USD' | 'Bs.F' | 'Bs.S';
@@ -38,12 +38,16 @@ export interface BienMueble {
 }
 
 // Catálogos
-export const SEDES = ['Sede Principal', 'Ciudad Bolívar', 'Puerto Ordaz', 'Cementerio Municipal'] as const;
+export const SEDES = ['Edificio Administrativo Ferrocasa', 'Área Externa', 'Cementerio'] as const;
 
 export const UNIDADES_ADMINISTRATIVAS = [
-  'Gerencia General', 'Administración', 'Almacén Central', 'Presidencia',
-  'Recursos Humanos', 'Sistemas', 'Planificación', 'Consultoría Jurídica',
-  'Gestión Comercial', 'Ingeniería', 'Mantenimiento',
+  'Recepción', 'Gcia. de Talento Humano', 'Gcia. de Atención al Ciudadano',
+  'Gcia. de Ingeniería y Construcción', 'Telemática', 'Cocina',
+  'Unidad de Bienes Público', 'Coord. de Servicios Generales',
+  'Gcia. de Administración y Finanzas', 'Sala de Juntas', 'Sala de Estar',
+  'Presidencia', 'Vicepresidencia', 'Consultoría Jurídica', 'Auditoría Interna',
+  'Imagen Institucional', 'Gcia. de Comercialización y Ventas',
+  'Campaña de Guayana', 'Cementerio',
 ] as const;
 
 export const CATEGORIAS_GENERALES = [
@@ -52,8 +56,8 @@ export const CATEGORIAS_GENERALES = [
   'Electrodomésticos', 'Equipos audiovisuales', 'Otros',
 ] as const;
 
-export const CONDICIONES_FISICAS: CondicionFisica[] = ['Bueno', 'Regular', 'Dañado', 'Averiado', 'Inservible'];
-export const ESTADOS_USO: EstadoUso[] = ['En uso', 'En almacén', 'En tránsito', 'Desincorporado', 'Por verificar'];
+export const CONDICIONES_FISICAS: CondicionFisica[] = ['Bueno', 'Regular', 'Dañado'];
+export const ESTADOS_USO: EstadoUso[] = ['En uso', 'En obsolescencia', 'Obsoleto'];
 export const ESTATUS_CARGA: EstatusCarga[] = ['Completo', 'Parcial', 'Pendiente', 'Error'];
 export const FORMAS_ADQUISICION: FormaAdquisicion[] = ['Compra', 'Donación', 'Transferencia', 'Asignación', 'Comodato', 'Desconocida'];
 export const MONEDAS: MonedaBien[] = ['Bs', 'USD', 'Bs.F', 'Bs.S'];

@@ -9,7 +9,6 @@ import {
   FileText,
   Shield,
   Settings,
-  Search,
   Calendar,
   ChevronDown,
   LogOut,
@@ -22,19 +21,6 @@ import {
 } from 'lucide-react';
 
 const SIDEBAR_COLLAPSED_KEY = 'ferrocasa-sidebar-collapsed';
-
-const searchablePages = [
-  { label: 'Dashboard', path: '/dashboard', keywords: 'inicio panel resumen estadísticas stats' },
-  { label: 'Bienes Administrativos', path: '/almacen', keywords: 'materiales bienes muebles administrativos inventario' },
-  { label: 'Proyectos Habitacionales', path: '/almacen/proyectos', keywords: 'proyectos edificio urbanismo villa residencias' },
-  { label: 'Registro de Parcelas', path: '/almacen/inmuebles', keywords: 'inmuebles propiedad apartamento casa terreno parcela' },
-  { label: 'Parcelas Cementerio', path: '/cementerio', keywords: 'cementerio parcelas terrenos inmuebles' },
-  { label: 'Terrenos', path: '/terrenos', keywords: 'terrenos parcelas zonificación topografía' },
-  { label: 'Vehículos y Maquinaria', path: '/vehiculos', keywords: 'vehículos flota camioneta camión maquinaria placa' },
-  { label: 'Reportes', path: '/reportes', keywords: 'reportes reporte auditoría pdf excel export' },
-  { label: 'Auditoría', path: '/auditoria', keywords: 'auditoría trazabilidad registro log seguridad' },
-  { label: 'Configuración', path: '/configuracion', keywords: 'configuración ajustes sistema preferencias' },
-];
 
 const mockNotifications = [
   { id: 1, text: 'Stock bajo: Cabillas 1/2"', time: 'Hace 5 min', read: false },
@@ -56,8 +42,6 @@ export default function Layout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const [searchQuery, setSearchQuery] = useState('');
-  const [showSearch, setShowSearch] = useState(false);
   const [showNotif, setShowNotif] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
@@ -67,7 +51,6 @@ export default function Layout() {
       return false;
     }
   });
-  const searchRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
 
   const toggleSidebarCollapsed = () => {
@@ -87,23 +70,13 @@ export default function Layout() {
     navigate('/');
   };
 
-  const searchResults = searchQuery.length >= 2
-    ? searchablePages.filter((p) => {
-        const q = searchQuery.toLowerCase();
-        return p.label.toLowerCase().includes(q) || p.keywords.includes(q);
-      })
-    : [];
-
   useEffect(() => {
-    setSearchQuery('');
-    setShowSearch(false);
     setShowNotif(false);
     setSidebarOpen(false);
   }, [location.pathname]);
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
-      if (searchRef.current && !searchRef.current.contains(e.target as Node)) setShowSearch(false);
       if (notifRef.current && !notifRef.current.contains(e.target as Node)) setShowNotif(false);
     };
     document.addEventListener('mousedown', handleClick);
@@ -226,54 +199,12 @@ export default function Layout() {
             >
               {sidebarCollapsed ? <PanelLeft size={20} /> : <PanelLeftClose size={20} />}
             </button>
-            <div className="relative flex-1 max-w-md" ref={searchRef}>
-              <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Buscar bienes, parcelas o registros..."
-                value={searchQuery}
-                onChange={(e) => { setSearchQuery(e.target.value); setShowSearch(true); }}
-                onFocus={() => setShowSearch(true)}
-                className="pl-10 pr-8 py-2 bg-gray-50/80 border border-gray-200 rounded-lg text-sm w-full focus:outline-none focus:ring-2 focus:ring-navy-500/40 focus:border-navy-400"
-              />
-              {searchQuery && (
-                <button
-                  type="button"
-                  onClick={() => { setSearchQuery(''); setShowSearch(false); }}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                >
-                  <X size={14} />
-                </button>
-              )}
-              {showSearch && searchQuery.length >= 2 && (
-                <div className="absolute top-full left-0 mt-1 w-full sm:w-80 bg-white border border-gray-200 rounded-xl shadow-lg z-50 overflow-hidden">
-                  {searchResults.length === 0 ? (
-                    <div className="px-4 py-3 text-sm text-gray-400">Sin resultados para &quot;{searchQuery}&quot;</div>
-                  ) : (
-                    searchResults.map((r) => (
-                      <button
-                        key={r.path}
-                        type="button"
-                        onClick={() => { navigate(r.path); setSearchQuery(''); setShowSearch(false); }}
-                        className="w-full text-left px-4 py-3 text-sm hover:bg-navy-50/50 flex items-center gap-3 border-b border-gray-100 last:border-0"
-                      >
-                        <Search size={14} className="text-gray-400 shrink-0" />
-                        <div>
-                          <p className="font-medium text-navy-900">{r.label}</p>
-                          <p className="text-xs text-gray-400">{r.path}</p>
-                        </div>
-                      </button>
-                    ))
-                  )}
-                </div>
-              )}
+            <div className="hidden md:flex items-center gap-2 text-sm text-gray-500 min-w-0">
+              <Calendar size={16} className="shrink-0" />
+              <span className="capitalize truncate">{today}</span>
             </div>
           </div>
           <div className="flex items-center gap-2 sm:gap-4 shrink-0">
-            <div className="hidden md:flex items-center gap-2 text-sm text-gray-500">
-              <Calendar size={16} />
-              <span className="capitalize">{today}</span>
-            </div>
             <NavLink
               to="/configuracion"
               className={({ isActive }) =>

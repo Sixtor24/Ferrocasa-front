@@ -1,39 +1,150 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
-  fetchCementerioParcelaById,
-  fetchCementerioParcelas,
-  fetchCementerioParcelasEstadisticas,
-} from '../api/services/cementerio.service';
+  fetchBienCementerioByCodigo,
+  fetchBienesCementerio,
+} from '../api/services/bienes-sedes.service';
 import { useApiQuery } from '../hooks/useApiQuery';
-import { formatFecha } from '../utils/formatters';
+import { formatFecha, formatMoneda } from '../utils/formatters';
 import type { Column } from '../components/DataTable';
 import StatusBadge from '../components/StatusBadge';
 import ApiState from '../components/ApiState';
 import { ImportExcelModal } from '../components/modals';
 import ModulePageHeader from '../components/module/ModulePageHeader';
-import ModuleMetricCard from '../components/module/ModuleMetricCard';
 import ModuleFilterBar from '../components/module/ModuleFilterBar';
 import ModuleDataTable from '../components/module/ModuleDataTable';
 import ModulePagination from '../components/module/ModulePagination';
 import AssetDetailView from '../components/module/AssetDetailView';
-import type { Terreno } from '../types/terreno';
+import type { BienMueble } from '../types/bien';
+import { CONDICIONES_FISICAS, ESTADOS_USO } from '../types/bien';
 import {
-  AlertTriangle,
-  AlertCircle,
-  CheckCircle2,
+  ALMACENES_CEMENTERIO,
+  DEPARTAMENTOS_CEMENTERIO,
+} from '../data/bienesCatalogos';
+import {
   Upload,
   ArrowLeft,
   FileText,
-  Map,
 } from 'lucide-react';
 
 const PER_PAGE = 10;
 
-function getEstadoParcela(parcela: Terreno) {
-  if (parcela.areaDesincorporada > 0) return 'Desincorporado';
-  if (parcela.areaComprometida > 0) return 'Comprometido';
-  return 'Disponible';
+function proveedorDesdeBien(bien: BienMueble) {
+  if (!bien.marca || bien.marca === 'Desconocida' || bien.marca === '—') return '—';
+  return `${bien.marca} C.A.`;
+}
+
+function CementerioBienDetail({
+  bien,
+  onVolver,
+}: {
+  bien: BienMueble;
+  onVolver: () => void;
+}) {
+  const [estadoUso, setEstadoUso] = useState(bien.estadoUso);
+  const [condicionFisica, setCondicionFisica] = useState(bien.condicionFisica);
+
+  return (
+    <AssetDetailView
+      title="Bienes e Inmuebles: Cementerio"
+      breadcrumb={[
+        { label: 'Dashboard', to: '/dashboard' },
+        { label: 'Cementerio', to: '/cementerio' },
+        { label: bien.sinCodigo ? 'Sin código' : bien.codigoInterno },
+      ]}
+      categoryFields={[
+        { label: 'Categoría', value: bien.categoriaGeneral },
+        { label: 'Sub Categoría', value: bien.subcategoria },
+        { label: 'Categoría Específica', value: bien.categoriaEspecifica },
+      ]}
+      sections={[
+        {
+          title: 'Detalles',
+          fields: [
+            { label: 'Descripción', value: bien.descripcion },
+            { label: 'Fecha de Ingreso', value: formatFecha(bien.fechaAdquisicion) },
+            { label: 'Color', value: bien.color || '—' },
+            { label: 'Marca', value: bien.marca || '—' },
+            { label: 'Modelo', value: bien.modelo || '—' },
+            { label: 'Valor de Adquisición', value: formatMoneda(bien.valorAdquisicion, bien.moneda) },
+            { label: 'Código', value: bien.sinCodigo ? 'Sin código' : bien.codigoInterno },
+            { label: 'Serial', value: bien.sinSerial ? 'Sin serial' : (bien.serial || '—') },
+            { label: 'Responsable', value: bien.unidadAdministrativa },
+            { label: 'Unidad Administrativa', value: bien.unidadAdministrativa },
+            {
+              label: 'Estado de uso',
+              value: (
+                <select
+                  value={estadoUso}
+                  onChange={(e) => setEstadoUso(e.target.value as BienMueble['estadoUso'])}
+                  className="input-field max-w-xs"
+                >
+                  {ESTADOS_USO.map((opt) => (
+                    <option key={opt} value={opt}>
+                      {opt}
+                    </option>
+                  ))}
+                </select>
+              ),
+            },
+            {
+              label: 'Condición Física',
+              value: (
+                <select
+                  value={condicionFisica}
+                  onChange={(e) => setCondicionFisica(e.target.value as BienMueble['condicionFisica'])}
+                  className="input-field max-w-xs"
+                >
+                  {CONDICIONES_FISICAS.map((opt) => (
+                    <option key={opt} value={opt}>
+                      {opt}
+                    </option>
+                  ))}
+                </select>
+              ),
+            },
+            { label: 'Almacén', value: bien.ubicacion },
+            { label: 'Unidad Administrativa', value: bien.unidadAdministrativa },
+            { label: 'Sede', value: bien.sede },
+          ],
+        },
+        {
+          title: 'Detalles del documento de Ingreso',
+          fields: [
+            { label: 'Nro de Documento', value: bien.numeroDocumento || '—' },
+            { label: 'Fecha Adquisición', value: formatFecha(bien.fechaAdquisicion) },
+            { label: 'Forma de Adquisición', value: bien.formaAdquisicion },
+            { label: 'Nombre de Proveedor', value: proveedorDesdeBien(bien) },
+            { label: 'Valor Total de Documento', value: formatMoneda(bien.valorAdquisicion, bien.moneda) },
+          ],
+        },
+      ]}
+      actions={
+        <>
+          <button
+            type="button"
+            onClick={onVolver}
+            className="inline-flex items-center gap-2 px-4 py-2.5 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50"
+          >
+            <ArrowLeft size={16} />
+            Volver al listado
+          </button>
+          <button
+            type="button"
+            className="px-5 py-2.5 border border-navy-200 text-navy-800 rounded-lg text-sm font-semibold hover:bg-navy-50"
+          >
+            Transferir a otro almacén
+          </button>
+          <button
+            type="button"
+            className="px-5 py-2.5 border border-red-200 text-red-700 rounded-lg text-sm font-semibold hover:bg-red-50"
+          >
+            Retirar de Inventario
+          </button>
+        </>
+      }
+    />
+  );
 }
 
 export default function Cementerio() {
@@ -42,63 +153,58 @@ export default function Cementerio() {
   const [page, setPage] = useState(1);
   const [exportMsg, setExportMsg] = useState('');
   const itemId = id ? Number(id) : null;
-  const parcelasQuery = useApiQuery(() => fetchCementerioParcelas({ page, limit: PER_PAGE }), [page]);
-  const statsQuery = useApiQuery(() => fetchCementerioParcelasEstadisticas(), []);
+  const bienesQuery = useApiQuery(() => fetchBienesCementerio({ page: 1, limit: 5000 }), []);
   const detailQuery = useApiQuery(
-    () => fetchCementerioParcelaById(itemId as number),
+    () => fetchBienCementerioByCodigo(itemId as number),
     [itemId],
     Boolean(itemId)
   );
   const [filtros, setFiltros] = useState({
     codigo: '',
-    nombre: '',
-    zona: '',
-    estado: '',
+    descripcion: '',
+    almacen: '',
+    condicionFisica: '',
+    departamento: '',
     numeroDocumento: '',
+    estadoUso: '',
     buscar: '',
   });
   const [showImport, setShowImport] = useState(false);
 
-  const parcelas = parcelasQuery.data?.terrenos ?? [];
-  const pagination = parcelasQuery.data?.meta;
+  const bienes = bienesQuery.data?.all ?? bienesQuery.data?.data ?? [];
 
-  const parcelasStats = useMemo(() => ({
-    total: statsQuery.data?.total ?? pagination?.total ?? 0,
-    disponibles: statsQuery.data?.disponibles ?? parcelas.filter((p) => getEstadoParcela(p) === 'Disponible').length,
-    comprometidas: statsQuery.data?.comprometidas ?? parcelas.filter((p) => getEstadoParcela(p) === 'Comprometido').length,
-    desincorporadas: statsQuery.data?.desincorporadas ?? parcelas.filter((p) => getEstadoParcela(p) === 'Desincorporado').length,
-  }), [pagination?.total, parcelas, statsQuery.data]);
+  const almacenOptions = useMemo(() => ['Todas', ...ALMACENES_CEMENTERIO], []);
+  const departamentoOptions = useMemo(() => ['Todos', ...DEPARTAMENTOS_CEMENTERIO], []);
 
-  const zonaOptions = useMemo(() => {
-    const names = [...new Set(parcelas.map((p) => p.zona).filter((zona) => zona && zona !== '—'))].sort();
-    return ['Todas', ...names];
-  }, [parcelas]);
-
-  const filteredParcelas = useMemo(() => {
+  const filteredBienes = useMemo(() => {
     const q = filtros.buscar.toLowerCase();
-    return parcelas.filter((p) => {
-      const estado = getEstadoParcela(p);
-      if (filtros.codigo && !p.codigo.toLowerCase().includes(filtros.codigo.toLowerCase())) return false;
-      if (filtros.nombre && !p.identificacion.toLowerCase().includes(filtros.nombre.toLowerCase())) return false;
-      if (filtros.zona && filtros.zona !== 'Todas' && p.zona !== filtros.zona) return false;
-      if (filtros.numeroDocumento && !p.numeroDocumento.includes(filtros.numeroDocumento)) return false;
-      if (filtros.estado && filtros.estado !== 'Todos' && estado !== filtros.estado) return false;
+    return bienes.filter((b) => {
+      if (filtros.codigo && !b.codigoInterno.toLowerCase().includes(filtros.codigo.toLowerCase())) return false;
+      if (filtros.descripcion && !b.descripcion.toLowerCase().includes(filtros.descripcion.toLowerCase())) return false;
+      if (filtros.almacen && filtros.almacen !== 'Todas' && b.ubicacion !== filtros.almacen) return false;
+      if (filtros.condicionFisica && filtros.condicionFisica !== 'Todas' && b.condicionFisica !== filtros.condicionFisica) return false;
+      if (filtros.departamento && filtros.departamento !== 'Todos' && b.unidadAdministrativa !== filtros.departamento) return false;
+      if (filtros.numeroDocumento && !b.numeroDocumento.includes(filtros.numeroDocumento)) return false;
+      if (filtros.estadoUso && filtros.estadoUso !== 'Todos' && b.estadoUso !== filtros.estadoUso) return false;
       if (q) {
         const hay =
-          p.codigo.toLowerCase().includes(q) ||
-          p.identificacion.toLowerCase().includes(q) ||
-          p.ubicacion.toLowerCase().includes(q) ||
-          p.responsable.toLowerCase().includes(q);
+          b.codigoInterno.toLowerCase().includes(q) ||
+          b.descripcion.toLowerCase().includes(q) ||
+          b.marca.toLowerCase().includes(q) ||
+          b.serial.toLowerCase().includes(q) ||
+          b.ubicacion.toLowerCase().includes(q);
         if (!hay) return false;
       }
       return true;
     });
-  }, [parcelas, filtros]);
+  }, [bienes, filtros]);
 
-  const totalPages = pagination?.totalPages ?? Math.max(1, Math.ceil(filteredParcelas.length / PER_PAGE));
+  const totalPages = Math.max(1, Math.ceil(filteredBienes.length / PER_PAGE));
+  const paginatedBienes = filteredBienes.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
   const setFiltro = (key: keyof typeof filtros, value: string) => {
     setFiltros((prev) => ({ ...prev, [key]: value }));
+    setPage(1);
   };
 
   const simularExportPdf = () => {
@@ -107,123 +213,47 @@ export default function Cementerio() {
     setTimeout(() => setExportMsg(''), 4000);
   };
 
-  const parcelaColumns: Column<Terreno>[] = [
+  const columns: Column<BienMueble>[] = [
     {
-      key: 'codigo',
+      key: 'codigoInterno',
       label: 'Código',
-      render: (p) => <span className="font-mono font-bold text-navy-900">{p.codigo}</span>,
+      render: (b) => <span className="font-mono font-bold text-navy-900">{b.codigoInterno}</span>,
     },
     {
-      key: 'identificacion',
-      label: 'Parcela',
-      render: (p) => <span className="max-w-[220px] truncate block">{p.identificacion}</span>,
+      key: 'descripcion',
+      label: 'Descripción',
+      render: (b) => <span className="max-w-[220px] truncate block">{b.descripcion}</span>,
     },
-    { key: 'zona', label: 'Zona' },
+    { key: 'marca', label: 'Marca', render: (b) => <span>{b.marca || '—'}</span> },
+    { key: 'modelo', label: 'Modelo', render: (b) => <span>{b.modelo || '—'}</span> },
+    { key: 'color', label: 'Color', render: (b) => <span>{b.color || '—'}</span> },
+    { key: 'serial', label: 'Serial', render: (b) => <span className="font-mono text-sm">{b.serial || '—'}</span> },
+    { key: 'sede', label: 'Sede' },
+    { key: 'ubicacion', label: 'Almacén' },
+    { key: 'estadoUso', label: 'Estado de uso', render: (b) => <StatusBadge status={b.estadoUso} size="sm" /> },
     {
-      key: 'ubicacion',
-      label: 'Ubicación',
-      render: (p) => <span className="max-w-[260px] truncate block">{p.ubicacion}</span>,
-    },
-    { key: 'areaTotalM2', label: 'Área total', render: (p) => <span>{p.areaTotalM2.toLocaleString()} m²</span> },
-    { key: 'areaDisponible', label: 'Disponible', render: (p) => <span>{p.areaDisponible.toLocaleString()} m²</span> },
-    { key: 'zonificacion', label: 'Zonificación' },
-    {
-      key: 'observacion',
-      label: 'Estado',
-      render: (p) => <StatusBadge status={getEstadoParcela(p)} size="sm" />,
+      key: 'condicionFisica',
+      label: 'Condición Física',
+      render: (b) => <StatusBadge status={b.condicionFisica} showDot size="sm" />,
     },
   ];
 
   if (id) {
-    const parcela = detailQuery.data?.terreno;
-    if (detailQuery.loading) {
-      return (
-        <div className="p-6 text-center">
-          <p className="text-gray-500">Cargando parcela...</p>
-        </div>
-      );
-    }
-    if (!parcela) {
-      return (
-        <div className="p-6 text-center">
-          <p className="text-gray-500 mb-4">Parcela no encontrada.</p>
-          <button type="button" onClick={() => navigate('/cementerio')} className="text-navy-700 font-medium">
-            Volver al listado
-          </button>
-        </div>
-      );
-    }
-
     return (
-      <AssetDetailView
-        title="Parcela del Cementerio"
-        breadcrumb={[
-          { label: 'Dashboard', to: '/dashboard' },
-          { label: 'Cementerio', to: '/cementerio' },
-          { label: parcela.codigo },
-        ]}
-        categoryFields={[
-          { label: 'Estado', value: getEstadoParcela(parcela) },
-          { label: 'Zona', value: parcela.zona },
-          { label: 'Zonificación', value: parcela.zonificacion },
-        ]}
-        sections={[
-          {
-            title: 'Detalles',
-            fields: [
-              { label: 'Código', value: parcela.codigo },
-              { label: 'Identificación', value: parcela.identificacion },
-              { label: 'Nombre', value: parcela.nombre },
-              { label: 'Ubicación', value: parcela.ubicacion },
-              { label: 'Ubicación adicional', value: parcela.ubicacionAdicional },
-              { label: 'Responsable', value: parcela.responsable },
-              { label: 'Levantamiento topográfico', value: parcela.levantamientoTopografico },
-              { label: 'Acreditación ambiental', value: parcela.acreditacionTecnicaAmbiental },
-              { label: 'Observaciones', value: parcela.observacion || '—' },
-            ],
-          },
-          {
-            title: 'Documento y áreas',
-            fields: [
-              { label: 'Nro de documento', value: parcela.numeroDocumento },
-              { label: 'Nro de propiedad', value: parcela.nroPropiedad },
-              { label: 'Fecha adquisición', value: formatFecha(parcela.fechaAdquisicion) },
-              { label: 'Forma de adquisición', value: parcela.formaAdquisicion },
-              { label: 'Área según documento', value: `${parcela.areaDocumento.toLocaleString()} m²` },
-              { label: 'Área disponible', value: `${parcela.areaDisponible.toLocaleString()} m²` },
-              { label: 'Área comprometida', value: `${parcela.areaComprometida.toLocaleString()} m²` },
-              { label: 'Área desincorporada', value: `${parcela.areaDesincorporada.toLocaleString()} m²` },
-            ],
-          },
-        ]}
-        actions={
-          <>
-            <button
-              type="button"
-              onClick={() => navigate('/cementerio')}
-              className="inline-flex items-center gap-2 px-4 py-2.5 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50"
-            >
-              <ArrowLeft size={16} />
-              Volver al listado
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate('/terrenos')}
-              className="px-5 py-2.5 border border-navy-200 text-navy-800 rounded-lg text-sm font-semibold hover:bg-navy-50"
-            >
-              Ver en terrenos
-            </button>
-          </>
-        }
-      />
+      <ApiState loading={detailQuery.loading && !detailQuery.data} error={detailQuery.error} onRetry={detailQuery.refetch}>
+        {detailQuery.data && <CementerioBienDetail bien={detailQuery.data} onVolver={() => navigate('/cementerio')} />}
+      </ApiState>
     );
   }
 
   return (
     <div className="p-4 md:p-6 space-y-6 max-w-[1600px]">
       <ModulePageHeader
-        title="Parcelas del Cementerio"
+        title="Bienes e Inmuebles: Cementerio"
         breadcrumb={[{ label: 'Dashboard', to: '/dashboard' }, { label: 'Cementerio' }]}
+        onCreate={() => {}}
+        createLabel="Crear Registro"
+        internalFormatLabel="Formato Clásico"
         extraActions={
           <>
             <button
@@ -237,57 +267,33 @@ export default function Cementerio() {
         }
       />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <ModuleMetricCard
-          label="Total Parcelas"
-          value={(parcelasStats.total ?? 0).toLocaleString()}
-          icon={<Map size={22} className="text-navy-600" />}
-          iconWrapClassName="bg-navy-100"
-        />
-        <ModuleMetricCard
-          label="Parcelas disponibles"
-          value={(parcelasStats.disponibles ?? 0).toLocaleString()}
-          icon={<CheckCircle2 size={22} className="text-green-600" />}
-          iconWrapClassName="bg-green-100"
-          valueClassName="text-green-700"
-        />
-        <ModuleMetricCard
-          label="Parcelas comprometidas"
-          value={(parcelasStats.comprometidas ?? 0).toLocaleString()}
-          icon={<AlertTriangle size={22} className="text-amber-500" />}
-          iconWrapClassName="bg-amber-100"
-          borderClassName="border-amber-200"
-          valueClassName="text-amber-700"
-        />
-        <ModuleMetricCard
-          label="Parcelas desincorporadas"
-          value={(parcelasStats.desincorporadas ?? 0).toLocaleString()}
-          icon={<AlertCircle size={22} className="text-red-500" />}
-          iconWrapClassName="bg-red-100"
-          borderClassName="border-red-200"
-          valueClassName="text-red-700"
-        />
-      </div>
-
       <ModuleFilterBar
         fields={[
           { key: 'codigo', label: 'Código', type: 'text', value: filtros.codigo, onChange: (v) => setFiltro('codigo', v) },
-          { key: 'nombre', label: 'Parcela', type: 'text', value: filtros.nombre, onChange: (v) => setFiltro('nombre', v) },
+          { key: 'descripcion', label: 'Descripción', type: 'text', value: filtros.descripcion, onChange: (v) => setFiltro('descripcion', v) },
           {
-            key: 'zona',
-            label: 'Zona',
+            key: 'almacen',
+            label: 'Almacén',
             type: 'select',
-            value: filtros.zona,
-            onChange: (v) => setFiltro('zona', v),
-            options: zonaOptions,
+            value: filtros.almacen,
+            onChange: (v) => setFiltro('almacen', v),
+            options: almacenOptions,
           },
           {
-            key: 'estado',
-            label: 'Estado',
+            key: 'condicion',
+            label: 'Condición Física',
             type: 'select',
-            value: filtros.estado,
-            onChange: (v) => setFiltro('estado', v),
-            options: ['Todos', 'Disponible', 'Comprometido', 'Desincorporado'],
+            value: filtros.condicionFisica,
+            onChange: (v) => setFiltro('condicionFisica', v),
+            options: ['Todas', ...CONDICIONES_FISICAS],
+          },
+          {
+            key: 'departamento',
+            label: 'Unidad Administrativa',
+            type: 'select',
+            value: filtros.departamento,
+            onChange: (v) => setFiltro('departamento', v),
+            options: departamentoOptions,
           },
           {
             key: 'documento',
@@ -297,12 +303,20 @@ export default function Cementerio() {
             onChange: (v) => setFiltro('numeroDocumento', v),
           },
           {
+            key: 'estadoUso',
+            label: 'Estado de uso',
+            type: 'select',
+            value: filtros.estadoUso,
+            onChange: (v) => setFiltro('estadoUso', v),
+            options: ['Todos', ...ESTADOS_USO],
+          },
+          {
             key: 'buscar',
             label: 'Buscar',
             type: 'search',
             value: filtros.buscar,
             onChange: (v) => setFiltro('buscar', v),
-            placeholder: 'Buscar por código, parcela, ubicación...',
+            placeholder: 'Buscar por código, descripción, marca, serial...',
             className: 'sm:col-span-2 lg:col-span-1',
           },
         ]}
@@ -321,18 +335,18 @@ export default function Cementerio() {
       </ModuleFilterBar>
 
       <ApiState
-        loading={parcelasQuery.loading && !parcelasQuery.data}
-        error={parcelasQuery.error}
-        onRetry={parcelasQuery.refetch}
-        empty={!parcelasQuery.loading && filteredParcelas.length === 0}
-        emptyMessage="No hay parcelas de cementerio registradas en el backend."
+        loading={bienesQuery.loading && !bienesQuery.data}
+        error={bienesQuery.error}
+        onRetry={bienesQuery.refetch}
+        empty={!bienesQuery.loading && filteredBienes.length === 0}
+        emptyMessage="No hay bienes asociados a la sede Cementerio en el backend."
       >
         <ModuleDataTable
-          data={filteredParcelas}
-          columns={parcelaColumns}
-          loading={parcelasQuery.loading && Boolean(parcelasQuery.data)}
-          onDetails={(p) => navigate(`/cementerio/${p.id}`)}
-          emptyMessage="No hay parcelas del cementerio."
+          data={paginatedBienes}
+          columns={columns}
+          loading={bienesQuery.loading && Boolean(bienesQuery.data)}
+          onDetails={(b) => navigate(`/cementerio/${b.id}`)}
+          emptyMessage="No hay registros del cementerio."
         />
         <ModulePagination page={page} totalPages={totalPages} onPageChange={setPage} />
       </ApiState>
@@ -340,7 +354,7 @@ export default function Cementerio() {
       <ImportExcelModal
         open={showImport}
         onClose={() => setShowImport(false)}
-        tiposDisponibles={['Parcelas Cementerio']}
+        tiposDisponibles={['Bienes Cementerio']}
       />
     </div>
   );
