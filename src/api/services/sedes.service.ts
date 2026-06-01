@@ -10,6 +10,8 @@ import type {
 } from '../types';
 import { mapApiBienToBienMueble } from '../mappers/bien.mapper';
 import { mapApiVehiculoToVehiculo } from '../mappers/vehiculo.mapper';
+import { buildAlmacenNombreMap } from '../utils/almacenLookup';
+import { fetchAlmacenes, fetchAlmacenesBySede } from './almacenes.service';
 
 export type SedesQuery = {
   page?: number;
@@ -62,9 +64,24 @@ export async function fetchSedeDepartamentos(id: number) {
   return res.data ?? [];
 }
 
-export async function fetchSedeBienes(id: number) {
+async function resolveAlmacenMapForSede(idSede: number, almacenesById?: Map<number, string>) {
+  if (almacenesById && almacenesById.size > 0) return almacenesById;
+
+  try {
+    const sedeAlmacenes = await fetchAlmacenesBySede(idSede);
+    if (sedeAlmacenes.length > 0) return buildAlmacenNombreMap(sedeAlmacenes);
+  } catch {
+    // fallback al catálogo global
+  }
+
+  const global = await fetchAlmacenes({ page: 1, limit: 5000 });
+  return buildAlmacenNombreMap(global.data);
+}
+
+export async function fetchSedeBienes(id: number, almacenesById?: Map<number, string>) {
   const res = await apiRequest<ApiItemResponse<ApiBien[]> | ApiListResponse<ApiBien>>(`/sedes/${id}/bienes`);
-  return (res.data ?? []).map(mapApiBienToBienMueble);
+  const map = await resolveAlmacenMapForSede(id, almacenesById);
+  return (res.data ?? []).map((bien) => mapApiBienToBienMueble(bien, map));
 }
 
 export async function fetchSedeVehiculos(id: number) {

@@ -140,20 +140,16 @@ export default function Dashboard() {
   const parcelasComprometidas = liveStats?.parcelas?.comprometidas ?? 0;
   const parcelasDesincorporadas = liveStats?.parcelas?.desincorporadas ?? 0;
   const bienesEnUso = bienesAdministrativos.filter((bien) => bien.estadoUso === 'En uso').length;
-  const bienesRegulares = bienesAdministrativos.filter((bien) => bien.condicionFisica === 'Regular').length;
-  const bienesDanados = bienesAdministrativos.filter((bien) =>
-    ['Dañado', 'Averiado', 'Inservible'].includes(bien.condicionFisica)
-  ).length;
-  const vehiculosActivos = liveStats?.vehiculos?.disponibles ?? liveStats?.vehiculos?.asignados ?? 0;
+  const bienesEnObsolescencia = bienesAdministrativos.filter((bien) => bien.estadoUso === 'En obsolescencia').length;
+  const bienesObsoletos = bienesAdministrativos.filter((bien) => bien.estadoUso === 'Obsoleto').length;
 
   const now = new Date().toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit', hour12: true });
 
   const accionesRapidas = [
     { nombre: 'Bienes Admin.', icon: Package, ruta: '/almacen' },
-    { nombre: 'Inmuebles', icon: Building2, ruta: '/almacen/inmuebles' },
-    { nombre: 'Cementerio', icon: Landmark, ruta: '/cementerio' },
+    { nombre: 'Bienes en Cementerio', icon: Landmark, ruta: '/cementerio' },
     { nombre: 'Terrenos', icon: Map, ruta: '/terrenos' },
-    { nombre: 'Vehículos', icon: Truck, ruta: '/vehiculos' },
+    { nombre: 'Vehículos y Maquinarias', icon: Truck, ruta: '/vehiculos' },
     { nombre: 'Reportes', icon: FileText, ruta: '/reportes' },
     { nombre: 'Auditoría', icon: Shield, ruta: '/auditoria' },
   ];
@@ -200,10 +196,10 @@ export default function Dashboard() {
   }, [parcelasDisponibles, parcelasComprometidas, parcelasDesincorporadas]);
   const porcentajeDisponible = donutDataConPorcentaje[0]?.porcentaje ?? 0;
   const distribucionActivosLive = [
-    { name: 'Bienes en Edificio Administrativo', value: totalBienes, color: '#102a43' },
-    { name: 'Cementerio', value: totalCementerio, color: '#334e68' },
-    { name: 'Parcelas', value: totalParcelas, color: '#627d98' },
-    { name: 'Vehículos', value: totalVehiculos, color: '#9fb3c8' },
+    { name: dashboardStats.totalBienesMuebles.label, value: totalBienes, color: '#102a43' },
+    { name: dashboardStats.inventarioCementerio.label, value: totalCementerio, color: '#334e68' },
+    { name: dashboardStats.totalInmuebles.label, value: totalParcelas, color: '#627d98' },
+    { name: dashboardStats.totalVehiculos.label, value: totalVehiculos, color: '#9fb3c8' },
   ];
   const DONUT_COLORS = ['#22c55e', '#102a43', '#f59e0b', '#ef4444', '#8b5cf6'];
 
@@ -240,17 +236,17 @@ export default function Dashboard() {
           value={totalBienes.toLocaleString()}
           badge={statsQuery.loading ? <span className="text-gray-400 text-xs">...</span> : undefined}
           onClick={() => navigate('/almacen')} />
-        <StatCard icon={<Landmark size={22} className="text-blue-600" />} label="Cementerio"
+        <StatCard icon={<Landmark size={22} className="text-blue-600" />} label={dashboardStats.inventarioCementerio.label}
           value={totalCementerio.toLocaleString()}
           badge={statsQuery.loading ? <span className="text-gray-400 text-xs">...</span> : undefined}
           onClick={() => navigate('/cementerio')} />
         <StatCard icon={<Building2 size={22} className="text-navy-600" />} label={dashboardStats.totalInmuebles.label}
           value={totalParcelas.toString()}
-          badge={<span className="text-navy-500 text-xs font-medium">{parcelasDisponibles} disponibles</span>}
-          onClick={() => navigate('/almacen/inmuebles')} />
+          badge={statsQuery.loading ? <span className="text-gray-400 text-xs">...</span> : undefined}
+          onClick={() => navigate('/terrenos')} />
         <StatCard icon={<Truck size={22} className="text-amber-600" />} label={dashboardStats.totalVehiculos.label}
           value={totalVehiculos.toString()}
-          badge={<span className="text-green-500 text-xs font-medium">{vehiculosActivos} activos</span>}
+          badge={statsQuery.loading ? <span className="text-gray-400 text-xs">...</span> : undefined}
           onClick={() => navigate('/vehiculos')} />
       </div>
 
@@ -258,11 +254,11 @@ export default function Dashboard() {
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         {[
           { label: 'Bienes en uso', value: bienesEnUso, color: 'text-green-700' },
-          { label: 'Bienes regulares', value: bienesRegulares, color: 'text-amber-700' },
-          { label: 'Bienes dañados', value: bienesDanados, color: 'text-red-600' },
+          { label: 'Bienes en obsolescencia', value: bienesEnObsolescencia, color: 'text-amber-700' },
+          { label: 'Bienes obsoletos', value: bienesObsoletos, color: 'text-red-600' },
           { label: 'Parcelas libres', value: parcelasDisponibles, color: 'text-green-700' },
-          { label: 'Parcelas comprometidas', value: parcelasComprometidas, color: 'text-navy-800' },
-          { label: 'Parcelas desincorporadas', value: parcelasDesincorporadas, color: 'text-amber-700' },
+          { label: 'Parcelas parcialmente ocupadas', value: parcelasComprometidas, color: 'text-navy-800' },
+          { label: 'Parcelas ocupadas', value: parcelasDesincorporadas, color: 'text-amber-700' },
         ].map((item) => (
           <div key={item.label} className="bg-white rounded-xl border border-gray-200 p-4 text-center">
             <p className={`text-xl font-bold ${item.color}`}>{item.value}</p>
@@ -359,7 +355,7 @@ export default function Dashboard() {
         </div>
 
         {/* Donut: Inmuebles */}
-        <div className="bg-white rounded-xl border border-gray-200 p-6 cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate('/almacen/inmuebles')}>
+        <div className="bg-white rounded-xl border border-gray-200 p-6 cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate('/terrenos')}>
           <h3 className="text-lg font-semibold text-navy-900">Inmuebles por Estado</h3>
           <p className="text-sm text-gray-500 mb-4">Distribución de {totalParcelas} parcelas</p>
           <div className="flex justify-center">

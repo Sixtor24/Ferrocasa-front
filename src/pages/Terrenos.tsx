@@ -11,7 +11,7 @@ import ModuleDataTable from '../components/module/ModuleDataTable';
 import ModulePagination from '../components/module/ModulePagination';
 import AssetDetailView from '../components/module/AssetDetailView';
 import ApiState from '../components/ApiState';
-import { formatFecha } from '../utils/formatters';
+import { formatFecha, formatMoneda } from '../utils/formatters';
 import type { Column } from '../components/DataTable';
 import { ArrowLeft, Map, MapPin, Layers, MinusCircle } from 'lucide-react';
 
@@ -84,14 +84,25 @@ function TerrenoParcelaDetail({
                 ),
               },
               { label: 'Número de Propiedad', value: terreno.nroPropiedad },
-              { label: 'Responsable', value: terreno.responsable },
+              {
+                label: 'Valor de Adquisición',
+                value: formatMoneda(terreno.valorAdquisicion, terreno.moneda),
+              },
               { label: 'Área Desincorporada', value: formatAreaM2Detail(terreno.areaDesincorporada) },
               { label: 'Zona', value: terreno.zona },
-              { label: 'Observación', value: terreno.observacion || '—' },
+              {
+                label: 'Responsable',
+                value: terreno.responsable !== '—'
+                  ? terreno.responsable
+                  : terreno.ciResponsable
+                    ? `CI ${terreno.ciResponsable}`
+                    : '—',
+              },
               { label: 'Área Comprometida', value: formatAreaM2Detail(terreno.areaComprometida) },
               { label: 'Ubicación', value: terreno.ubicacion },
-              { label: 'Zonificación', value: terreno.zonificacion },
+              { label: 'Observación', value: terreno.observacion || '—' },
               { label: 'Área Disponible', value: formatAreaM2Detail(terreno.areaDisponible) },
+              { label: 'Zonificación', value: terreno.zonificacion },
             ],
           },
           {
@@ -171,7 +182,7 @@ export default function Terrenos() {
   const [page, setPage] = useState(1);
   const [filtros, setFiltros] = useState({
     codigo: '',
-    nombre: '',
+    identificacion: '',
     estado: '',
     zonificacion: '',
     nroPropiedad: '',
@@ -181,11 +192,11 @@ export default function Terrenos() {
   });
 
   const apiSearch = useMemo(() => {
-    return [filtros.buscar, filtros.nombre, filtros.zonificacion]
+    return [filtros.buscar, filtros.identificacion, filtros.zonificacion]
       .map((value) => value.trim())
       .filter(Boolean)
       .join(' ') || undefined;
-  }, [filtros.buscar, filtros.nombre, filtros.zonificacion]);
+  }, [filtros.buscar, filtros.identificacion, filtros.zonificacion]);
 
   const detailQuery = useApiQuery(
     () => fetchParcelaById(Number(id)),
@@ -206,21 +217,29 @@ export default function Terrenos() {
   );
 
   const statsQuery = useApiQuery(() => fetchParcelasEstadisticas(), []);
+  const allParcelasQuery = useApiQuery(() => fetchParcelas({ page: 1, limit: 5000 }), []);
 
   const terrenos = listQuery.data?.terrenos ?? [];
+  const todasLasParcelas = allParcelasQuery.data?.terrenos ?? terrenos;
 
   const metricas = useMemo(() => {
-    const totalParcelas = statsQuery.data?.total ?? listQuery.data?.meta.total ?? terrenos.length;
-    const areaDisponible = terrenos.reduce((s, t) => s + (t.areaDisponible ?? 0), 0);
-    const areaDesincorporada = terrenos.reduce((s, t) => s + (t.areaDesincorporada ?? 0), 0);
-    const areaComprometida = terrenos.reduce((s, t) => s + (t.areaComprometida ?? 0), 0);
-    const areaDocumento = terrenos.reduce((s, t) => s + (t.areaDocumento ?? 0), 0);
+    const totalParcelas = statsQuery.data?.total ?? listQuery.data?.meta.total ?? todasLasParcelas.length;
+    const areaDisponible = todasLasParcelas.reduce((s, t) => s + (t.areaDisponible ?? 0), 0);
+    const areaDesincorporada = todasLasParcelas.reduce((s, t) => s + (t.areaDesincorporada ?? 0), 0);
+    const areaComprometida = todasLasParcelas.reduce((s, t) => s + (t.areaComprometida ?? 0), 0);
+    const areaDocumento = todasLasParcelas.reduce((s, t) => s + (t.areaDocumento ?? 0), 0);
     return { totalParcelas, areaDisponible, areaDesincorporada, areaComprometida, areaDocumento };
-  }, [terrenos, statsQuery.data?.total, listQuery.data?.meta.total]);
+  }, [todasLasParcelas, statsQuery.data?.total, listQuery.data?.meta.total]);
 
   const filtered = useMemo(() => {
     return terrenos.filter((t) => {
       if (filtros.codigo && !t.codigo.toLowerCase().includes(filtros.codigo.toLowerCase())) return false;
+      if (
+        filtros.identificacion &&
+        !t.identificacion.toLowerCase().includes(filtros.identificacion.toLowerCase())
+      ) {
+        return false;
+      }
       if (filtros.nroPropiedad && !t.nroPropiedad.includes(filtros.nroPropiedad)) return false;
       if (filtros.levantamiento && filtros.levantamiento !== 'Todos' && t.levantamientoTopografico !== filtros.levantamiento) return false;
       if (filtros.acreditacion && filtros.acreditacion !== 'Todos' && t.acreditacionTecnicaAmbiental !== filtros.acreditacion) return false;
@@ -242,7 +261,24 @@ export default function Terrenos() {
     { key: 'ubicacion', label: 'Ubicación', render: (t) => <span className="max-w-[180px] truncate block">{t.ubicacion}</span> },
     { key: 'areaDocumento', label: 'Área de documento', render: (t) => `${t.areaDocumento.toLocaleString('es-VE')} m²` },
     { key: 'areaDesincorporada', label: 'Área Desincorporada', render: (t) => `${t.areaDesincorporada.toLocaleString('es-VE')} m²` },
-    { key: 'areaDisponible', label: 'Área Disponible', render: (t) => `${t.areaDisponible.toLocaleString('es-VE')} m²` },
+    {
+      key: 'areaComprometida',
+      label: 'Área Comprometida',
+      render: (t) => (
+        <span className="text-blue-800 font-medium tabular-nums">
+          {t.areaComprometida.toLocaleString('es-VE')} m²
+        </span>
+      ),
+    },
+    {
+      key: 'areaDisponible',
+      label: 'Área Disponible',
+      render: (t) => (
+        <span className="text-green-700 font-medium tabular-nums">
+          {t.areaDisponible.toLocaleString('es-VE')} m²
+        </span>
+      ),
+    },
     { key: 'zonificacion', label: 'Zonificación' },
     { key: 'levantamientoTopografico', label: 'Levantamiento Topográfico' },
     { key: 'acreditacionTecnicaAmbiental', label: 'Acreditación Técnica Ambiental' },
@@ -313,7 +349,13 @@ export default function Terrenos() {
       <ModuleFilterBar
         fields={[
           { key: 'codigo', label: 'Código', type: 'text', value: filtros.codigo, onChange: (v) => setFiltro('codigo', v) },
-          { key: 'nombre', label: 'Nombre', type: 'text', value: filtros.nombre, onChange: (v) => setFiltro('nombre', v) },
+          {
+            key: 'identificacion',
+            label: 'Identificación',
+            type: 'text',
+            value: filtros.identificacion,
+            onChange: (v) => setFiltro('identificacion', v),
+          },
           { key: 'estado', label: 'Estado', type: 'select', value: filtros.estado, onChange: (v) => setFiltro('estado', v), options: ['Todos', ...ESTADOS_PARCELA] },
           { key: 'zonificacion', label: 'Zonificación', type: 'text', value: filtros.zonificacion, onChange: (v) => setFiltro('zonificacion', v) },
           { key: 'nroPropiedad', label: 'Nro de Propiedad', type: 'text', value: filtros.nroPropiedad, onChange: (v) => setFiltro('nroPropiedad', v) },

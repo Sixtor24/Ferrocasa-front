@@ -2,12 +2,7 @@ import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { fetchVehiculos, fetchVehiculoById } from '../api/services/vehiculos.service';
 import { useApiQuery } from '../hooks/useApiQuery';
-import {
-  CONDICIONES_VEHICULO,
-  ESTADOS_USO_VEHICULO,
-  ALMACENES_VEHICULO,
-  DEPARTAMENTOS_VEHICULO,
-} from '../types/vehiculo';
+import { CONDICIONES_VEHICULO, ESTADOS_USO_VEHICULO } from '../types/vehiculo';
 import type { Vehiculo } from '../types/vehiculo';
 import ModulePageHeader from '../components/module/ModulePageHeader';
 import ModuleFilterBar from '../components/module/ModuleFilterBar';
@@ -28,9 +23,11 @@ function formaAdquisicionVehiculo(v: Vehiculo) {
   return 'Compra';
 }
 
-function proveedorVehiculo(v: Vehiculo) {
-  if (!v.numeroDocumento || v.numeroDocumento === '—') return '—';
-  return '—';
+function catalogOptions(values: string[], allLabel: string) {
+  const unique = Array.from(
+    new Set(values.filter((value) => value && value !== '—')),
+  ).sort((a, b) => a.localeCompare(b, 'es'));
+  return [allLabel, ...unique];
 }
 
 function VehiculoDetail({ vehiculo, onVolver }: { vehiculo: Vehiculo; onVolver: () => void }) {
@@ -101,16 +98,22 @@ function VehiculoDetail({ vehiculo, onVolver }: { vehiculo: Vehiculo; onVolver: 
             { label: 'Almacén', value: vehiculo.almacen },
             { label: 'Marca', value: vehiculo.marca },
             { label: 'Serial de carrocería', value: serialCarroceriaDisplay },
-            { label: 'Unidad Administrativa', value: vehiculo.departamento },
+            { label: 'Unidad Administrativa', value: vehiculo.unidadAdministrativa },
             { label: 'Modelo', value: vehiculo.modelo },
-            { label: 'Responsable', value: vehiculo.departamento },
+            {
+              label: 'Responsable',
+              value: vehiculo.responsable !== '—'
+                ? vehiculo.responsable
+                : vehiculo.ciResponsable
+                  ? `CI ${vehiculo.ciResponsable}`
+                  : '—',
+            },
             { label: 'Sede', value: vehiculo.sede },
             { label: 'Año de fabricación', value: vehiculo.anioFabricacion?.toString() ?? '—' },
-            { label: 'Unidad Administrativa', value: vehiculo.departamento },
             { label: 'Estado', value: <StatusBadge status={estadoUso} size="sm" /> },
             {
               label: 'Valor de Adquisición',
-              value: vehiculo.valorAdquisicion ? formatMoneda(vehiculo.valorAdquisicion, 'USD') : '—',
+              value: formatMoneda(vehiculo.valorAdquisicion, vehiculo.moneda),
             },
           ],
         },
@@ -121,10 +124,10 @@ function VehiculoDetail({ vehiculo, onVolver }: { vehiculo: Vehiculo; onVolver: 
             { label: 'Forma de Adquisición', value: formaAdquisicionVehiculo(vehiculo) },
             {
               label: 'Valor Total de Documento',
-              value: vehiculo.valorAdquisicion ? formatMoneda(vehiculo.valorAdquisicion, 'USD') : '—',
+              value: formatMoneda(vehiculo.valorAdquisicion, vehiculo.moneda),
             },
             { label: 'Fecha Adquisición', value: formatFecha(vehiculo.fechaAdquisicion) },
-            { label: 'Nombre de Proveedor', value: proveedorVehiculo(vehiculo) },
+            { label: 'Nombre de Proveedor', value: vehiculo.proveedor || '—' },
           ],
         },
       ]}
@@ -171,10 +174,7 @@ export default function Vehiculos() {
     buscar: '',
   });
 
-  const listQuery = useApiQuery(
-    () => fetchVehiculos({ page, limit: PER_PAGE, search: filtros.buscar || undefined }),
-    [page, filtros.buscar],
-  );
+  const listQuery = useApiQuery(() => fetchVehiculos({ page: 1, limit: 5000 }), []);
 
   const detailQuery = useApiQuery(
     () => fetchVehiculoById(Number(id)),
@@ -182,24 +182,47 @@ export default function Vehiculos() {
     Boolean(id),
   );
 
-  const vehiculos = listQuery.data?.data ?? [];
+  const lista = listQuery.data?.data ?? [];
   const vehiculo = id ? detailQuery.data : null;
 
+  const almacenOptions = useMemo(
+    () => catalogOptions(lista.map((v) => v.almacen), 'Todos'),
+    [lista],
+  );
+
+  const unidadAdministrativaOptions = useMemo(
+    () => catalogOptions(lista.map((v) => v.unidadAdministrativa), 'Todos'),
+    [lista],
+  );
+
   const filtered = useMemo(() => {
-    return vehiculos.filter((v) => {
+    const q = filtros.buscar.trim().toLowerCase();
+    return lista.filter((v) => {
       if (filtros.codigo && !v.codigoInterno.toLowerCase().includes(filtros.codigo.toLowerCase())) return false;
       if (filtros.descripcion && !v.descripcion.toLowerCase().includes(filtros.descripcion.toLowerCase())) return false;
       if (filtros.almacen && filtros.almacen !== 'Todos' && v.almacen !== filtros.almacen) return false;
       if (filtros.condicionFisica && filtros.condicionFisica !== 'Todas' && v.condicionFisica !== filtros.condicionFisica) return false;
-      if (filtros.departamento && filtros.departamento !== 'Todos' && v.departamento !== filtros.departamento) return false;
+      if (filtros.departamento && filtros.departamento !== 'Todos' && v.unidadAdministrativa !== filtros.departamento) return false;
       if (filtros.numeroDocumento && !v.numeroDocumento.includes(filtros.numeroDocumento)) return false;
       if (filtros.estadoUso && filtros.estadoUso !== 'Todos' && v.estadoUso !== filtros.estadoUso) return false;
+      if (q) {
+        const hay =
+          v.codigoInterno.toLowerCase().includes(q) ||
+          v.descripcion.toLowerCase().includes(q) ||
+          v.marca.toLowerCase().includes(q) ||
+          v.modelo.toLowerCase().includes(q) ||
+          v.placa.toLowerCase().includes(q) ||
+          v.almacen.toLowerCase().includes(q) ||
+          v.sede.toLowerCase().includes(q) ||
+          v.unidadAdministrativa.toLowerCase().includes(q);
+        if (!hay) return false;
+      }
       return true;
     });
-  }, [vehiculos, filtros]);
+  }, [lista, filtros]);
 
-  const totalPages = Math.max(1, listQuery.data?.meta.totalPages ?? 1);
-  const paginated = filtered;
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
+  const paginated = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
   const setFiltro = (key: keyof typeof filtros, value: string) => {
     setFiltros((prev) => ({ ...prev, [key]: value }));
@@ -240,9 +263,9 @@ export default function Vehiculos() {
         fields={[
           { key: 'codigo', label: 'Código', type: 'text', value: filtros.codigo, onChange: (v) => setFiltro('codigo', v) },
           { key: 'descripcion', label: 'Descripción', type: 'text', value: filtros.descripcion, onChange: (v) => setFiltro('descripcion', v) },
-          { key: 'almacen', label: 'Almacén', type: 'select', value: filtros.almacen, onChange: (v) => setFiltro('almacen', v), options: ['Todos', ...ALMACENES_VEHICULO] },
+          { key: 'almacen', label: 'Almacén', type: 'select', value: filtros.almacen, onChange: (v) => setFiltro('almacen', v), options: almacenOptions },
           { key: 'condicion', label: 'Condición Física', type: 'select', value: filtros.condicionFisica, onChange: (v) => setFiltro('condicionFisica', v), options: ['Todas', ...CONDICIONES_VEHICULO] },
-          { key: 'departamento', label: 'Unidad Administrativa', type: 'select', value: filtros.departamento, onChange: (v) => setFiltro('departamento', v), options: ['Todos', ...DEPARTAMENTOS_VEHICULO] },
+          { key: 'departamento', label: 'Unidad Administrativa', type: 'select', value: filtros.departamento, onChange: (v) => setFiltro('departamento', v), options: unidadAdministrativaOptions },
           { key: 'documento', label: 'Número de documento', type: 'text', value: filtros.numeroDocumento, onChange: (v) => setFiltro('numeroDocumento', v) },
           { key: 'estado', label: 'Estado de uso', type: 'select', value: filtros.estadoUso, onChange: (v) => setFiltro('estadoUso', v), options: ['Todos', ...ESTADOS_USO_VEHICULO] },
           { key: 'buscar', label: 'Buscar', type: 'search', value: filtros.buscar, onChange: (v) => setFiltro('buscar', v), placeholder: 'Buscar...', className: 'lg:col-span-1' },

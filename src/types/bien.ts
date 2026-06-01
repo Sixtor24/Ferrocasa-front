@@ -10,6 +10,8 @@ export interface BienMueble {
   id: number;
   sede: string;
   unidadAdministrativa: string;
+  responsable: string;
+  ciResponsable: string;
   codigoInterno: string;            // puede ser S/C, S/C/01, SC/161...
   sinCodigo: boolean;               // true si el código es S/C o variante
   descripcion: string;

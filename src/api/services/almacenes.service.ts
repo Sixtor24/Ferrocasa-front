@@ -8,6 +8,7 @@ import type {
 } from '../types';
 import { mapApiBienToBienMueble } from '../mappers/bien.mapper';
 import { mapApiVehiculoToVehiculo } from '../mappers/vehiculo.mapper';
+import { buildAlmacenNombreMap } from '../utils/almacenLookup';
 
 export type AlmacenesQuery = {
   page?: number;
@@ -30,6 +31,11 @@ function mapAlmacenesList(res: ApiListResponse<ApiAlmacen>) {
     data: rows,
     meta: res.meta ?? { page: 1, limit: rows.length, total: rows.length, totalPages: 1 },
   };
+}
+
+export async function fetchAlmacenesCatalog() {
+  const res = await fetchAlmacenes({ page: 1, limit: 5000 });
+  return buildAlmacenNombreMap(res.data);
 }
 
 export async function fetchAlmacenes(query: AlmacenesQuery = {}) {

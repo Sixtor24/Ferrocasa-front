@@ -15,6 +15,9 @@ export interface Terreno {
   zona: string;
   ubicacionAdicional: string;
   responsable: string;
+  ciResponsable: string;
+  valorAdquisicion: number | null;
+  moneda: 'Bs' | 'USD' | 'Bs.F' | 'Bs.S';
   observacion: string;
   areaComprometida: number;
   numeroDocumento: string;

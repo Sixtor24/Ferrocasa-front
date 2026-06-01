@@ -6,6 +6,8 @@ import type {
   ApiVehiculosEstadisticas,
 } from '../types';
 import { mapApiVehiculoToVehiculo } from '../mappers/vehiculo.mapper';
+import { fetchAlmacenesCatalog } from './almacenes.service';
+import { fetchResponsableByCi } from './responsables.service';
 import type { Vehiculo } from '../../types/vehiculo';
 
 export type VehiculosQuery = {
@@ -41,35 +43,60 @@ export type VehiculoPayload = {
   usuario_carga?: string | null;
 };
 
-function mapVehiculosList(res: ApiListResponse<ApiVehiculo>) {
+function mapVehiculosList(res: ApiListResponse<ApiVehiculo>, almacenesById: Map<number, string>) {
   const rows = res.data ?? [];
   return {
-    data: rows.map(mapApiVehiculoToVehiculo),
+    data: rows.map((vehiculo) => mapApiVehiculoToVehiculo(vehiculo, almacenesById)),
     meta: res.meta ?? { page: 1, limit: rows.length, total: rows.length, totalPages: 1 },
   };
 }
 
-function mapVehiculosArray(rows: ApiVehiculo[]) {
-  return rows.map(mapApiVehiculoToVehiculo);
+function mapVehiculosArray(rows: ApiVehiculo[], almacenesById: Map<number, string> = new Map()) {
+  return rows.map((vehiculo) => mapApiVehiculoToVehiculo(vehiculo, almacenesById));
 }
 
 export async function fetchVehiculos(query: VehiculosQuery = {}) {
-  const res = await apiRequest<ApiListResponse<ApiVehiculo>>('/vehiculos', {
-    params: {
-      page: query.page ?? 1,
-      limit: query.limit ?? 10,
-      search: query.search,
-    },
-  });
+  const [res, almacenesById] = await Promise.all([
+    apiRequest<ApiListResponse<ApiVehiculo>>('/vehiculos', {
+      params: {
+        page: query.page ?? 1,
+        limit: query.limit ?? 10,
+        search: query.search,
+      },
+    }),
+    fetchAlmacenesCatalog(),
+  ]);
 
-  return mapVehiculosList(res);
+  return mapVehiculosList(res, almacenesById);
+}
+
+async function enrichVehiculoConResponsable(apiVehiculo: ApiVehiculo, vehiculo: Vehiculo): Promise<Vehiculo> {
+  if (vehiculo.responsable !== '—') return vehiculo;
+
+  const ci = vehiculo.ciResponsable || apiVehiculo.ci_responsable;
+  if (!ci) return vehiculo;
+
+  try {
+    const responsable = await fetchResponsableByCi(ci);
+    return {
+      ...vehiculo,
+      responsable: responsable.nombre,
+      ciResponsable: responsable.ci_responsable,
+    };
+  } catch {
+    return { ...vehiculo, ciResponsable: ci };
+  }
 }
 
 export async function fetchVehiculoById(id: number): Promise<Vehiculo> {
-  const res = await apiRequest<ApiItemResponse<ApiVehiculo>>(`/vehiculos/${id}`);
+  const [res, almacenesById] = await Promise.all([
+    apiRequest<ApiItemResponse<ApiVehiculo>>(`/vehiculos/${id}`),
+    fetchAlmacenesCatalog(),
+  ]);
   if (!res.data) throw new Error('Respuesta vacía del API');
 
-  return mapApiVehiculoToVehiculo(res.data);
+  const vehiculo = mapApiVehiculoToVehiculo(res.data, almacenesById);
+  return enrichVehiculoConResponsable(res.data, vehiculo);
 }
 
 export async function fetchVehiculosEstadisticas(): Promise<ApiVehiculosEstadisticas> {

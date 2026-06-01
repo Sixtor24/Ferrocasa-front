@@ -130,10 +130,16 @@ function AlmacenBienDetail({ bien, onVolver }: { bien: BienMueble; onVolver: () 
               ),
             },
             { label: 'Color', value: bien.color || '—' },
-            { label: 'Responsable', value: bien.unidadAdministrativa },
+            {
+              label: 'Responsable',
+              value: bien.responsable !== '—'
+                ? bien.responsable
+                : bien.ciResponsable
+                  ? `CI ${bien.ciResponsable}`
+                  : '—',
+            },
             { label: 'Almacén', value: bien.ubicacion },
             { label: 'Marca', value: bien.marca },
-            { label: 'Unidad Administrativa', value: bien.unidadAdministrativa },
             { label: 'Unidad Administrativa', value: bien.unidadAdministrativa },
             { label: 'Modelo', value: bien.modelo || '—' },
             { label: 'Sede', value: bien.sede },
@@ -212,10 +218,8 @@ export default function Almacen() {
   const bienesStats = useMemo(() => ({
     total: displayList.length,
     enUso: displayList.filter((b) => b.estadoUso === 'En uso').length,
-    regulares: displayList.filter((b) => b.condicionFisica === 'Regular').length,
-    danados: displayList.filter((b) =>
-      ['Dañado', 'Averiado', 'Inservible'].includes(b.condicionFisica)
-    ).length,
+    enObsolescencia: displayList.filter((b) => b.estadoUso === 'En obsolescencia').length,
+    obsoletos: displayList.filter((b) => b.estadoUso === 'Obsoleto').length,
   }), [displayList]);
 
   const almacenOptions = useMemo(() => ['Todas', ...ALMACENES_BIENES_ADMINISTRATIVOS], []);
@@ -392,15 +396,15 @@ export default function Almacen() {
         <div className="bg-white rounded-xl border border-amber-200 p-5 flex items-center gap-4">
           <div className="w-11 h-11 bg-amber-100 rounded-xl flex items-center justify-center"><AlertTriangle size={22} className="text-amber-500" /></div>
           <div>
-            <p className="text-sm text-gray-500">Bienes Regulares</p>
-            <p className="text-2xl font-bold text-amber-700">{(bienesStats.regulares ?? 0).toLocaleString()}</p>
+            <p className="text-sm text-gray-500">Bienes en obsolescencia</p>
+            <p className="text-2xl font-bold text-amber-700">{(bienesStats.enObsolescencia ?? 0).toLocaleString()}</p>
           </div>
         </div>
         <div className="bg-white rounded-xl border border-red-200 p-5 flex items-center gap-4">
           <div className="w-11 h-11 bg-red-100 rounded-xl flex items-center justify-center"><AlertCircle size={22} className="text-red-500" /></div>
           <div>
-            <p className="text-sm text-gray-500">Bienes dañados</p>
-            <p className="text-2xl font-bold text-red-700">{(bienesStats.danados ?? 0).toLocaleString()}</p>
+            <p className="text-sm text-gray-500">Bienes Obsoletos</p>
+            <p className="text-2xl font-bold text-red-700">{(bienesStats.obsoletos ?? 0).toLocaleString()}</p>
           </div>
         </div>
       </div>

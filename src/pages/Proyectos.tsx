@@ -71,7 +71,7 @@ export default function Proyectos() {
           </p>
         </div>
         <Link
-          to="/almacen/inmuebles"
+          to="/terrenos"
           className="flex items-center gap-2 px-5 py-2.5 bg-navy-900 text-white rounded-lg text-sm font-medium hover:bg-navy-800"
         >
           <Plus size={18} />
@@ -222,7 +222,7 @@ export default function Proyectos() {
                 <tr
                   key={proyecto.id}
                   className="border-b border-gray-100 hover:bg-gray-50 cursor-pointer"
-                  onClick={() => navigate('/almacen/inmuebles')}
+                  onClick={() => navigate('/terrenos')}
                 >
                   <td className="px-6 py-4 text-sm font-mono text-gray-500">{proyecto.id}</td>
                   <td className="px-6 py-4">
@@ -289,7 +289,7 @@ export default function Proyectos() {
             Complete la ficha técnica para registrar un nuevo proyecto en el sistema nacional de inventario de bienes habitacionales.
           </p>
           <button
-            onClick={() => navigate('/almacen/inmuebles')}
+            onClick={() => navigate('/terrenos')}
             className="flex items-center gap-2 px-6 py-2.5 border-2 border-navy-900 text-navy-900 rounded-lg text-sm font-bold hover:bg-navy-900 hover:text-white transition-colors"
           >
             Registrar Expediente

@@ -4,6 +4,7 @@ import type { ApiParcela } from '../types';
 import {
   mapAcreditacionAmbiental,
   mapLevantamientoTopografico,
+  mapMoneda,
   toIsoDate,
   toNumber,
 } from './enums';
@@ -29,7 +30,7 @@ export function mapApiParcelaToTerreno(p: ApiParcela): Terreno {
     id: p.id_terreno,
     codigo: `T-${String(p.id_terreno).padStart(4, '0')}`,
     identificacion: p.nombre ?? `Parcela ${p.id_terreno}`,
-    ubicacion: p.ubicacion_adicional ?? p.documento?.propiedad?.ubicacion ?? '—',
+    ubicacion: p.documento?.propiedad?.ubicacion ?? p.ubicacion_adicional ?? '—',
     areaDocumento: areaDoc,
     areaDesincorporada: areaDes,
     areaDisponible: Math.max(0, areaDoc - areaComp - areaDes),
@@ -42,6 +43,9 @@ export function mapApiParcelaToTerreno(p: ApiParcela): Terreno {
     zona: p.zona ?? '—',
     ubicacionAdicional: p.ubicacion_adicional ?? '—',
     responsable: p.responsable?.nombre ?? '—',
+    ciResponsable: p.ci_responsable ?? p.responsable?.ci_responsable ?? '',
+    valorAdquisicion: toNumber(p.documento?.valor_adquisicion),
+    moneda: mapMoneda(p.documento?.moneda),
     observacion: p.observaciones ?? '—',
     areaComprometida: areaComp,
     numeroDocumento: String(p.id_documento_propiedad),
@@ -62,7 +66,7 @@ export function mapApiParcelaToInmueble(p: ApiParcela): Inmueble {
 
   return {
     id: p.id_terreno,
-    ubicacion: p.ubicacion_adicional ?? p.documento?.propiedad?.ubicacion ?? '—',
+    ubicacion: p.documento?.propiedad?.ubicacion ?? p.ubicacion_adicional ?? '—',
     areaSegunDocumento: areaDoc || null,
     areaDesincorporada: areaDes || null,
     areaComprometida: areaComp || null,

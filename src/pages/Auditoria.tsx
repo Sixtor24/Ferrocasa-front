@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { registrosAuditoria } from '../data/auditoria';
+import { MODULO_MENU_COLORS, MODULOS_AUDITORIA_FILTRO } from '../data/modulosMenu';
 import {
   FileText,
   FileSpreadsheet,
@@ -7,12 +8,6 @@ import {
   ChevronRight,
   X,
 } from 'lucide-react';
-
-const moduloColor: Record<string, string> = {
-  Almacén: 'bg-navy-100 text-navy-800',
-  Ventas: 'bg-green-100 text-green-800',
-  Sistema: 'bg-gray-100 text-gray-800',
-};
 
 const accionColor: Record<string, string> = {
   Modificó: 'text-blue-600',
@@ -147,8 +142,11 @@ export default function Auditoria() {
               className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy-500 bg-white"
             >
               <option>Todos los módulos</option>
-              <option>Almacén</option>
-              <option>Sistema</option>
+              {MODULOS_AUDITORIA_FILTRO.map((nombre) => (
+                <option key={nombre} value={nombre}>
+                  {nombre}
+                </option>
+              ))}
             </select>
           </div>
           <div>
@@ -238,7 +236,7 @@ export default function Auditoria() {
                     </div>
                   </td>
                   <td className="px-6 py-4">
-                    <span className={`text-xs font-medium px-2.5 py-1 rounded-md ${moduloColor[reg.modulo] || 'bg-gray-100 text-gray-800'}`}>
+                    <span className={`text-xs font-medium px-2.5 py-1 rounded-md ${MODULO_MENU_COLORS[reg.modulo] || 'bg-gray-100 text-gray-800'}`}>
                       {reg.modulo}
                     </span>
                   </td>

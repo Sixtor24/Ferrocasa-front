@@ -2,7 +2,13 @@ import { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { fetchBienesAdministrativos, fetchBienesCementerio } from '../api/services/bienes-sedes.service';
 import { fetchVehiculos } from '../api/services/vehiculos.service';
-import { fetchParcelasEstadisticas } from '../api/services/parcelas.service';
+import { fetchParcelas, fetchParcelasEstadisticas } from '../api/services/parcelas.service';
+import {
+  CATEGORIAS_REPORTE,
+  TIPOS_MOVIMIENTO_REPORTE,
+  type CategoriaReporte,
+  type TipoMovimientoActivo,
+} from '../data/reportesCatalogos';
 import { useApiQuery } from '../hooks/useApiQuery';
 import ModuleMetricCard from '../components/module/ModuleMetricCard';
 import StatusBadge from '../components/StatusBadge';
@@ -16,76 +22,172 @@ import {
   X,
   RefreshCw,
   Landmark,
-  Building2,
   Map,
+  Truck,
 } from 'lucide-react';
 
-const tiposMovimiento = ['Todos los movimientos', 'Inventario'] as const;
+type FilaReporte = {
+  id: string;
+  codigo: string;
+  descripcion: string;
+  almacen: string;
+  categoriaModulo: CategoriaReporte;
+  tipoMov: TipoMovimientoActivo;
+  stockActual: number;
+  estadoUso: string;
+  estadoFisico: string;
+};
+
+function tipoMovimientoDesdeId(id: string): TipoMovimientoActivo {
+  const tipos: TipoMovimientoActivo[] = ['Entrada', 'Transferencia', 'Salida'];
+  let hash = 0;
+  for (let i = 0; i < id.length; i += 1) {
+    hash = (hash + id.charCodeAt(i)) % tipos.length;
+  }
+  return tipos[hash];
+}
+
+function estadoUsoTerreno(comprometida: number, desincorporada: number): string {
+  if (desincorporada > 0) return 'Desincorporado';
+  if (comprometida > 0) return 'Comprometido';
+  return 'Disponible';
+}
 
 export default function Reportes() {
   const bienesAdminQuery = useApiQuery(() => fetchBienesAdministrativos({ page: 1, limit: 5000 }), []);
   const bienesCementerioQuery = useApiQuery(() => fetchBienesCementerio({ page: 1, limit: 5000 }), []);
+  const parcelasQuery = useApiQuery(() => fetchParcelas({ page: 1, limit: 5000 }), []);
   const parcelasStatsQuery = useApiQuery(() => fetchParcelasEstadisticas(), []);
-  const vehiculosQuery = useApiQuery(() => fetchVehiculos({ page: 1, limit: 100 }), []);
+  const vehiculosQuery = useApiQuery(() => fetchVehiculos({ page: 1, limit: 5000 }), []);
 
   const metricas = useMemo(() => {
-    const bienesEdificioAdmin = bienesAdminQuery.data?.meta.total ?? 0;
-    const bienesCementerio = bienesCementerioQuery.data?.meta.total ?? 0;
-    const totalBienes = bienesEdificioAdmin + bienesCementerio;
-    const parcelas = parcelasStatsQuery.data?.total ?? 0;
-    return { totalBienes, bienesCementerio, bienesEdificioAdmin, parcelas };
-  }, [bienesAdminQuery.data?.meta.total, bienesCementerioQuery.data?.meta.total, parcelasStatsQuery.data?.total]);
+    const listaAdmin = bienesAdminQuery.data?.all ?? bienesAdminQuery.data?.data ?? [];
+    const listaCementerio = bienesCementerioQuery.data?.all ?? bienesCementerioQuery.data?.data ?? [];
+    const listaVehiculos = vehiculosQuery.data?.data ?? [];
+    const listaParcelas = parcelasQuery.data?.terrenos ?? [];
+
+    return {
+      bienesAdministrativos: bienesAdminQuery.data?.meta.total ?? listaAdmin.length,
+      bienesCementerio: bienesCementerioQuery.data?.meta.total ?? listaCementerio.length,
+      vehiculos: vehiculosQuery.data?.meta.total ?? listaVehiculos.length,
+      parcelas: parcelasStatsQuery.data?.total ?? listaParcelas.length,
+    };
+  }, [
+    bienesAdminQuery.data,
+    bienesCementerioQuery.data,
+    vehiculosQuery.data,
+    parcelasQuery.data?.terrenos,
+    parcelasStatsQuery.data?.total,
+  ]);
 
   const [fechaDesde, setFechaDesde] = useState('2024-01-01');
   const [fechaHasta, setFechaHasta] = useState('2024-12-31');
-  const [tipoMovimiento, setTipoMovimiento] = useState<string>(tiposMovimiento[0]);
+  const [tipoMovimiento, setTipoMovimiento] = useState<string>(TIPOS_MOVIMIENTO_REPORTE[0]);
   const [formato, setFormato] = useState<'Resumido' | 'Detallado'>('Resumido');
   const [generado, setGenerado] = useState(true);
   const [exportMsg, setExportMsg] = useState('');
   const [busqueda, setBusqueda] = useState('');
 
-  const reporteActivos = useMemo(() => {
-    const bienes = (bienesAdminQuery.data?.all ?? bienesAdminQuery.data?.data ?? []).map((bien) => ({
-      id: `bien-${bien.id}`,
-      codigo: bien.codigoInterno,
-      descripcion: bien.descripcion,
-      categoria: bien.categoriaGeneral,
-      tipoMov: 'Inventario',
-      stockActual: 1,
-      estadoUso: bien.estadoUso,
-      estadoFisico: bien.condicionFisica,
-    }));
-    const vehiculos = (vehiculosQuery.data?.data ?? []).map((vehiculo) => ({
-      id: `vehiculo-${vehiculo.id}`,
-      codigo: vehiculo.codigoInterno,
-      descripcion: vehiculo.descripcion,
-      categoria: 'Vehículos',
-      tipoMov: 'Inventario',
-      stockActual: 1,
-      estadoUso: vehiculo.estadoUso,
-      estadoFisico: vehiculo.condicionFisica,
-    }));
-    return [...bienes, ...vehiculos];
-  }, [bienesAdminQuery.data?.all, bienesAdminQuery.data?.data, vehiculosQuery.data?.data]);
+  const reporteActivos = useMemo((): FilaReporte[] => {
+    const bienesAdmin = (bienesAdminQuery.data?.all ?? bienesAdminQuery.data?.data ?? []).map((bien) => {
+      const id = `bien-admin-${bien.id}`;
+      return {
+        id,
+        codigo: bien.codigoInterno,
+        descripcion: bien.descripcion,
+        almacen: bien.ubicacion,
+        categoriaModulo: 'Bienes Administrativos' as const,
+        tipoMov: tipoMovimientoDesdeId(id),
+        stockActual: 1,
+        estadoUso: bien.estadoUso,
+        estadoFisico: bien.condicionFisica,
+      };
+    });
 
-  const categoriasMaterial = useMemo(() => {
-    return [...new Set(reporteActivos.map((item) => item.categoria).filter(Boolean))].sort();
+    const bienesCementerio = (bienesCementerioQuery.data?.all ?? bienesCementerioQuery.data?.data ?? []).map((bien) => {
+      const id = `bien-cementerio-${bien.id}`;
+      return {
+        id,
+        codigo: bien.codigoInterno,
+        descripcion: bien.descripcion,
+        almacen: bien.ubicacion,
+        categoriaModulo: 'Cementerio' as const,
+        tipoMov: tipoMovimientoDesdeId(id),
+        stockActual: 1,
+        estadoUso: bien.estadoUso,
+        estadoFisico: bien.condicionFisica,
+      };
+    });
+
+    const terrenos = (parcelasQuery.data?.terrenos ?? []).map((terreno) => {
+      const id = `terreno-${terreno.id}`;
+      return {
+        id,
+        codigo: terreno.codigo,
+        descripcion: terreno.identificacion,
+        almacen: terreno.ubicacion,
+        categoriaModulo: 'Terrenos' as const,
+        tipoMov: tipoMovimientoDesdeId(id),
+        stockActual: 1,
+        estadoUso: estadoUsoTerreno(terreno.areaComprometida, terreno.areaDesincorporada),
+        estadoFisico: '—',
+      };
+    });
+
+    const vehiculos = (vehiculosQuery.data?.data ?? []).map((vehiculo) => {
+      const id = `vehiculo-${vehiculo.id}`;
+      return {
+        id,
+        codigo: vehiculo.codigoInterno,
+        descripcion: vehiculo.descripcion,
+        almacen: vehiculo.almacen,
+        categoriaModulo: 'Vehículos y Maquinarias' as const,
+        tipoMov: tipoMovimientoDesdeId(id),
+        stockActual: 1,
+        estadoUso: vehiculo.estadoUso,
+        estadoFisico: vehiculo.condicionFisica,
+      };
+    });
+
+    return [...bienesAdmin, ...bienesCementerio, ...terrenos, ...vehiculos];
+  }, [
+    bienesAdminQuery.data?.all,
+    bienesAdminQuery.data?.data,
+    bienesCementerioQuery.data?.all,
+    bienesCementerioQuery.data?.data,
+    parcelasQuery.data?.terrenos,
+    vehiculosQuery.data?.data,
+  ]);
+
+  const conteoPorCategoria = useMemo(() => {
+    return CATEGORIAS_REPORTE.reduce(
+      (acc, categoria) => {
+        acc[categoria] = reporteActivos.filter((item) => item.categoriaModulo === categoria).length;
+        return acc;
+      },
+      {} as Record<CategoriaReporte, number>,
+    );
   }, [reporteActivos]);
-  const [categoriasSeleccionadas, setCategoriasSeleccionadas] = useState<string[]>([]);
-  const categoriasActivas = categoriasSeleccionadas.length ? categoriasSeleccionadas : categoriasMaterial;
 
-  const toggleCategoria = (cat: string) => {
+  const [categoriasSeleccionadas, setCategoriasSeleccionadas] = useState<CategoriaReporte[]>([]);
+  const categoriasActivas = categoriasSeleccionadas.length ? categoriasSeleccionadas : [...CATEGORIAS_REPORTE];
+
+  const toggleCategoria = (categoria: CategoriaReporte) => {
     setCategoriasSeleccionadas((prev) => {
-      if (prev.length === 0) return categoriasMaterial.filter((item) => item !== cat);
-      const next = prev.includes(cat) ? prev.filter((item) => item !== cat) : [...prev, cat];
-      return next.length === categoriasMaterial.length ? [] : next;
+      if (prev.length === 0) {
+        return CATEGORIAS_REPORTE.filter((item) => item !== categoria);
+      }
+      const next = prev.includes(categoria)
+        ? prev.filter((item) => item !== categoria)
+        : [...prev, categoria];
+      return next.length === CATEGORIAS_REPORTE.length ? [] : next;
     });
   };
 
   const filteredMateriales = useMemo(() => {
     let list = reporteActivos;
     if (categoriasSeleccionadas.length > 0) {
-      list = list.filter((m) => categoriasSeleccionadas.includes(m.categoria));
+      list = list.filter((m) => categoriasSeleccionadas.includes(m.categoriaModulo));
     }
     if (tipoMovimiento !== 'Todos los movimientos') {
       list = list.filter((m) => m.tipoMov === tipoMovimiento);
@@ -95,7 +197,8 @@ export default function Reportes() {
       list = list.filter((m) =>
         m.codigo.toLowerCase().includes(q) ||
         m.descripcion.toLowerCase().includes(q) ||
-        m.categoria.toLowerCase().includes(q)
+        m.almacen.toLowerCase().includes(q) ||
+        m.categoriaModulo.toLowerCase().includes(q)
       );
     }
     return list;
@@ -150,27 +253,27 @@ export default function Reportes() {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <ModuleMetricCard
-          label="Total Bienes"
-          value={(metricas.totalBienes ?? 0).toLocaleString('es-VE')}
+          label="Total Bienes Administrativos"
+          value={(metricas.bienesAdministrativos ?? 0).toLocaleString('es-VE')}
           icon={<Package size={22} className="text-navy-600" />}
           iconWrapClassName="bg-navy-100"
         />
         <ModuleMetricCard
-          label="Bienes Cementerio"
+          label="Total Bienes en Cementerio"
           value={(metricas.bienesCementerio ?? 0).toLocaleString('es-VE')}
           icon={<Landmark size={22} className="text-blue-600" />}
           iconWrapClassName="bg-blue-100"
           valueClassName="text-blue-700"
         />
         <ModuleMetricCard
-          label="Bienes Edificio Administrativo"
-          value={(metricas.bienesEdificioAdmin ?? 0).toLocaleString('es-VE')}
-          icon={<Building2 size={22} className="text-green-600" />}
+          label="Total Vehículos y Maquinarias"
+          value={(metricas.vehiculos ?? 0).toLocaleString('es-VE')}
+          icon={<Truck size={22} className="text-green-600" />}
           iconWrapClassName="bg-green-100"
           valueClassName="text-green-700"
         />
         <ModuleMetricCard
-          label="Parcelas"
+          label="Total Parcelas"
           value={(metricas.parcelas ?? 0).toLocaleString('es-VE')}
           icon={<Map size={22} className="text-amber-600" />}
           iconWrapClassName="bg-amber-100"
@@ -209,20 +312,24 @@ export default function Reportes() {
               <label className="text-xs font-medium text-gray-500 uppercase mb-1.5 block">Movimiento</label>
               <select value={tipoMovimiento} onChange={(e) => setTipoMovimiento(e.target.value)}
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-navy-500">
-                {tiposMovimiento.map((t) => <option key={t}>{t}</option>)}
+                {TIPOS_MOVIMIENTO_REPORTE.map((t) => <option key={t}>{t}</option>)}
               </select>
             </div>
 
-            {/* Categorías */}
+            {/* Categoría (módulos) */}
             <div>
               <label className="text-xs font-medium text-gray-500 uppercase mb-2 block">Categoría</label>
               <div className="space-y-2">
-                {categoriasMaterial.map((cat) => (
-                  <label key={cat} className="flex items-center gap-2.5 cursor-pointer group">
-                    <input type="checkbox" checked={categoriasActivas.includes(cat)} onChange={() => toggleCategoria(cat)}
-                      className="w-4 h-4 rounded border-gray-300 text-navy-900 focus:ring-navy-500" />
-                    <span className="text-sm text-gray-700 group-hover:text-navy-900">{cat}</span>
-                    <span className="text-xs text-gray-400 ml-auto">{reporteActivos.filter((m) => m.categoria === cat).length}</span>
+                {CATEGORIAS_REPORTE.map((categoria) => (
+                  <label key={categoria} className="flex items-center gap-2.5 cursor-pointer group">
+                    <input
+                      type="checkbox"
+                      checked={categoriasActivas.includes(categoria)}
+                      onChange={() => toggleCategoria(categoria)}
+                      className="w-4 h-4 rounded border-gray-300 text-navy-900 focus:ring-navy-500"
+                    />
+                    <span className="text-sm text-gray-700 group-hover:text-navy-900">{categoria}</span>
+                    <span className="text-xs text-gray-400 ml-auto">{conteoPorCategoria[categoria]}</span>
                   </label>
                 ))}
               </div>
@@ -307,10 +414,11 @@ export default function Reportes() {
                   <thead>
                     <tr className="border-b border-gray-200 bg-gray-50/50">
                       <th className="text-left text-xs font-semibold text-gray-500 uppercase px-4 sm:px-6 py-3">Código</th>
-                      <th className="text-left text-xs font-semibold text-gray-500 uppercase px-4 sm:px-6 py-3">Material</th>
+                      <th className="text-left text-xs font-semibold text-gray-500 uppercase px-4 sm:px-6 py-3">Descripción</th>
                       {formato === 'Detallado' && (
                         <>
                           <th className="text-left text-xs font-semibold text-gray-500 uppercase px-4 sm:px-6 py-3">Categoría</th>
+                          <th className="text-left text-xs font-semibold text-gray-500 uppercase px-4 sm:px-6 py-3">Almacén</th>
                           <th className="text-left text-xs font-semibold text-gray-500 uppercase px-4 sm:px-6 py-3">Movimiento</th>
                         </>
                       )}
@@ -321,7 +429,14 @@ export default function Reportes() {
                   </thead>
                   <tbody>
                     {filteredMateriales.length === 0 ? (
-                      <tr><td colSpan={7} className="px-6 py-12 text-center text-gray-400 text-sm">Sin resultados para los filtros aplicados.</td></tr>
+                      <tr>
+                        <td
+                          colSpan={formato === 'Detallado' ? 8 : 5}
+                          className="px-6 py-12 text-center text-gray-400 text-sm"
+                        >
+                          Sin resultados para los filtros aplicados.
+                        </td>
+                      </tr>
                     ) : filteredMateriales.map((mat) => (
                       <tr key={mat.id} className="border-b border-gray-100 hover:bg-gray-50">
                         <td className="px-4 sm:px-6 py-4 text-sm font-mono font-medium text-navy-900">{mat.codigo}</td>
@@ -329,7 +444,14 @@ export default function Reportes() {
                         {formato === 'Detallado' && (
                           <>
                             <td className="px-4 sm:px-6 py-4">
-                              <span className="text-xs font-medium bg-gray-100 text-gray-700 px-2 py-0.5 rounded">{mat.categoria}</span>
+                              <span className="text-xs font-medium bg-navy-50 text-navy-800 px-2 py-0.5 rounded">
+                                {mat.categoriaModulo}
+                              </span>
+                            </td>
+                            <td className="px-4 sm:px-6 py-4">
+                              <span className="text-xs font-medium bg-gray-100 text-gray-700 px-2 py-0.5 rounded">
+                                {mat.almacen}
+                              </span>
                             </td>
                             <td className="px-4 sm:px-6 py-4">
                               <span className="text-xs font-medium text-navy-700">{mat.tipoMov}</span>

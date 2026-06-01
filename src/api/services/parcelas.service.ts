@@ -12,6 +12,7 @@ import {
 } from '../mappers/parcela.mapper';
 import type { Terreno } from '../../types/terreno';
 import type { Inmueble } from '../../types/inmueble';
+import { fetchResponsableByCi } from './responsables.service';
 
 export type ParcelasQuery = {
   page?: number;
@@ -67,13 +68,36 @@ export async function fetchParcelas(query: ParcelasQuery = {}) {
   return mapParcelasList(res);
 }
 
+async function enrichTerrenoConResponsable(apiParcela: ApiParcela, terreno: Terreno): Promise<Terreno> {
+  if (terreno.responsable !== '—') return terreno;
+
+  const ci = terreno.ciResponsable || apiParcela.ci_responsable;
+  if (!ci) return terreno;
+
+  try {
+    const responsable = await fetchResponsableByCi(ci);
+    return {
+      ...terreno,
+      responsable: responsable.nombre,
+      ciResponsable: responsable.ci_responsable,
+    };
+  } catch {
+    return { ...terreno, ciResponsable: ci };
+  }
+}
+
 export async function fetchParcelaById(id: number) {
   const res = await apiRequest<ApiItemResponse<ApiParcela>>(`/parcelas/${id}`);
   if (!res.data) throw new Error('Respuesta vacía del API');
 
+  const terreno = await enrichTerrenoConResponsable(
+    res.data,
+    mapApiParcelaToTerreno(res.data),
+  );
+
   return {
     raw: res.data,
-    terreno: mapApiParcelaToTerreno(res.data),
+    terreno,
     inmueble: mapApiParcelaToInmueble(res.data),
     protocolos: mapParcelaProtocolos(res.data),
   };

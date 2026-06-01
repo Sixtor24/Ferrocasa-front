@@ -6,7 +6,6 @@ import Dashboard from './pages/Dashboard';
 import Auditoria from './pages/Auditoria';
 import Almacen from './pages/Almacen';
 import Proyectos from './pages/Proyectos';
-import Inmuebles from './pages/Inmuebles';
 import Reportes from './pages/Reportes';
 import Cementerio from './pages/Cementerio';
 import Vehiculos from './pages/Vehiculos';
@@ -38,7 +37,7 @@ function AppRoutes() {
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/almacen" element={<Almacen />} />
         <Route path="/almacen/proyectos" element={<Proyectos />} />
-        <Route path="/almacen/inmuebles" element={<Inmuebles />} />
+        <Route path="/almacen/inmuebles" element={<Navigate to="/terrenos" replace />} />
         <Route path="/almacen/:id" element={<Almacen />} />
         <Route path="/cementerio" element={<Cementerio />} />
         <Route path="/cementerio/parcela/:id" element={<Navigate to="/terrenos" replace />} />

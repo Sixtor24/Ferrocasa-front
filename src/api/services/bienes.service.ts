@@ -6,6 +6,8 @@ import type {
   ApiListResponse,
 } from '../types';
 import { mapApiBienToBienMueble } from '../mappers/bien.mapper';
+import { fetchAlmacenesCatalog } from './almacenes.service';
+import { fetchResponsableByCi } from './responsables.service';
 import type { BienMueble } from '../../types/bien';
 
 export type BienesQuery = {
@@ -63,11 +65,31 @@ export async function fetchBienes(query: BienesQuery = {}) {
   return mapBienesList(res);
 }
 
+async function enrichBienConResponsable(apiBien: ApiBien, bien: BienMueble): Promise<BienMueble> {
+  if (bien.responsable !== '—') return bien;
+
+  const ci = bien.ciResponsable || apiBien.almacen?.ci_responsable;
+  if (!ci) return bien;
+
+  try {
+    const responsable = await fetchResponsableByCi(ci);
+    return {
+      ...bien,
+      responsable: responsable.nombre,
+      ciResponsable: responsable.ci_responsable,
+    };
+  } catch {
+    return { ...bien, ciResponsable: ci };
+  }
+}
+
 export async function fetchBienByCodigo(codigo: number): Promise<BienMueble> {
   const res = await apiRequest<ApiItemResponse<ApiBien>>(`/bienes/${codigo}`);
   if (!res.data) throw new Error('Respuesta vacía del API');
 
-  return mapApiBienToBienMueble(res.data);
+  const almacenesById = await fetchAlmacenesCatalog();
+  const bien = mapApiBienToBienMueble(res.data, almacenesById);
+  return enrichBienConResponsable(res.data, bien);
 }
 
 export async function fetchBienesEstadisticas(): Promise<ApiBienesEstadisticas> {

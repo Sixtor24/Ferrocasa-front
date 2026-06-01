@@ -1,5 +1,6 @@
 import type { BienMueble } from '../../types/bien';
 import type { ApiBien } from '../types';
+import { resolveAlmacenNombre } from '../utils/almacenLookup';
 import {
   mapCondicionFisica,
   mapEstadoUsoBien,
@@ -8,7 +9,10 @@ import {
   toNumber,
 } from './enums';
 
-export function mapApiBienToBienMueble(b: ApiBien): BienMueble {
+export function mapApiBienToBienMueble(
+  b: ApiBien,
+  almacenesById: Map<number, string> = new Map(),
+): BienMueble {
   const codigo = String(b.codigo_bien);
   const sinCodigo = !b.serial;
   const sinSerial = !b.serial;
@@ -17,6 +21,8 @@ export function mapApiBienToBienMueble(b: ApiBien): BienMueble {
     id: b.codigo_bien,
     sede: b.almacen?.sede?.nombre ?? '—',
     unidadAdministrativa: b.unidad_administrativa ?? b.almacen?.departamento?.nombre ?? '—',
+    responsable: b.almacen?.responsable?.nombre ?? '—',
+    ciResponsable: b.almacen?.ci_responsable ?? b.almacen?.responsable?.ci_responsable ?? '',
     codigoInterno: codigo,
     sinCodigo,
     descripcion: b.descripcion ?? '—',
@@ -36,7 +42,7 @@ export function mapApiBienToBienMueble(b: ApiBien): BienMueble {
     subcategoria: b.categoria?.subcategoria?.nombre ?? '—',
     categoriaEspecifica: b.categoria?.nombre ?? '—',
     codigoCategoria: String(b.id_categoria_especifica),
-    ubicacion: b.almacen?.nombre ?? '—',
+    ubicacion: resolveAlmacenNombre(b.id_almacen, b.almacen?.nombre, almacenesById),
     fuenteRegistro: 'API',
     estatusCarga: 'Completo',
     observaciones: '',

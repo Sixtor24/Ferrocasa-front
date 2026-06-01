@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { MODULOS_MENU } from '../data/modulosMenu';
 import logo from '../assets/logo.png';
 import {
   LayoutDashboard,
@@ -29,13 +30,13 @@ const mockNotifications = [
 ];
 
 const navItems = [
-  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/almacen', label: 'Bienes Admin.', icon: Package },
-  { to: '/cementerio', label: 'Cementerio', icon: Landmark },
-  { to: '/terrenos', label: 'Terrenos', icon: Map },
-  { to: '/vehiculos', label: 'Vehículos', icon: Truck },
-  { to: '/reportes', label: 'Reportes', icon: FileText },
-  { to: '/auditoria', label: 'Auditoría', icon: Shield },
+  { to: '/dashboard', label: MODULOS_MENU[0], icon: LayoutDashboard },
+  { to: '/almacen', label: MODULOS_MENU[1], icon: Package },
+  { to: '/cementerio', label: MODULOS_MENU[2], icon: Landmark },
+  { to: '/terrenos', label: MODULOS_MENU[3], icon: Map },
+  { to: '/vehiculos', label: MODULOS_MENU[4], icon: Truck },
+  { to: '/reportes', label: MODULOS_MENU[5], icon: FileText },
+  { to: '/auditoria', label: MODULOS_MENU[6], icon: Shield },
 ];
 
 export default function Layout() {

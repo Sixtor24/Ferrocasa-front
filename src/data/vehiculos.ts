@@ -3,7 +3,7 @@ import type { Vehiculo } from '../types/vehiculo';
 export const vehiculos: Vehiculo[] = [
   {
     id: 1, codigoInterno: 'VH-001', descripcion: 'Camioneta Toyota Hilux 4x4 doble cabina',
-    marca: 'Toyota', modelo: 'Hilux 4x4', color: 'Blanco', almacen: 'Almacén Central', sede: 'Sede Principal', departamento: 'Gerencia General',
+    marca: 'Toyota', modelo: 'Hilux 4x4', color: 'Blanco', almacen: 'Almacén Central', sede: 'Sede Principal', unidadAdministrativa: 'Gerencia General', responsable: '—', ciResponsable: '', proveedor: '—', moneda: 'USD',
     fechaAdquisicion: '2019-06-15', numeroDocumento: 'OC-2019-0456',
     anioFabricacion: 2019, serialMotor: '2TR-FE-482913', sinSerialMotor: false, serialCarroceria: '', sinSerialCarroceria: true,
     placa: 'AB123CD', sinPlaca: false, condicionFisica: 'Bueno', estadoUso: 'En uso', categoriaGeneral: 'Camioneta',
@@ -12,7 +12,7 @@ export const vehiculos: Vehiculo[] = [
   },
   {
     id: 2, codigoInterno: 'VH-002', descripcion: 'Camioneta Ford Ranger XLT',
-    marca: 'Ford', modelo: 'Ranger XLT', color: 'Gris', almacen: 'Taller Mecánico', sede: 'Ciudad Bolívar', departamento: 'Mantenimiento',
+    marca: 'Ford', modelo: 'Ranger XLT', color: 'Gris', almacen: 'Taller Mecánico', sede: 'Ciudad Bolívar', unidadAdministrativa: 'Mantenimiento', responsable: '—', ciResponsable: '', proveedor: '—', moneda: 'USD',
     fechaAdquisicion: '2018-11-20', numeroDocumento: 'TR-2018-0102',
     anioFabricacion: 2018, serialMotor: 'PUMA-2.2-339102', sinSerialMotor: false, serialCarroceria: '', sinSerialCarroceria: true,
     placa: 'S/P', sinPlaca: true, condicionFisica: 'Regular', estadoUso: 'En taller', categoriaGeneral: 'Camioneta',
@@ -21,7 +21,7 @@ export const vehiculos: Vehiculo[] = [
   },
   {
     id: 3, codigoInterno: 'VH-003', descripcion: 'Camión Chevrolet NPR 714',
-    marca: 'Chevrolet', modelo: 'NPR 714', color: 'Blanco', almacen: 'Almacén Central', sede: 'Puerto Ordaz', departamento: 'Logística',
+    marca: 'Chevrolet', modelo: 'NPR 714', color: 'Blanco', almacen: 'Almacén Central', sede: 'Puerto Ordaz', unidadAdministrativa: 'Logística', responsable: '—', ciResponsable: '', proveedor: '—', moneda: 'USD',
     fechaAdquisicion: '2016-04-08', numeroDocumento: 'OC-2016-0089',
     anioFabricacion: 2016, serialMotor: '4HK1-TC-203847', sinSerialMotor: false, serialCarroceria: '', sinSerialCarroceria: true,
     placa: 'EF456GH', sinPlaca: false, condicionFisica: 'Regular', estadoUso: 'En uso', categoriaGeneral: 'Camión',
@@ -30,7 +30,7 @@ export const vehiculos: Vehiculo[] = [
   },
   {
     id: 4, codigoInterno: 'VH-004', descripcion: 'Camioneta Mitsubishi L200 Sportero',
-    marca: 'Mitsubishi', modelo: 'L200 Sportero', color: 'Negro', almacen: 'Sede Principal', sede: 'Sede Principal', departamento: 'Presidencia',
+    marca: 'Mitsubishi', modelo: 'L200 Sportero', color: 'Negro', almacen: 'Sede Principal', sede: 'Sede Principal', unidadAdministrativa: 'Presidencia', responsable: '—', ciResponsable: '', proveedor: '—', moneda: 'USD',
     fechaAdquisicion: '2020-09-12', numeroDocumento: 'OC-2020-0210',
     anioFabricacion: 2020, serialMotor: '4D56-HP-556723', sinSerialMotor: false, serialCarroceria: '', sinSerialCarroceria: true,
     placa: 'IJ789KL', sinPlaca: false, condicionFisica: 'Bueno', estadoUso: 'En uso', categoriaGeneral: 'Camioneta',
@@ -39,7 +39,7 @@ export const vehiculos: Vehiculo[] = [
   },
   {
     id: 5, codigoInterno: 'VH-005', descripcion: 'Retroexcavadora Caterpillar 420F2 IT',
-    marca: 'Caterpillar', modelo: '420F2 IT', color: 'Amarillo', almacen: 'Patio de Maquinaria', sede: 'Puerto Ordaz', departamento: 'Ingeniería',
+    marca: 'Caterpillar', modelo: '420F2 IT', color: 'Amarillo', almacen: 'Patio de Maquinaria', sede: 'Puerto Ordaz', unidadAdministrativa: 'Ingeniería', responsable: '—', ciResponsable: '', proveedor: '—', moneda: 'USD',
     fechaAdquisicion: '2015-01-30', numeroDocumento: '—',
     anioFabricacion: 2015, serialMotor: 'S/S', sinSerialMotor: true, serialCarroceria: '', sinSerialCarroceria: true,
     placa: 'S/P', sinPlaca: true, condicionFisica: 'Dañado', estadoUso: 'Desincorporado', categoriaGeneral: 'Maquinaria pesada',
@@ -48,7 +48,7 @@ export const vehiculos: Vehiculo[] = [
   },
   {
     id: 6, codigoInterno: 'VH-006', descripcion: 'Furgón Iveco Daily 35S14',
-    marca: 'Iveco', modelo: 'Daily 35S14', color: 'Blanco', almacen: 'Almacén Central', sede: 'Ciudad Bolívar', departamento: 'Logística',
+    marca: 'Iveco', modelo: 'Daily 35S14', color: 'Blanco', almacen: 'Almacén Central', sede: 'Ciudad Bolívar', unidadAdministrativa: 'Logística', responsable: '—', ciResponsable: '', proveedor: '—', moneda: 'USD',
     fechaAdquisicion: '2021-05-18', numeroDocumento: 'OC-2021-0334',
     anioFabricacion: 2021, serialMotor: 'F1C-078234', sinSerialMotor: false, serialCarroceria: '', sinSerialCarroceria: true,
     placa: 'MN012OP', sinPlaca: false, condicionFisica: 'Bueno', estadoUso: 'Disponible', categoriaGeneral: 'Camión',
@@ -57,7 +57,7 @@ export const vehiculos: Vehiculo[] = [
   },
   {
     id: 7, codigoInterno: 'VH-007', descripcion: 'Motocicleta Honda XR190L',
-    marca: 'Honda', modelo: 'XR190L', color: 'Rojo', almacen: 'Sede Principal', sede: 'Sede Principal', departamento: 'Mantenimiento',
+    marca: 'Honda', modelo: 'XR190L', color: 'Rojo', almacen: 'Sede Principal', sede: 'Sede Principal', unidadAdministrativa: 'Mantenimiento', responsable: '—', ciResponsable: '', proveedor: '—', moneda: 'USD',
     fechaAdquisicion: '2023-11-02', numeroDocumento: 'OC-2023-0412',
     anioFabricacion: 2023, serialMotor: 'KC26E-901122', sinSerialMotor: false, serialCarroceria: '', sinSerialCarroceria: true,
     placa: 'QR345ST', sinPlaca: false, condicionFisica: 'Bueno', estadoUso: 'Por verificar', categoriaGeneral: 'Motocicleta',

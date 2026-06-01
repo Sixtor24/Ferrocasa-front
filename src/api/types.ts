@@ -156,6 +156,9 @@ export interface ApiDocumentoPropiedad {
   numero_propiedad: number;
   forma_adquisicion: string;
   area_total_m2?: string | number | null;
+  fecha_adquisicion?: string | null;
+  valor_adquisicion?: string | number | null;
+  moneda?: string | null;
   propiedad?: ApiPropiedad;
   parcelas?: ApiParcela[];
 }

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   fetchBienCementerioByCodigo,
@@ -25,6 +25,10 @@ import {
   Upload,
   ArrowLeft,
   FileText,
+  Landmark,
+  Package,
+  AlertTriangle,
+  AlertCircle,
 } from 'lucide-react';
 
 const PER_PAGE = 10;
@@ -69,7 +73,14 @@ function CementerioBienDetail({
             { label: 'Valor de Adquisición', value: formatMoneda(bien.valorAdquisicion, bien.moneda) },
             { label: 'Código', value: bien.sinCodigo ? 'Sin código' : bien.codigoInterno },
             { label: 'Serial', value: bien.sinSerial ? 'Sin serial' : (bien.serial || '—') },
-            { label: 'Responsable', value: bien.unidadAdministrativa },
+            {
+              label: 'Responsable',
+              value: bien.responsable !== '—'
+                ? bien.responsable
+                : bien.ciResponsable
+                  ? `CI ${bien.ciResponsable}`
+                  : '—',
+            },
             { label: 'Unidad Administrativa', value: bien.unidadAdministrativa },
             {
               label: 'Estado de uso',
@@ -104,7 +115,6 @@ function CementerioBienDetail({
               ),
             },
             { label: 'Almacén', value: bien.ubicacion },
-            { label: 'Unidad Administrativa', value: bien.unidadAdministrativa },
             { label: 'Sede', value: bien.sede },
           ],
         },
@@ -172,6 +182,22 @@ export default function Cementerio() {
   const [showImport, setShowImport] = useState(false);
 
   const bienes = bienesQuery.data?.all ?? bienesQuery.data?.data ?? [];
+
+  const metricas = useMemo(() => {
+    const fuente = bienes;
+    const total = bienesQuery.data?.meta?.total ?? fuente.length;
+    return {
+      total,
+      enUso: fuente.filter((b) => b.estadoUso === 'En uso').length,
+      enObsolescencia: fuente.filter((b) => b.estadoUso === 'En obsolescencia').length,
+      obsoletos: fuente.filter((b) => b.estadoUso === 'Obsoleto').length,
+      buenos: fuente.filter((b) => b.condicionFisica === 'Bueno').length,
+      regulares: fuente.filter((b) => b.condicionFisica === 'Regular').length,
+      danados: fuente.filter((b) =>
+        ['Dañado', 'Averiado', 'Inservible'].includes(b.condicionFisica)
+      ).length,
+    };
+  }, [bienes, bienesQuery.data?.meta?.total]);
 
   const almacenOptions = useMemo(() => ['Todas', ...ALMACENES_CEMENTERIO], []);
   const departamentoOptions = useMemo(() => ['Todos', ...DEPARTAMENTOS_CEMENTERIO], []);
@@ -267,6 +293,96 @@ export default function Cementerio() {
         }
       />
 
+      <section
+        aria-label="Métricas del cementerio"
+        className="rounded-xl border-2 border-navy-100 bg-linear-to-br from-slate-50 via-white to-slate-50 p-4 sm:p-5 shadow-sm"
+      >
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
+          <h2 className="text-base font-bold text-navy-900">Métricas</h2>
+          {!bienesQuery.loading && (
+            <p className="text-xs text-gray-500">
+              {filteredBienes.length === metricas.total
+                ? `${metricas.total} bienes en sede Cementerio`
+                : `${filteredBienes.length} de ${metricas.total} bienes (filtros activos)`}
+            </p>
+          )}
+        </div>
+
+        {bienesQuery.loading && !bienesQuery.data ? (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {Array.from({ length: 4 }).map((_, index) => (
+              <div
+                key={index}
+                className="h-[92px] rounded-xl border border-gray-200 bg-white animate-pulse"
+              />
+            ))}
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <CementerioMetricCard
+                label="Total Bienes"
+                value={metricas.total}
+                icon={<Landmark size={22} className="text-blue-600" />}
+                iconClassName="bg-blue-100"
+                valueClassName="text-blue-700"
+              />
+              <CementerioMetricCard
+                label="Bienes en uso"
+                value={metricas.enUso}
+                icon={<Package size={22} className="text-green-600" />}
+                iconClassName="bg-green-100"
+                valueClassName="text-green-700"
+              />
+              <CementerioMetricCard
+                label="Bienes en obsolescencia"
+                value={metricas.enObsolescencia}
+                icon={<AlertTriangle size={22} className="text-amber-500" />}
+                iconClassName="bg-amber-100"
+                borderClassName="border-amber-200"
+                valueClassName="text-amber-700"
+              />
+              <CementerioMetricCard
+                label="Bienes obsoletos"
+                value={metricas.obsoletos}
+                icon={<AlertCircle size={22} className="text-red-500" />}
+                iconClassName="bg-red-100"
+                borderClassName="border-red-200"
+                valueClassName="text-red-700"
+              />
+            </div>
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
+              <CementerioMetricCard
+                label="Condición buena"
+                value={metricas.buenos}
+                icon={<Package size={22} className="text-green-600" />}
+                iconClassName="bg-green-50"
+                valueClassName="text-green-800"
+              />
+              <CementerioMetricCard
+                label="Condición regular"
+                value={metricas.regulares}
+                icon={<AlertTriangle size={22} className="text-amber-500" />}
+                iconClassName="bg-amber-50"
+                valueClassName="text-amber-800"
+              />
+              <CementerioMetricCard
+                label="Condición dañada"
+                value={metricas.danados}
+                icon={<AlertCircle size={22} className="text-red-500" />}
+                iconClassName="bg-red-50"
+                valueClassName="text-red-800"
+              />
+            </div>
+            {metricas.total === 0 && (
+              <p className="mt-4 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                No hay bienes asociados a la sede Cementerio en el backend. Las métricas mostrarán valores cuando existan registros.
+              </p>
+            )}
+          </>
+        )}
+      </section>
+
       <ModuleFilterBar
         fields={[
           { key: 'codigo', label: 'Código', type: 'text', value: filtros.codigo, onChange: (v) => setFiltro('codigo', v) },
@@ -356,6 +472,36 @@ export default function Cementerio() {
         onClose={() => setShowImport(false)}
         tiposDisponibles={['Bienes Cementerio']}
       />
+    </div>
+  );
+}
+
+function CementerioMetricCard({
+  label,
+  value,
+  icon,
+  iconClassName,
+  borderClassName = 'border-gray-200',
+  valueClassName = 'text-navy-900',
+}: {
+  label: string;
+  value: number;
+  icon: ReactNode;
+  iconClassName: string;
+  borderClassName?: string;
+  valueClassName?: string;
+}) {
+  return (
+    <div className={`bg-white rounded-xl border p-5 flex items-center gap-4 shadow-sm ${borderClassName}`}>
+      <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${iconClassName}`}>
+        {icon}
+      </div>
+      <div className="min-w-0">
+        <p className="text-sm font-medium text-gray-600">{label}</p>
+        <p className={`text-3xl font-bold tabular-nums leading-tight ${valueClassName}`}>
+          {value.toLocaleString('es-VE')}
+        </p>
+      </div>
     </div>
   );
 }

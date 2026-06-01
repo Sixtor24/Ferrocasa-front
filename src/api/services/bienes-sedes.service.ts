@@ -1,4 +1,5 @@
 import { fetchBienByCodigo } from './bienes.service';
+import { fetchAlmacenesCatalog } from './almacenes.service';
 import { fetchSedeBienes, fetchSedes } from './sedes.service';
 import type { BienMueble } from '../../types/bien';
 import type { ApiSede } from '../types';
@@ -58,12 +59,17 @@ function dedupeBienes(rows: BienMueble[]) {
 }
 
 export async function fetchAllBienesBySedeAliases(aliases: readonly string[]) {
-  const sedes = await fetchSedes({ page: 1, limit: 500 });
+  const [sedes, almacenesById] = await Promise.all([
+    fetchSedes({ page: 1, limit: 500 }),
+    fetchAlmacenesCatalog(),
+  ]);
   const matchingSedes = sedes.data.filter((sede) => matchesSede(sede, aliases));
 
   if (matchingSedes.length === 0) return [];
 
-  const results = await Promise.all(matchingSedes.map((sede) => fetchSedeBienes(sede.id_sede)));
+  const results = await Promise.all(
+    matchingSedes.map((sede) => fetchSedeBienes(sede.id_sede, almacenesById)),
+  );
   return dedupeBienes(results.flat());
 }
 
