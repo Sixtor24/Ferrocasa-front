@@ -1,7 +1,7 @@
 // Vehículos — basado en data real (5 registros, serial carrocería vacío en todos)
 
-export type CondicionVehiculo = 'Bueno' | 'Regular' | 'Dañado' | 'Averiado' | 'Inservible';
-export type EstadoUsoVehiculo = 'En uso' | 'En taller' | 'Disponible' | 'Desincorporado' | 'Por verificar';
+export type CondicionVehiculo = 'Bueno' | 'Regular' | 'Dañado';
+export type EstadoUsoVehiculo = 'En uso' | 'En obsolescencia' | 'Obsoleto';
 export type EstatusCargaVehiculo = 'Completo' | 'Parcial' | 'Pendiente' | 'Error';
 
 export interface Vehiculo {
@@ -17,7 +17,7 @@ export interface Vehiculo {
   responsable: string;
   ciResponsable: string;
   proveedor: string;
-  moneda: 'Bs' | 'USD' | 'Bs.F' | 'Bs.S';
+  moneda: 'Bs' | 'USD' | 'EUR';
   fechaAdquisicion: string;
   numeroDocumento: string;
   anioFabricacion: number | null;
@@ -38,6 +38,6 @@ export interface Vehiculo {
 }
 
 // Catálogos
-export const CONDICIONES_VEHICULO: CondicionVehiculo[] = ['Bueno', 'Regular', 'Dañado', 'Averiado', 'Inservible'];
-export const ESTADOS_USO_VEHICULO: EstadoUsoVehiculo[] = ['En uso', 'En taller', 'Disponible', 'Desincorporado', 'Por verificar'];
+export const CONDICIONES_VEHICULO: CondicionVehiculo[] = ['Bueno', 'Regular', 'Dañado'];
+export const ESTADOS_USO_VEHICULO: EstadoUsoVehiculo[] = ['En uso', 'En obsolescencia', 'Obsoleto'];
 export const CATEGORIAS_VEHICULO = ['Sedan', 'Camioneta', 'Camión', 'Maquinaria pesada', 'Motocicleta', 'Autobús', 'Otro'] as const;

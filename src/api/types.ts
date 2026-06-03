@@ -111,6 +111,7 @@ export interface ApiBien {
   usuario_carga?: string | null;
   id_categoria_especifica: number;
   unidad_administrativa?: string | null;
+  observaciones?: string | null;
   documento?: ApiDocumento | null;
   almacen?: ApiAlmacen;
   categoria?: ApiCategoriaEspecifica;

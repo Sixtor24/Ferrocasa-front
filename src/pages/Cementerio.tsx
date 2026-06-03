@@ -4,12 +4,13 @@ import {
   fetchBienCementerioByCodigo,
   fetchBienesCementerio,
 } from '../api/services/bienes-sedes.service';
+import { fetchAlmacenes } from '../api/services/almacenes.service';
 import { useApiQuery } from '../hooks/useApiQuery';
 import { formatFecha, formatMoneda } from '../utils/formatters';
 import type { Column } from '../components/DataTable';
 import StatusBadge from '../components/StatusBadge';
 import ApiState from '../components/ApiState';
-import { ImportExcelModal } from '../components/modals';
+import { ImportExcelModal, RegistroBienesCementerioModal } from '../components/modals';
 import ModulePageHeader from '../components/module/ModulePageHeader';
 import ModuleFilterBar from '../components/module/ModuleFilterBar';
 import ModuleDataTable from '../components/module/ModuleDataTable';
@@ -164,6 +165,7 @@ export default function Cementerio() {
   const [exportMsg, setExportMsg] = useState('');
   const itemId = id ? Number(id) : null;
   const bienesQuery = useApiQuery(() => fetchBienesCementerio({ page: 1, limit: 5000 }), []);
+  const almacenesQuery = useApiQuery(() => fetchAlmacenes({ page: 1, limit: 5000 }), []);
   const detailQuery = useApiQuery(
     () => fetchBienCementerioByCodigo(itemId as number),
     [itemId],
@@ -180,6 +182,9 @@ export default function Cementerio() {
     buscar: '',
   });
   const [showImport, setShowImport] = useState(false);
+  const [showRegistro, setShowRegistro] = useState(false);
+  const [successMsg, setSuccessMsg] = useState('');
+  const [errorMsg, setErrorMsg] = useState('');
 
   const bienes = bienesQuery.data?.all ?? bienesQuery.data?.data ?? [];
 
@@ -277,11 +282,14 @@ export default function Cementerio() {
       <ModulePageHeader
         title="Bienes e Inmuebles: Cementerio"
         breadcrumb={[{ label: 'Dashboard', to: '/dashboard' }, { label: 'Cementerio' }]}
-        onCreate={() => {}}
+        onCreate={() => setShowRegistro(true)}
         createLabel="Crear Registro"
-        internalFormatLabel="Formato Clásico"
         extraActions={
           <>
+            {successMsg && (
+              <span className="text-sm text-green-600 font-medium animate-pulse self-center">{successMsg}</span>
+            )}
+            {errorMsg && <span className="text-sm text-red-600 font-medium self-center">{errorMsg}</span>}
             <button
               type="button"
               onClick={() => setShowImport(true)}
@@ -466,6 +474,19 @@ export default function Cementerio() {
         />
         <ModulePagination page={page} totalPages={totalPages} onPageChange={setPage} />
       </ApiState>
+
+      <RegistroBienesCementerioModal
+        open={showRegistro}
+        onClose={() => setShowRegistro(false)}
+        almacenes={almacenesQuery.data?.data ?? []}
+        onSuccess={(message) => {
+          bienesQuery.refetch();
+          setErrorMsg('');
+          setSuccessMsg(message);
+          setTimeout(() => setSuccessMsg(''), 4000);
+        }}
+        onError={setErrorMsg}
+      />
 
       <ImportExcelModal
         open={showImport}

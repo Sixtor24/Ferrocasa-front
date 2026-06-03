@@ -1,9 +1,5 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import {
-  createBien,
-  type BienPayload,
-} from '../api/services/bienes.service';
 import { fetchAlmacenes } from '../api/services/almacenes.service';
 import {
   fetchBienAdministrativoByCodigo,
@@ -26,7 +22,7 @@ import {
 import { formatFecha, formatMoneda } from '../utils/formatters';
 import type { Column } from '../components/DataTable';
 import StatusBadge from '../components/StatusBadge';
-import { ImportExcelModal, NuevoBienMuebleModal, type NuevoBienMueblePayload } from '../components/modals';
+import { ImportExcelModal, RegistroBienesAdministrativosModal } from '../components/modals';
 import type { BienMueble } from '../types/bien';
 import ModulePageHeader from '../components/module/ModulePageHeader';
 import {
@@ -40,32 +36,6 @@ import {
 } from 'lucide-react';
 
 const PER_PAGE = 10;
-
-function normalizeCatalogValue(value: string) {
-  return value
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .trim();
-}
-
-function toPositiveInt(value: string, label: string) {
-  const parsed = Number(value);
-  if (!Number.isInteger(parsed) || parsed <= 0) {
-    throw new Error(`${label} debe ser un ID válido del backend`);
-  }
-  return parsed;
-}
-
-function toBackendEstadoUso(value: BienMueble['estadoUso']): BienPayload['estado_uso'] {
-  if (value === 'En uso') return 'En_Uso';
-  if (value === 'Obsoleto') return 'Dado_de_Baja';
-  return 'En_Reparacion';
-}
-
-function toBackendConsumibilidad(_value: BienMueble): BienPayload['consumibilidad'] {
-  return 'No_Perecederos';
-}
 
 function proveedorDesdeBien(bien: BienMueble) {
   if (!bien.marca || bien.marca === 'Desconocida') return '—';
@@ -261,50 +231,6 @@ export default function Almacen() {
     setTimeout(() => setExportMsg(''), 4000);
   };
 
-  const handleNuevoBien = async (payload: NuevoBienMueblePayload) => {
-    try {
-      setErrorMsg('');
-      const selectedAlmacen = almacenesQuery.data?.data.find(
-        (almacen) => normalizeCatalogValue(almacen.nombre) === normalizeCatalogValue(payload.ubicacion)
-      );
-      const idAlmacen = selectedAlmacen?.id_almacen ?? Number(payload.ubicacion);
-      if (!Number.isInteger(idAlmacen) || idAlmacen <= 0) {
-        throw new Error('El almacén seleccionado debe estar registrado en configuración antes de crear bienes');
-      }
-      const body: BienPayload = {
-        descripcion: payload.descripcion,
-        id_doc: toPositiveInt(payload.numeroDocumento, 'Número de documento'),
-        fecha_ingreso: payload.fechaAdquisicion || new Date().toISOString(),
-        fecha_egreso: null,
-        valor_adquisicion: payload.valorAdquisicion ?? 0,
-        marca: payload.marca,
-        modelo: payload.modelo,
-        color: payload.color,
-        material: null,
-        serial: payload.sinSerial ? null : payload.serial,
-        estado_uso: toBackendEstadoUso(payload.estadoUso),
-        condicion_fisica: payload.condicionFisica,
-        id_almacen: idAlmacen,
-        cantidad: 1,
-        consumibilidad: toBackendConsumibilidad(payload as BienMueble),
-        usuario_carga: null,
-        id_categoria_especifica: toPositiveInt(payload.codigoCategoria, 'Categoría específica'),
-        unidad_administrativa: payload.unidadAdministrativa,
-      };
-
-      await createBien(body);
-      bienesQuery.refetch();
-      setShowModal(false);
-      setSuccessMsg('Bien mueble registrado exitosamente');
-      setTimeout(() => setSuccessMsg(''), 3000);
-    } catch (err) {
-      const message = err instanceof Error
-          ? err.message
-          : 'No se pudo registrar el bien';
-      setErrorMsg(message);
-    }
-  };
-
   const columns: Column<BienMueble>[] = [
     {
       key: 'codigoInterno',
@@ -492,10 +418,17 @@ export default function Almacen() {
         <ModulePagination page={page} totalPages={totalPages} onPageChange={setPage} />
       </ApiState>
 
-      <NuevoBienMuebleModal
+      <RegistroBienesAdministrativosModal
         open={showModal}
         onClose={() => setShowModal(false)}
-        onSubmit={handleNuevoBien}
+        almacenes={almacenesQuery.data?.data ?? []}
+        onSuccess={(message) => {
+          bienesQuery.refetch();
+          setErrorMsg('');
+          setSuccessMsg(message);
+          setTimeout(() => setSuccessMsg(''), 4000);
+        }}
+        onError={setErrorMsg}
       />
 
       <ImportExcelModal

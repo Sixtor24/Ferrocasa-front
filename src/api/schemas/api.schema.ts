@@ -85,6 +85,28 @@ export const documentoSchema = z.object({
   moneda: z.string().optional(),
 }).passthrough();
 
+export const rolSchema = z.object({
+  id_rol: z.number(),
+  nombre_rol: z.string(),
+  descripcion: z.string(),
+}).passthrough();
+
+export const usuarioSchema = z.object({
+  id_usuario: z.number(),
+  nombre_usuario: z.string(),
+  correo: z.string(),
+  id_rol: z.number(),
+  activo: z.boolean(),
+  rol: rolSchema,
+}).passthrough();
+
+export const authSessionSchema = z.object({
+  accessToken: z.string(),
+  refreshToken: z.string(),
+  tokenType: z.string(),
+  usuario: usuarioSchema,
+}).passthrough();
+
 export const propiedadSchema: z.ZodTypeAny = z.lazy(() => z.object({
   numero_propiedad: z.number(),
   nombre: z.string(),
@@ -165,6 +187,7 @@ export const bienSchema = z.object({
   usuario_carga: z.string().nullable().optional(),
   id_categoria_especifica: z.number(),
   unidad_administrativa: z.string().nullable().optional(),
+  observaciones: z.string().nullable().optional(),
   documento: documentoSchema.nullable().optional(),
   almacen: almacenSchema.optional(),
   categoria: categoriaEspecificaSchema.optional(),
@@ -242,6 +265,41 @@ export const documentosTotalesPorMesSchema = z.object({
 }).passthrough();
 
 export const payloadSchemas = {
+  login: z.object({
+    nombre_usuario: z.string().min(1),
+    password: z.string().min(1),
+  }),
+  refreshToken: z.object({
+    refresh_token: z.string().min(1),
+  }),
+  cambiarPassword: z.object({
+    password_actual: z.string().min(1),
+    password_nueva: z.string().min(8),
+    password_confirmacion: z.string().min(1),
+  }).refine((data) => data.password_nueva === data.password_confirmacion, {
+    message: 'La confirmación no coincide',
+    path: ['password_confirmacion'],
+  }),
+  usuario: z.object({
+    nombre_usuario: z.string().min(1),
+    correo: z.string().email(),
+    password: z.string().min(8),
+    id_rol: z.number().int().positive(),
+    activo: z.boolean(),
+  }),
+  updateUsuario: z.object({
+    nombre_usuario: z.string().min(1),
+    correo: z.string().email(),
+    id_rol: z.number().int().positive(),
+    activo: z.boolean(),
+  }),
+  activarUsuario: z.object({
+    activo: z.boolean(),
+  }),
+  rol: z.object({
+    nombre_rol: z.string().min(1),
+    descripcion: z.string().min(1),
+  }),
   parcela: z.object({
     nombre: z.string().min(1),
     zona: z.string().min(1),

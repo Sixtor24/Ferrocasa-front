@@ -45,7 +45,7 @@ export function mapApiBienToBienMueble(
     ubicacion: resolveAlmacenNombre(b.id_almacen, b.almacen?.nombre, almacenesById),
     fuenteRegistro: 'API',
     estatusCarga: 'Completo',
-    observaciones: '',
+    observaciones: b.observaciones?.trim() ?? '',
     creadoEn: toIsoDate(b.fecha_ingreso) || new Date().toISOString().split('T')[0],
     actualizadoEn: toIsoDate(b.fecha_ingreso) || new Date().toISOString().split('T')[0],
   };

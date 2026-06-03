@@ -33,7 +33,6 @@ const initialForm = {
   sede: SEDES_BIENES_ADMINISTRATIVOS[0] as string,
   unidadAdministrativa: DEPARTAMENTOS_BIENES_ADMINISTRATIVOS[0] as string,
   codigoInterno: '',
-  sinCodigo: false,
   descripcion: '',
   formaAdquisicion: 'Compra' as string,
   fechaAdquisicion: '',
@@ -87,6 +86,7 @@ export default function NuevoBienMuebleModal({ open, onClose, onSubmit }: NuevoB
     }
     onSubmit({
       ...parsed,
+      sinCodigo: false,
       valorAdquisicion: parsed.valorAdquisicion,
       condicionFisica: parsed.condicionFisica as BienMueble['condicionFisica'],
       estadoUso: parsed.estadoUso as BienMueble['estadoUso'],
@@ -119,27 +119,12 @@ export default function NuevoBienMuebleModal({ open, onClose, onSubmit }: NuevoB
           </ModalField>
         </div>
         <ModalField label="Código interno *" error={errors.codigoInterno}>
-          <div className="flex items-center gap-3">
-            <input
-              value={form.codigoInterno}
-              onChange={(e) => updateForm('codigoInterno', e.target.value)}
-              className="input-field flex-1"
-              disabled={form.sinCodigo}
-              placeholder="BM-013"
-            />
-            <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer whitespace-nowrap">
-              <input
-                type="checkbox"
-                checked={form.sinCodigo}
-                onChange={(e) => {
-                  updateForm('sinCodigo', e.target.checked);
-                  if (e.target.checked) updateForm('codigoInterno', 'S/C');
-                }}
-                className="rounded"
-              />
-              Sin código
-            </label>
-          </div>
+          <input
+            value={form.codigoInterno}
+            onChange={(e) => updateForm('codigoInterno', e.target.value)}
+            className="input-field"
+            placeholder="BM-013"
+          />
         </ModalField>
         <ModalField label="Descripción *" error={errors.descripcion}>
           <input

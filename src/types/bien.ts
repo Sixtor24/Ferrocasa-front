@@ -4,7 +4,7 @@ export type CondicionFisica = 'Bueno' | 'Regular' | 'Dañado' | 'Averiado' | 'In
 export type EstadoUso = 'En uso' | 'En obsolescencia' | 'Obsoleto';
 export type EstatusCarga = 'Completo' | 'Parcial' | 'Pendiente' | 'Error';
 export type FormaAdquisicion = 'Compra' | 'Donación' | 'Transferencia' | 'Asignación' | 'Comodato' | 'Desconocida';
-export type MonedaBien = 'Bs' | 'USD' | 'Bs.F' | 'Bs.S';
+export type MonedaBien = 'Bs' | 'USD' | 'EUR';
 
 export interface BienMueble {
   id: number;
@@ -62,4 +62,4 @@ export const CONDICIONES_FISICAS: CondicionFisica[] = ['Bueno', 'Regular', 'Dañ
 export const ESTADOS_USO: EstadoUso[] = ['En uso', 'En obsolescencia', 'Obsoleto'];
 export const ESTATUS_CARGA: EstatusCarga[] = ['Completo', 'Parcial', 'Pendiente', 'Error'];
 export const FORMAS_ADQUISICION: FormaAdquisicion[] = ['Compra', 'Donación', 'Transferencia', 'Asignación', 'Comodato', 'Desconocida'];
-export const MONEDAS: MonedaBien[] = ['Bs', 'USD', 'Bs.F', 'Bs.S'];
+export const MONEDAS: MonedaBien[] = ['Bs', 'USD', 'EUR'];

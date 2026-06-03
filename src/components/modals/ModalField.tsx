@@ -5,11 +5,12 @@ type ModalFieldProps = {
   label: string;
   error?: string;
   children: ReactNode;
+  className?: string;
 };
 
-export default function ModalField({ label, error, children }: ModalFieldProps) {
+export default function ModalField({ label, error, children, className = '' }: ModalFieldProps) {
   return (
-    <div>
+    <div className={className}>
       <label className="text-sm text-gray-600 mb-1 block">{label}</label>
       {children}
       {error && (

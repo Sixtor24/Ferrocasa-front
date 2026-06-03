@@ -10,21 +10,27 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     if (!username || !password) {
       setError('Por favor complete todos los campos');
       return;
     }
-    const success = login(username, password);
-    if (success) {
+
+    setIsSubmitting(true);
+    try {
+      await login(username, password);
+      setPassword('');
       navigate('/dashboard');
-    } else {
-      setError('Credenciales inválidas');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Credenciales inválidas');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -62,6 +68,7 @@ export default function Login() {
                 placeholder="Ingrese su usuario"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
+                autoComplete="username"
                 className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-navy-500 focus:border-transparent text-sm"
               />
             </div>
@@ -78,6 +85,7 @@ export default function Login() {
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="current-password"
                   className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-navy-500 focus:border-transparent text-sm pr-12"
                 />
                 <button
@@ -97,10 +105,11 @@ export default function Login() {
             {/* Submit */}
             <button
               type="submit"
+              disabled={isSubmitting}
               className="w-full bg-navy-900 text-white py-3 rounded-lg font-medium hover:bg-navy-800 transition-colors flex items-center justify-center gap-2"
             >
-              Ingresar
-              <LogIn size={18} />
+              {isSubmitting ? 'Validando credenciales...' : 'Ingresar'}
+              {!isSubmitting && <LogIn size={18} />}
             </button>
           </form>
 

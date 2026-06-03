@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { fetchVehiculos, fetchVehiculoById } from '../api/services/vehiculos.service';
+import { fetchAlmacenes } from '../api/services/almacenes.service';
 import { useApiQuery } from '../hooks/useApiQuery';
+import { RegistroVehiculosModal } from '../components/modals';
 import { CONDICIONES_VEHICULO, ESTADOS_USO_VEHICULO } from '../types/vehiculo';
 import type { Vehiculo } from '../types/vehiculo';
 import ModulePageHeader from '../components/module/ModulePageHeader';
@@ -175,6 +177,10 @@ export default function Vehiculos() {
   });
 
   const listQuery = useApiQuery(() => fetchVehiculos({ page: 1, limit: 5000 }), []);
+  const almacenesQuery = useApiQuery(() => fetchAlmacenes({ page: 1, limit: 5000 }), []);
+  const [showRegistro, setShowRegistro] = useState(false);
+  const [successMsg, setSuccessMsg] = useState('');
+  const [errorMsg, setErrorMsg] = useState('');
 
   const detailQuery = useApiQuery(
     () => fetchVehiculoById(Number(id)),
@@ -256,7 +262,16 @@ export default function Vehiculos() {
       <ModulePageHeader
         title="Vehículos y Maquinaria"
         breadcrumb={[{ label: 'Dashboard', to: '/dashboard' }, { label: 'Vehículos' }]}
-        onCreate={() => {}}
+        onCreate={() => setShowRegistro(true)}
+        createLabel="Crear Registro"
+        extraActions={
+          <>
+            {successMsg && (
+              <span className="text-sm text-green-600 font-medium animate-pulse self-center">{successMsg}</span>
+            )}
+            {errorMsg && <span className="text-sm text-red-600 font-medium self-center">{errorMsg}</span>}
+          </>
+        }
       />
 
       <ModuleFilterBar
@@ -288,6 +303,19 @@ export default function Vehiculos() {
 
         <ModulePagination page={page} totalPages={totalPages} onPageChange={setPage} />
       </ApiState>
+
+      <RegistroVehiculosModal
+        open={showRegistro}
+        onClose={() => setShowRegistro(false)}
+        almacenes={almacenesQuery.data?.data ?? []}
+        onSuccess={(message) => {
+          listQuery.refetch();
+          setErrorMsg('');
+          setSuccessMsg(message);
+          setTimeout(() => setSuccessMsg(''), 4000);
+        }}
+        onError={setErrorMsg}
+      />
     </div>
   );
 }

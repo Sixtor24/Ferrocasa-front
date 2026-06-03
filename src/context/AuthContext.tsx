@@ -1,52 +1,133 @@
-import { createContext, useContext, useState, type ReactNode } from 'react';
-import { users } from '../data/users';
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import {
+  fetchPerfil,
+  loginRequest,
+  logoutRequest,
+  refreshSessionRequest,
+} from '../api/services/auth.service';
+import { clearAuthSession, getRefreshToken, getStoredUser } from '../api/auth/session';
+import type { RoleName, UsuarioSistema } from '../types/auth';
 
 export interface User {
   id: number;
   username: string;
   email: string;
   nombre: string;
-  rol: string;
+  rol: RoleName;
   avatar: string;
+  activo: boolean;
+  raw: UsuarioSistema;
 }
 
 interface AuthContextType {
   user: User | null;
-  login: (username: string, password: string) => boolean;
-  logout: () => void;
+  usuario: UsuarioSistema | null;
+  login: (username: string, password: string) => Promise<void>;
+  logout: () => Promise<void>;
   isAuthenticated: boolean;
+  isLoading: boolean;
+  hasRole: (roles: RoleName | RoleName[]) => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(() => {
-    const saved = localStorage.getItem('ferrocasa_user');
-    return saved ? JSON.parse(saved) : null;
-  });
+function initials(value: string) {
+  return value
+    .split(/[.\s_-]+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join('') || 'AU';
+}
 
-  const login = (username: string, password: string): boolean => {
-    const found = users.find(
-      (u) =>
-        (u.username === username || u.email === username) &&
-        u.password === password
-    );
-    if (found) {
-      const { password: _, ...userData } = found;
-      setUser(userData);
-      localStorage.setItem('ferrocasa_user', JSON.stringify(userData));
-      return true;
+function mapUsuarioToUser(usuario: UsuarioSistema): User {
+  return {
+    id: usuario.id_usuario,
+    username: usuario.nombre_usuario,
+    email: usuario.correo,
+    nombre: usuario.nombre_usuario,
+    rol: usuario.rol.nombre_rol,
+    avatar: initials(usuario.nombre_usuario),
+    activo: usuario.activo,
+    raw: usuario,
+  };
+}
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [usuario, setUsuario] = useState<UsuarioSistema | null>(() => getStoredUser());
+  const [isLoading, setIsLoading] = useState(true);
+
+  const user = useMemo(() => (usuario ? mapUsuarioToUser(usuario) : null), [usuario]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function bootstrapSession() {
+      const refreshToken = getRefreshToken();
+      if (!refreshToken) {
+        clearAuthSession();
+        if (mounted) setUsuario(null);
+        if (mounted) setIsLoading(false);
+        return;
+      }
+
+      try {
+        await refreshSessionRequest(refreshToken);
+        const perfil = await fetchPerfil();
+        if (mounted) setUsuario(perfil);
+      } catch {
+        clearAuthSession();
+        if (mounted) setUsuario(null);
+      } finally {
+        if (mounted) setIsLoading(false);
+      }
     }
-    return false;
+
+    bootstrapSession();
+
+    const handleExpired = () => {
+      clearAuthSession();
+      setUsuario(null);
+    };
+    window.addEventListener('ferrocasa:auth-expired', handleExpired);
+
+    return () => {
+      mounted = false;
+      window.removeEventListener('ferrocasa:auth-expired', handleExpired);
+    };
+  }, []);
+
+  const login = async (username: string, password: string) => {
+    const session = await loginRequest({
+      nombre_usuario: username.trim(),
+      password,
+    });
+    setUsuario(session.usuario);
   };
 
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem('ferrocasa_user');
+  const logout = async () => {
+    await logoutRequest();
+    setUsuario(null);
+  };
+
+  const hasRole = (roles: RoleName | RoleName[]) => {
+    if (!usuario) return false;
+    const allowedRoles = Array.isArray(roles) ? roles : [roles];
+    return allowedRoles.includes(usuario.rol.nombre_rol);
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, isAuthenticated: !!user }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        usuario,
+        login,
+        logout,
+        isAuthenticated: !!usuario,
+        isLoading,
+        hasRole,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

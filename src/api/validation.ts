@@ -1,6 +1,7 @@
 import { z, ZodError } from 'zod';
 import {
   almacenSchema,
+  authSessionSchema,
   bienSchema,
   bienesStatsSchema,
   categoriaEspecificaSchema,
@@ -19,8 +20,10 @@ import {
   propiedadSchema,
   protocoloSchema,
   responsableSchema,
+  rolSchema,
   sedeSchema,
   subcategoriaSchema,
+  usuarioSchema,
   vehiculoSchema,
   vehiculosStatsSchema,
 } from './schemas/api.schema';
@@ -56,6 +59,22 @@ function relationArrayResponse(schema: z.ZodTypeAny) {
 
 export function getResponseSchema(path: string) {
   const p = normalizePath(path);
+
+  if (p === '/auth/login' || p === '/auth/refresh-token') return itemResponseSchema(authSessionSchema);
+  if (p === '/auth/perfil') return itemResponseSchema(usuarioSchema);
+  if (p === '/auth/logout' || p === '/auth/cambiar-password') return z.object({
+    success: z.literal(true),
+    message: z.string().optional(),
+  }).passthrough();
+
+  if (p === '/usuarios') return listResponseSchema(usuarioSchema);
+  if (p.startsWith('/usuarios/rol/')) return relationArrayResponse(usuarioSchema);
+  if (p.endsWith('/activar') && p.startsWith('/usuarios/')) return itemResponseSchema(usuarioSchema);
+  if (p.startsWith('/usuarios/')) return itemResponseSchema(usuarioSchema);
+
+  if (p === '/roles') return listResponseSchema(rolSchema);
+  if (p.endsWith('/usuarios') && p.startsWith('/roles/')) return relationArrayResponse(usuarioSchema);
+  if (p.startsWith('/roles/')) return itemResponseSchema(rolSchema);
 
   if (p === '/bienes/estadisticas') return itemResponseSchema(bienesStatsSchema);
   if (p.startsWith('/bienes/') && p !== '/bienes/vencidos') return itemResponseSchema(bienSchema);
@@ -161,6 +180,20 @@ export function validateApiResponse<T>(path: string, method: string, json: unkno
 export function validateApiPayload(path: string, method: string, body: unknown) {
   if (!body || !['POST', 'PUT', 'PATCH'].includes(method)) return body;
   const p = normalizePath(path);
+
+  if (method === 'POST' && p === '/auth/login') return parseWithSchema(payloadSchemas.login, body);
+  if (method === 'POST' && (p === '/auth/logout' || p === '/auth/refresh-token')) {
+    return parseWithSchema(payloadSchemas.refreshToken, body);
+  }
+  if (method === 'PATCH' && p === '/auth/cambiar-password') {
+    return parseWithSchema(payloadSchemas.cambiarPassword, body);
+  }
+  if (method === 'POST' && p === '/usuarios') return parseWithSchema(payloadSchemas.usuario, body);
+  if (method === 'PUT' && p.startsWith('/usuarios/')) return parseWithSchema(payloadSchemas.updateUsuario, body);
+  if (method === 'PATCH' && p.endsWith('/activar') && p.startsWith('/usuarios/')) {
+    return parseWithSchema(payloadSchemas.activarUsuario, body);
+  }
+  if ((method === 'POST' || method === 'PUT') && p.startsWith('/roles')) return parseWithSchema(payloadSchemas.rol, body);
 
   if ((method === 'POST' || method === 'PUT') && p.startsWith('/parcelas')) return parseWithSchema(payloadSchemas.parcela, body);
   if (method === 'POST' && p === '/propiedades') return parseWithSchema(payloadSchemas.propiedad, body);

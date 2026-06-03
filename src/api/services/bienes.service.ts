@@ -39,6 +39,7 @@ export type BienPayload = {
   usuario_carga?: string | null;
   id_categoria_especifica: number;
   unidad_administrativa?: string | null;
+  observaciones?: string | null;
 };
 
 function mapBienesList(res: ApiListResponse<ApiBien>) {

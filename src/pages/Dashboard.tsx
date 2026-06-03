@@ -322,6 +322,7 @@ export default function Dashboard() {
               )}
             </div>
           </div>
+          <div className="h-[250px] w-full min-w-0">
           <ResponsiveContainer width="100%" height={250}>
             <BarChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} />
@@ -342,6 +343,7 @@ export default function Dashboard() {
               </Bar>
             </BarChart>
           </ResponsiveContainer>
+          </div>
           <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
             <div className="rounded-lg bg-navy-50 px-3 py-2">
               <p className="text-gray-500">Altas del periodo</p>
@@ -366,37 +368,35 @@ export default function Dashboard() {
                   <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-gray-500">Disponible</p>
                 </div>
               </div>
-              <div className="relative z-10 h-full w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={donutData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={58}
-                      outerRadius={80}
-                      dataKey="value"
-                      startAngle={90}
-                      endAngle={-270}
-                      stroke="#fff"
-                      strokeWidth={2}
-                    >
-                      {donutData.map((_entry, index) => (
-                        <Cell key={index} fill={DONUT_COLORS[index]} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      wrapperStyle={{ zIndex: 50 }}
-                      contentStyle={{ zIndex: 50 }}
-                      formatter={(value, name) => {
-                        const num = Number(value ?? 0);
-                        const item = donutDataConPorcentaje.find((row) => row.name === String(name));
-                        const pct = item?.porcentaje ?? 0;
-                        return [`${pct}% (${num} parcelas)`, String(name ?? '')];
-                      }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
+              <div className="relative z-10 h-[180px] w-[180px] min-h-[180px] min-w-[180px]">
+                <PieChart width={180} height={180}>
+                  <Pie
+                    data={donutData}
+                    cx={90}
+                    cy={90}
+                    innerRadius={58}
+                    outerRadius={80}
+                    dataKey="value"
+                    startAngle={90}
+                    endAngle={-270}
+                    stroke="#fff"
+                    strokeWidth={2}
+                  >
+                    {donutData.map((_entry, index) => (
+                      <Cell key={index} fill={DONUT_COLORS[index]} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    wrapperStyle={{ zIndex: 50 }}
+                    contentStyle={{ zIndex: 50 }}
+                    formatter={(value, name) => {
+                      const num = Number(value ?? 0);
+                      const item = donutDataConPorcentaje.find((row) => row.name === String(name));
+                      const pct = item?.porcentaje ?? 0;
+                      return [`${pct}% (${num} parcelas)`, String(name ?? '')];
+                    }}
+                  />
+                </PieChart>
               </div>
             </div>
           </div>

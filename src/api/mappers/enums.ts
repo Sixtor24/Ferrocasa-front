@@ -12,13 +12,7 @@ export function mapEstadoUsoBien(api: string): EstadoUso {
 }
 
 export function mapEstadoUsoVehiculo(api: string): EstadoUsoVehiculo {
-  const map: Record<string, EstadoUsoVehiculo> = {
-    En_Uso: 'En uso',
-    En_Reparacion: 'En taller',
-    Dado_de_Baja: 'Desincorporado',
-    Almacenado: 'Disponible',
-  };
-  return map[api] ?? 'Por verificar';
+  return mapEstadoUsoBien(api) as EstadoUsoVehiculo;
 }
 
 export function mapCondicionFisica(api: string): CondicionFisica {
@@ -47,9 +41,9 @@ export function mapAcreditacionAmbiental(api: string): 'Sí' | 'No' | 'En trámi
   return 'No';
 }
 
-export function mapMoneda(api?: string | null): 'Bs' | 'USD' | 'Bs.F' | 'Bs.S' {
+export function mapMoneda(api?: string | null): 'Bs' | 'USD' | 'EUR' {
   if (api === 'USD') return 'USD';
-  if (api === 'EUR') return 'USD';
+  if (api === 'EUR') return 'EUR';
   return 'Bs';
 }
 

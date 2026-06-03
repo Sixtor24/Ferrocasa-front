@@ -10,16 +10,30 @@ import Reportes from './pages/Reportes';
 import Cementerio from './pages/Cementerio';
 import Vehiculos from './pages/Vehiculos';
 import Terrenos from './pages/Terrenos';
-import Placeholder from './pages/Placeholder';
+import Configuracion from './pages/Configuracion';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth();
+  if (isLoading) return <AuthLoading />;
   if (!isAuthenticated) return <Navigate to="/" replace />;
   return <>{children}</>;
 }
 
+function AuthLoading() {
+  return (
+    <div className="min-h-screen bg-[#f4f6f9] flex items-center justify-center">
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm px-6 py-5 text-center">
+        <div className="w-9 h-9 border-4 border-navy-900 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+        <p className="text-sm font-medium text-navy-900">Validando sesión segura...</p>
+      </div>
+    </div>
+  );
+}
+
 function AppRoutes() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth();
+
+  if (isLoading) return <AuthLoading />;
 
   return (
     <Routes>
@@ -49,7 +63,7 @@ function AppRoutes() {
         <Route path="/ventas" element={<Navigate to="/dashboard" replace />} />
         <Route path="/reportes" element={<Reportes />} />
         <Route path="/auditoria" element={<Auditoria />} />
-        <Route path="/configuracion" element={<Placeholder title="Configuración" />} />
+        <Route path="/configuracion" element={<Configuracion />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
