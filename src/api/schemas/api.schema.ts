@@ -326,6 +326,9 @@ export const payloadSchemas = {
     numero_propiedad: z.number().int(),
     forma_adquisicion: z.enum(['Compra', 'Donacion', 'Confiscacion']),
     area_total_m2: z.number().positive(),
+    fecha_adquisicion: z.string().optional(),
+    valor_adquisicion: z.number().nullable().optional(),
+    moneda: z.string().optional(),
   }),
   protocolo: z.object({
     motivo: z.enum(['Venta', 'Ejecucion_de_obras', 'Afectado_por_bienhechurias_de_FMO']),

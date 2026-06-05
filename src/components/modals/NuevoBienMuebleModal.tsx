@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Save } from 'lucide-react';
 import Modal from './Modal';
+import { PLACEHOLDER_PRECIO } from '../../constants/ui';
 import ModalField from './ModalField';
 import {
   CONDICIONES_FISICAS,
@@ -16,6 +17,7 @@ import {
 } from '../../data/bienesCatalogos';
 import type { BienMueble } from '../../types/bien';
 import { bienMuebleSchema } from '../../schemas/bien.schema';
+import { parseMontoInput, sanitizeMontoDraft } from '../../utils/formatters';
 import { validarConZod } from '../../utils/validators';
 
 export type NuevoBienMueblePayload = Omit<
@@ -77,7 +79,7 @@ export default function NuevoBienMuebleModal({ open, onClose, onSubmit }: NuevoB
   const handleSubmit = () => {
     const parsed = {
       ...form,
-      valorAdquisicion: form.valorAdquisicion ? parseFloat(form.valorAdquisicion) : null,
+      valorAdquisicion: form.valorAdquisicion ? parseMontoInput(form.valorAdquisicion) : null,
     };
     const result = validarConZod(bienMuebleSchema, parsed);
     if (!result.success) {
@@ -218,11 +220,12 @@ export default function NuevoBienMuebleModal({ open, onClose, onSubmit }: NuevoB
         <div className="grid grid-cols-2 gap-3">
           <ModalField label="Valor de adquisición" error={errors.valorAdquisicion}>
             <input
-              type="number"
+              type="text"
+              inputMode="decimal"
               value={form.valorAdquisicion}
-              onChange={(e) => updateForm('valorAdquisicion', e.target.value)}
+              onChange={(e) => updateForm('valorAdquisicion', sanitizeMontoDraft(e.target.value))}
               className="input-field"
-              placeholder="0.00"
+              placeholder={PLACEHOLDER_PRECIO}
             />
           </ModalField>
           <ModalField label="Ubicación *" error={errors.ubicacion}>

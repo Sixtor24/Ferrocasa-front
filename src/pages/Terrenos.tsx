@@ -1,19 +1,34 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { fetchParcelas, fetchParcelaById, fetchParcelasEstadisticas } from '../api/services/parcelas.service';
+import { toast } from 'sonner';
+import {
+  fetchParcelas,
+  fetchParcelaById,
+  fetchParcelasEstadisticas,
+  updateParcela,
+  type ParcelaPayload,
+} from '../api/services/parcelas.service';
+import type { ApiParcela } from '../api/types';
 import { useApiQuery } from '../hooks/useApiQuery';
 import ModuleMetricCard, { formatAreaM2 } from '../components/module/ModuleMetricCard';
 import { ESTADOS_TRAMITE } from '../types/terreno';
 import type { ProtocolizacionTerreno, Terreno } from '../types/terreno';
+import {
+  NuevaProtocolizacionModal,
+  RegistroParcelasModal,
+} from '../components/modals';
+import type { TipoProtocolizacionParcela } from '../components/modals/NuevaProtocolizacionModal';
 import ModulePageHeader from '../components/module/ModulePageHeader';
 import ModuleFilterBar from '../components/module/ModuleFilterBar';
+import { FILTROS_TERRENOS_VACIOS } from '../constants/moduleFilters';
 import ModuleDataTable from '../components/module/ModuleDataTable';
 import ModulePagination from '../components/module/ModulePagination';
 import AssetDetailView from '../components/module/AssetDetailView';
 import ApiState from '../components/ApiState';
 import { formatFecha, formatMoneda } from '../utils/formatters';
+import { useModuleUiState } from '../stores/moduleUiStore';
 import type { Column } from '../components/DataTable';
-import { ArrowLeft, Map, MapPin, Layers, MinusCircle } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Map, MapPin, Layers, MinusCircle } from 'lucide-react';
 
 const PER_PAGE = 5;
 const ESTADOS_PARCELA = ['disponible', 'comprometida', 'desincorporada'] as const;
@@ -22,17 +37,95 @@ function formatAreaM2Detail(value: number) {
   return `${value.toLocaleString('es-VE')} m²`;
 }
 
+function acreditacionEstadoToApi(value: Terreno['acreditacionTecnicaAmbiental']) {
+  if (value === 'Sí') return 'Si_posee';
+  return 'No_posee';
+}
+
+function levantamientoEstadoToApi(value: Terreno['levantamientoTopografico']) {
+  if (value === 'Sí') return 'Si';
+  if (value === 'En trámite') return 'Solicitar';
+  return 'No';
+}
+
+function parcelaPayloadFromApi(
+  raw: ApiParcela,
+  overrides: Partial<Pick<ParcelaPayload, 'id_comprometida' | 'id_desincorporada'>> = {},
+): ParcelaPayload {
+  return {
+    nombre: raw.nombre ?? `Parcela ${raw.id_terreno}`,
+    zona: raw.zona ?? 'Sin zona',
+    id_documento_propiedad: raw.id_documento_propiedad,
+    id_desincorporada: overrides.id_desincorporada ?? raw.id_desincorporada ?? null,
+    id_comprometida: overrides.id_comprometida ?? raw.id_comprometida ?? null,
+    ci_responsable: raw.ci_responsable ?? raw.responsable?.ci_responsable ?? '0',
+    zonificacion: raw.zonificacion ?? 'Sin zonificar',
+    observaciones: raw.observaciones ?? null,
+    acreditacion_ambiental: raw.acreditacion_ambiental,
+    levantamiento_topografico: raw.levantamiento_topografico,
+    ubicacion_adicional: raw.ubicacion_adicional ?? null,
+  };
+}
+
 function TerrenoParcelaDetail({
   terreno,
+  raw,
   protocolos,
   onVolver,
+  onUpdated,
 }: {
   terreno: Terreno;
+  raw: ApiParcela;
   protocolos: ProtocolizacionTerreno[];
   onVolver: () => void;
+  onUpdated: () => void;
 }) {
   const [acreditacion, setAcreditacion] = useState(terreno.acreditacionTecnicaAmbiental);
   const [levantamiento, setLevantamiento] = useState(terreno.levantamientoTopografico);
+  const [protocolModalOpen, setProtocolModalOpen] = useState(false);
+  const [protocolTipo, setProtocolTipo] = useState<TipoProtocolizacionParcela>('Compromiso');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (terreno.areaDisponible !== 0) return;
+    toast.warning('No hay área disponible', {
+      description: `${terreno.identificacion} tiene 0 m² disponibles.`,
+    });
+  }, [terreno.areaDisponible, terreno.identificacion]);
+
+  const guardarCambio = async () => {
+    setSaving(true);
+    try {
+      await updateParcela(terreno.id, {
+        ...parcelaPayloadFromApi(raw),
+        acreditacion_ambiental: acreditacionEstadoToApi(acreditacion),
+        levantamiento_topografico: levantamientoEstadoToApi(levantamiento),
+      });
+      toast.success('Cambio guardado', {
+        description: `${terreno.codigo}: acreditación ${acreditacion}, levantamiento ${levantamiento}.`,
+      });
+      onUpdated();
+    } catch (err) {
+      toast.error('No se pudo guardar el cambio', {
+        description: err instanceof Error ? err.message : 'Intente nuevamente.',
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const vincularProtocolizacion = async (tipo: TipoProtocolizacionParcela, idMovimiento: number) => {
+    await updateParcela(
+      terreno.id,
+      parcelaPayloadFromApi(raw, tipo === 'Compromiso'
+        ? { id_comprometida: idMovimiento }
+        : { id_desincorporada: idMovimiento }),
+    );
+    toast.success('Protocolización agregada', {
+      description: `${terreno.codigo}: ${tipo.toLowerCase()} registrado correctamente.`,
+    });
+    onUpdated();
+  };
 
   return (
     <>
@@ -126,15 +219,49 @@ function TerrenoParcelaDetail({
               <ArrowLeft size={16} />
               Volver al listado
             </button>
-            <button type="button" className="px-5 py-2.5 bg-navy-900 text-white rounded-lg text-sm font-semibold hover:bg-navy-800">
+            <button
+              type="button"
+              onClick={() => {
+                setProtocolTipo('Compromiso');
+                setProtocolModalOpen(true);
+              }}
+              className="px-5 py-2.5 bg-navy-900 text-white rounded-lg text-sm font-semibold hover:bg-navy-800"
+            >
               Agregar Protocolización
             </button>
-            <button type="button" className="px-5 py-2.5 border border-red-200 text-red-700 rounded-lg text-sm font-semibold hover:bg-red-50">
+            <button
+              type="button"
+              onClick={guardarCambio}
+              disabled={saving}
+              className="px-5 py-2.5 bg-navy-900 text-white rounded-lg text-sm font-semibold hover:bg-navy-800"
+            >
+              {saving ? 'Guardando...' : 'Guardar cambio'}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setProtocolTipo('Desincorporación');
+                setProtocolModalOpen(true);
+              }}
+              className="px-5 py-2.5 border border-red-200 text-red-700 rounded-lg text-sm font-semibold hover:bg-red-50"
+            >
               Retirar de Inventario
             </button>
           </>
         }
       />
+
+      {terreno.areaDisponible === 0 && (
+        <div className="px-4 md:px-6 max-w-7xl">
+          <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-900">
+            <AlertTriangle size={18} className="mt-0.5 shrink-0" />
+            <div>
+              <p className="text-sm font-semibold">No hay área disponible</p>
+              <p className="text-sm">Esta parcela tiene 0 m² disponibles para nuevas operaciones.</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {protocolos.length > 0 && (
         <div className="px-4 md:px-6 pb-8 max-w-7xl mx-auto space-y-4">
@@ -172,6 +299,14 @@ function TerrenoParcelaDetail({
           ))}
         </div>
       )}
+
+      <NuevaProtocolizacionModal
+        open={protocolModalOpen}
+        onClose={() => setProtocolModalOpen(false)}
+        tipo={protocolTipo}
+        onCreated={vincularProtocolizacion}
+        onError={(message) => toast.error('No se pudo crear la protocolización', { description: message })}
+      />
     </>
   );
 }
@@ -179,17 +314,16 @@ function TerrenoParcelaDetail({
 export default function Terrenos() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const [page, setPage] = useState(1);
-  const [filtros, setFiltros] = useState({
-    codigo: '',
-    identificacion: '',
-    estado: '',
-    zonificacion: '',
-    nroPropiedad: '',
-    levantamiento: '',
-    acreditacion: '',
-    buscar: '',
-  });
+  const {
+    page,
+    filters: filtros,
+    modals,
+    setPage,
+    setFilter: setModuleFilter,
+    resetFilters,
+    setModal,
+  } = useModuleUiState('terrenos', FILTROS_TERRENOS_VACIOS);
+  const showRegistro = modals.registro ?? false;
 
   const apiSearch = useMemo(() => {
     return [filtros.buscar, filtros.identificacion, filtros.zonificacion]
@@ -251,8 +385,14 @@ export default function Terrenos() {
   const paginated = filtered;
 
   const setFiltro = (key: keyof typeof filtros, value: string) => {
-    setFiltros((prev) => ({ ...prev, [key]: value }));
-    setPage(1);
+    setModuleFilter(key, value);
+  };
+
+  const refreshParcelas = () => {
+    listQuery.refetch();
+    statsQuery.refetch();
+    allParcelasQuery.refetch();
+    detailQuery.refetch();
   };
 
   const columns: Column<Terreno>[] = [
@@ -286,15 +426,18 @@ export default function Terrenos() {
 
   if (id) {
     const terreno = detailQuery.data?.terreno;
+    const raw = detailQuery.data?.raw;
     const protos = detailQuery.data?.protocolos ?? [];
 
     return (
       <ApiState loading={detailQuery.loading} error={detailQuery.error} onRetry={detailQuery.refetch}>
-        {terreno && (
+        {terreno && raw && (
           <TerrenoParcelaDetail
             terreno={terreno}
+            raw={raw}
             protocolos={protos}
             onVolver={() => navigate('/terrenos')}
+            onUpdated={refreshParcelas}
           />
         )}
       </ApiState>
@@ -306,7 +449,8 @@ export default function Terrenos() {
       <ModulePageHeader
         title="Terrenos"
         breadcrumb={[{ label: 'Dashboard', to: '/dashboard' }, { label: 'Terrenos' }]}
-        onCreate={() => {}}
+        onCreate={() => setModal('registro', true)}
+        createLabel="Crear Registro"
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
@@ -347,6 +491,9 @@ export default function Terrenos() {
       </div>
 
       <ModuleFilterBar
+        onClearFilters={() => {
+          resetFilters();
+        }}
         fields={[
           { key: 'codigo', label: 'Código', type: 'text', value: filtros.codigo, onChange: (v) => setFiltro('codigo', v) },
           {
@@ -381,6 +528,16 @@ export default function Terrenos() {
 
         <ModulePagination page={page} totalPages={totalPages} onPageChange={setPage} />
       </ApiState>
+
+      <RegistroParcelasModal
+        open={showRegistro}
+        onClose={() => setModal('registro', false)}
+        onSuccess={(message) => {
+          toast.success(message);
+          refreshParcelas();
+        }}
+        onError={(message) => toast.error('No se pudo registrar la parcela', { description: message })}
+      />
     </div>
   );
 }

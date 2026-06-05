@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Save } from 'lucide-react';
 import Modal from './Modal';
+import { PLACEHOLDER_AREA, PLACEHOLDER_PRECIO } from '../../constants/ui';
+import { parseMontoInput, sanitizeMontoDraft } from '../../utils/formatters';
 import ModalField from './ModalField';
 import { ESTADOS_OCUPACION, ZONIFICACIONES, TIPOS_INMUEBLE } from '../../types/inmueble';
 import type { Inmueble } from '../../types/inmueble';
@@ -54,11 +56,11 @@ export default function NuevoInmuebleModal({ open, onClose, onSubmit }: NuevoInm
   const handleSubmit = () => {
     const parsed = {
       ...form,
-      areaSegunDocumento: form.areaSegunDocumento ? parseFloat(form.areaSegunDocumento) : null,
+      areaSegunDocumento: form.areaSegunDocumento ? parseMontoInput(form.areaSegunDocumento) : null,
       areaDesincorporada: null,
       areaComprometida: null,
-      areaDisponible: form.areaSegunDocumento ? parseFloat(form.areaSegunDocumento) : null,
-      precio: form.precio ? parseFloat(form.precio) : null,
+      areaDisponible: form.areaSegunDocumento ? parseMontoInput(form.areaSegunDocumento) : null,
+      precio: form.precio ? parseMontoInput(form.precio) : null,
     };
     const result = validarConZod(inmuebleSchema, parsed);
     if (!result.success) {
@@ -132,20 +134,22 @@ export default function NuevoInmuebleModal({ open, onClose, onSubmit }: NuevoInm
         <div className="grid grid-cols-2 gap-3">
           <ModalField label="Área (m²)" error={errors.areaSegunDocumento}>
             <input
-              type="number"
+              type="text"
+              inputMode="decimal"
               value={form.areaSegunDocumento}
-              onChange={(e) => updateForm('areaSegunDocumento', e.target.value)}
+              onChange={(e) => updateForm('areaSegunDocumento', sanitizeMontoDraft(e.target.value))}
               className="input-field"
-              placeholder="0.00"
+              placeholder={PLACEHOLDER_AREA}
             />
           </ModalField>
           <ModalField label="Precio (USD)" error={errors.precio}>
             <input
-              type="number"
+              type="text"
+              inputMode="decimal"
               value={form.precio}
-              onChange={(e) => updateForm('precio', e.target.value)}
+              onChange={(e) => updateForm('precio', sanitizeMontoDraft(e.target.value))}
               className="input-field"
-              placeholder="0.00"
+              placeholder={PLACEHOLDER_PRECIO}
             />
           </ModalField>
         </div>

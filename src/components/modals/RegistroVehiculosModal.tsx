@@ -5,7 +5,11 @@ import NuevoItemVehiculoRegistroModal from './NuevoItemVehiculoRegistroModal';
 import { createDocumento, type FormaAdquisicionDocumento } from '../../api/services/documentos.service';
 import { createVehiculo } from '../../api/services/vehiculos.service';
 import type { ApiAlmacen } from '../../api/types';
-import { SEDES_BIENES_ADMINISTRATIVOS } from '../../data/bienesCatalogos';
+import {
+  almacenesPorSede,
+  departamentosPorSede,
+  SEDES_VEHICULOS,
+} from '../../data/bienesCatalogos';
 import { MONEDAS_REGISTRO } from '../../types/registroBienItem';
 import type { DocumentoVehiculoRegistroDraft, ItemVehiculoRegistroDraft } from '../../types/registroVehiculoItem';
 import { documentoRegistroFormSchema } from '../../schemas/registro.schema';
@@ -35,6 +39,7 @@ const FORMAS_DOCUMENTO: { label: string; value: FormaAdquisicionDocumento }[] = 
 const SEDE_LABELS: Record<string, string> = {
   'Edificio Administrativo Ferrocasa': 'Edificio Administrativo',
   'Área Externa': 'Áreas externas',
+  Cementerio: 'Cementerio',
 };
 
 function sedeLabel(value: string) {
@@ -47,9 +52,13 @@ function initialDocumento(): DocumentoVehiculoRegistroDraft {
     nombreProveedor: '',
     fechaAdquisicion: '',
     formaAdquisicion: 'Compra',
-    sede: SEDES_BIENES_ADMINISTRATIVOS[0],
+    sede: SEDES_VEHICULOS[0],
     moneda: 'Bs',
   };
+}
+
+function totalItem(item: ItemVehiculoRegistroDraft) {
+  return (item.cantidad || 0) * (item.valorAdquisicion || 0);
 }
 
 export default function RegistroVehiculosModal({
@@ -67,12 +76,19 @@ export default function RegistroVehiculosModal({
   const [documentoErrors, setDocumentoErrors] = useState<Record<string, string>>({});
 
   const almacenOptions = useMemo(() => {
+    const catalog = new Set(almacenesPorSede(documento.sede).map((nombre) => nombre.toLowerCase()));
     const fromApi = almacenes.map((a) => a.nombre).filter(Boolean);
-    return fromApi.length > 0 ? fromApi : [];
-  }, [almacenes]);
+    const matchingApi = fromApi.filter((nombre) => catalog.has(nombre.toLowerCase()));
+    return matchingApi.length > 0 ? matchingApi : [...almacenesPorSede(documento.sede)];
+  }, [almacenes, documento.sede]);
+
+  const departamentoOptions = useMemo(
+    () => departamentosPorSede(documento.sede),
+    [documento.sede],
+  );
 
   const valorTotalDocumento = useMemo(
-    () => items.reduce((sum, item) => sum + (item.valorAdquisicion || 0), 0),
+    () => items.reduce((sum, item) => sum + totalItem(item), 0),
     [items],
   );
 
@@ -95,6 +111,13 @@ export default function RegistroVehiculosModal({
       delete next[key as string];
       return next;
     });
+  };
+
+  const updateSede = (sede: string) => {
+    updateDocumento('sede', sede);
+    setItems([]);
+    setEditingItem(null);
+    setItemModalOpen(false);
   };
 
   const abrirNuevoItem = () => {
@@ -263,10 +286,10 @@ export default function RegistroVehiculosModal({
               <Field label="Sede">
                 <select
                   value={documento.sede}
-                  onChange={(e) => updateDocumento('sede', e.target.value)}
+                  onChange={(e) => updateSede(e.target.value)}
                   className="input-field"
                 >
-                  {SEDES_BIENES_ADMINISTRATIVOS.map((sede) => (
+                  {SEDES_VEHICULOS.map((sede) => (
                     <option key={sede} value={sede}>
                       {sedeLabel(sede)}
                     </option>
@@ -305,7 +328,9 @@ export default function RegistroVehiculosModal({
                   <Th>Color</Th>
                   <Th>Placa</Th>
                   <Th>Almacén</Th>
+                  <Th>Cantidad</Th>
                   <Th>Valor de adquisición</Th>
+                  <Th>Total</Th>
                   <Th className="text-center w-16">Editar</Th>
                   <Th className="text-center w-20">
                     <button
@@ -323,7 +348,7 @@ export default function RegistroVehiculosModal({
               <tbody>
                 {items.length === 0 ? (
                   <tr>
-                    <td colSpan={10} className="px-4 py-10 text-center text-sm text-gray-400">
+                    <td colSpan={12} className="px-4 py-10 text-center text-sm text-gray-400">
                       No hay ítems agregados. Use el botón + para registrar cada vehículo.
                     </td>
                   </tr>
@@ -348,7 +373,9 @@ export default function RegistroVehiculosModal({
                       <Td>
                         <span className="block max-w-[140px] truncate">{item.almacen}</span>
                       </Td>
+                      <Td>{item.cantidad.toLocaleString('es-VE')}</Td>
                       <Td>{formatMoneda(item.valorAdquisicion, documento.moneda)}</Td>
+                      <Td>{formatMoneda(totalItem(item), documento.moneda)}</Td>
                       <Td className="text-center">
                         <button
                           type="button"
@@ -377,6 +404,8 @@ export default function RegistroVehiculosModal({
         }}
         item={editingItem}
         almacenOptions={almacenOptions}
+        departamentoOptions={departamentoOptions}
+        moneda={documento.moneda}
         onSave={guardarItem}
         onDelete={eliminarItem}
       />

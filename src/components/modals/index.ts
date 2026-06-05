@@ -14,3 +14,6 @@ export { default as NuevoInmuebleModal } from './NuevoInmuebleModal';
 export type { NuevoInmueblePayload } from './NuevoInmuebleModal';
 export { default as InmuebleDetallePanel } from './InmuebleDetallePanel';
 export { default as ImportExcelModal } from './ImportExcelModal';
+export { default as RegistroParcelasModal } from './RegistroParcelasModal';
+export { default as NuevaParcelaModal } from './NuevaParcelaModal';
+export { default as NuevaProtocolizacionModal } from './NuevaProtocolizacionModal';

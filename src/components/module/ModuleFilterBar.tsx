@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { RotateCcw } from 'lucide-react';
 
 export type FilterFieldType = 'text' | 'select' | 'search';
 
@@ -15,18 +16,19 @@ export interface FilterField {
 
 interface ModuleFilterBarProps {
   fields: FilterField[];
+  onClearFilters?: () => void;
   children?: ReactNode;
 }
 
-export default function ModuleFilterBar({ fields, children }: ModuleFilterBarProps) {
+export default function ModuleFilterBar({ fields, onClearFilters, children }: ModuleFilterBarProps) {
+  const showFooter = Boolean(onClearFilters || children);
+
   return (
     <div className="bg-white rounded-xl border border-gray-200/80 shadow-sm p-4 sm:p-5">
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {fields.map((field) => (
           <div key={field.key} className={field.className}>
-            <label className="block text-xs font-semibold text-navy-700 uppercase tracking-wide mb-1.5">
-              {field.label}
-            </label>
+            <label className="filter-label">{field.label}</label>
             {field.type === 'select' ? (
               <select
                 value={field.value}
@@ -51,7 +53,23 @@ export default function ModuleFilterBar({ fields, children }: ModuleFilterBarPro
           </div>
         ))}
       </div>
-      {children}
+      {showFooter && (
+        <div className="flex flex-wrap items-center justify-between gap-3 mt-4 pt-4 border-t border-gray-100">
+          {onClearFilters ? (
+            <button
+              type="button"
+              onClick={onClearFilters}
+              className="inline-flex items-center gap-1.5 px-3 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-navy-800 transition-colors"
+            >
+              <RotateCcw size={14} aria-hidden />
+              Limpiar filtros
+            </button>
+          ) : (
+            <span />
+          )}
+          {children ? <div className="flex flex-wrap items-center justify-end gap-3 ml-auto">{children}</div> : null}
+        </div>
+      )}
     </div>
   );
 }

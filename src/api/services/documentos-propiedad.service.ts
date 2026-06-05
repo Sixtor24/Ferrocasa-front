@@ -23,6 +23,9 @@ export type DocumentoPropiedadPayload = {
   numero_propiedad: number;
   forma_adquisicion: FormaAdquisicionPropiedad;
   area_total_m2: number;
+  fecha_adquisicion?: string;
+  valor_adquisicion?: number | null;
+  moneda?: 'Bs' | 'USD' | 'EUR' | string;
 };
 
 function mapDocumentosPropiedadList(res: ApiListResponse<ApiDocumentoPropiedad>) {

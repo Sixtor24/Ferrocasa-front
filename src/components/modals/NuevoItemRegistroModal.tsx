@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Modal from './Modal';
+import CurrencyAmountInput from '../forms/CurrencyAmountInput';
+import FlexibleIntegerInput from '../forms/FlexibleIntegerInput';
 import ModalField from './ModalField';
 import {
   fetchCategoriasEspecificasBySubcategoriaId,
@@ -8,10 +10,11 @@ import {
 } from '../../api/services/categorias.service';
 import { fetchDepartamentos, fetchDepartamentoResponsables } from '../../api/services/departamentos.service';
 import type { ConsumibilidadBienApi } from '../../api/services/bienes.service';
-import type { ItemRegistroDraft, RegistroBienesModulo } from '../../types/registroBienItem';
+import type { ItemRegistroDraft, MonedaRegistro, RegistroBienesModulo } from '../../types/registroBienItem';
 import { CONDICIONES_FISICAS, ESTADOS_USO, type CondicionFisica, type EstadoUso } from '../../types/bien';
 import { itemDraftToFormInput, itemRegistroFormSchema } from '../../schemas/registro.schema';
 import { validarConZod } from '../../utils/validators';
+import { formatMoneda } from '../../utils/formatters';
 import { normalizeCatalogValue } from '../../utils/registroBienMappers';
 
 type NuevoItemRegistroModalProps = {
@@ -21,6 +24,7 @@ type NuevoItemRegistroModalProps = {
   item: ItemRegistroDraft | null;
   almacenOptions: string[];
   departamentoOptions: readonly string[];
+  moneda: MonedaRegistro;
   onSave: (item: ItemRegistroDraft) => void;
   onDelete?: (key: string) => void;
 };
@@ -41,7 +45,7 @@ function createEmptyItem(
     codigoInterno: '',
     descripcion: '',
     color: '',
-    cantidad: 1,
+    cantidad: 0,
     unidadAdministrativa: unidadDefault,
     responsable: '',
     ciResponsable: '',
@@ -71,6 +75,7 @@ export default function NuevoItemRegistroModal({
   item,
   almacenOptions,
   departamentoOptions,
+  moneda,
   onSave,
   onDelete,
 }: NuevoItemRegistroModalProps) {
@@ -223,6 +228,7 @@ export default function NuevoItemRegistroModal({
     if (fromCatalog.length > 0) return fromCatalog;
     return departamentosApi.map((d) => d.nombre);
   }, [modulo, departamentoOptions, departamentosApi]);
+  const totalCalculado = (form.cantidad || 0) * (form.valorAdquisicion || 0);
 
   return (
     <Modal
@@ -285,12 +291,9 @@ export default function NuevoItemRegistroModal({
             <input value={form.color} onChange={(e) => updateForm('color', e.target.value)} className="input-field" />
           </ModalField>
           <ModalField label="Cantidad *" error={errors.cantidad}>
-            <input
-              type="number"
-              min={1}
+            <FlexibleIntegerInput
               value={form.cantidad}
-              onChange={(e) => updateForm('cantidad', Number(e.target.value) || 1)}
-              className="input-field"
+              onChange={(value) => updateForm('cantidad', value)}
             />
           </ModalField>
           <ModalField label="Unidad Administrativa *" error={errors.unidadAdministrativa}>
@@ -433,14 +436,15 @@ export default function NuevoItemRegistroModal({
             <input value={form.modelo} onChange={(e) => updateForm('modelo', e.target.value)} className="input-field" />
           </ModalField>
           <ModalField label="Valor de Adquisición *" error={errors.valorAdquisicion}>
-            <input
-              type="number"
-              min={0}
-              step="0.01"
+            <CurrencyAmountInput
               value={form.valorAdquisicion}
-              onChange={(e) => updateForm('valorAdquisicion', Number(e.target.value) || 0)}
-              className="input-field"
+              onChange={(value) => updateForm('valorAdquisicion', value)}
             />
+          </ModalField>
+          <ModalField label="Total calculado">
+            <div className="input-field bg-gray-50 font-semibold text-navy-900">
+              {formatMoneda(totalCalculado, moneda)}
+            </div>
           </ModalField>
           <ModalField label="Almacén *" error={errors.almacen}>
             <select
@@ -476,19 +480,21 @@ export default function NuevoItemRegistroModal({
               ))}
             </select>
           </ModalField>
-          <ModalField label="Condición Física *" error={errors.condicionFisica}>
-            <select
-              value={form.condicionFisica}
-              onChange={(e) => updateForm('condicionFisica', e.target.value as CondicionFisica)}
-              className="input-field"
-            >
-              {CONDICIONES_FISICAS.map((condicion) => (
-                <option key={condicion} value={condicion}>
-                  {condicion}
-                </option>
-              ))}
-            </select>
-          </ModalField>
+          {modulo !== 'cementerio' && (
+            <ModalField label="Condición Física *" error={errors.condicionFisica}>
+              <select
+                value={form.condicionFisica}
+                onChange={(e) => updateForm('condicionFisica', e.target.value as CondicionFisica)}
+                className="input-field"
+              >
+                {CONDICIONES_FISICAS.map((condicion) => (
+                  <option key={condicion} value={condicion}>
+                    {condicion}
+                  </option>
+                ))}
+              </select>
+            </ModalField>
+          )}
         </div>
       </div>
     </Modal>

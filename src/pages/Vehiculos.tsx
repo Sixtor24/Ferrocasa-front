@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { fetchVehiculos, fetchVehiculoById } from '../api/services/vehiculos.service';
+import { toast } from 'sonner';
+import { cambiarEstadoVehiculo, fetchVehiculos, fetchVehiculoById } from '../api/services/vehiculos.service';
 import { fetchAlmacenes } from '../api/services/almacenes.service';
 import { useApiQuery } from '../hooks/useApiQuery';
 import { RegistroVehiculosModal } from '../components/modals';
@@ -8,12 +9,15 @@ import { CONDICIONES_VEHICULO, ESTADOS_USO_VEHICULO } from '../types/vehiculo';
 import type { Vehiculo } from '../types/vehiculo';
 import ModulePageHeader from '../components/module/ModulePageHeader';
 import ModuleFilterBar from '../components/module/ModuleFilterBar';
+import { FILTROS_INVENTARIO_VACIOS } from '../constants/moduleFilters';
 import ModuleDataTable from '../components/module/ModuleDataTable';
 import ModulePagination from '../components/module/ModulePagination';
 import AssetDetailView from '../components/module/AssetDetailView';
 import ApiState from '../components/ApiState';
 import StatusBadge from '../components/StatusBadge';
 import { formatFecha, formatMoneda } from '../utils/formatters';
+import { estadoUsoVehiculoToApi } from '../utils/registroVehiculoMappers';
+import { useModuleUiState } from '../stores/moduleUiStore';
 import type { Column } from '../components/DataTable';
 import { ArrowLeft } from 'lucide-react';
 
@@ -35,6 +39,26 @@ function catalogOptions(values: string[], allLabel: string) {
 function VehiculoDetail({ vehiculo, onVolver }: { vehiculo: Vehiculo; onVolver: () => void }) {
   const [estadoUso, setEstadoUso] = useState(vehiculo.estadoUso);
   const [condicionFisica, setCondicionFisica] = useState(vehiculo.condicionFisica);
+  const [saving, setSaving] = useState(false);
+
+  const guardarCambio = async () => {
+    setSaving(true);
+    try {
+      await cambiarEstadoVehiculo(vehiculo.id, {
+        estado_vehiculo: 'Carga_Total',
+        estado_uso: estadoUsoVehiculoToApi(estadoUso),
+      });
+      toast.success('Cambio guardado', {
+        description: `${vehiculo.codigoInterno}: estado ${estadoUso}.`,
+      });
+    } catch (err) {
+      toast.error('No se pudo guardar el cambio', {
+        description: err instanceof Error ? err.message : 'Intente nuevamente.',
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const placaDisplay = vehiculo.sinPlaca ? 'Sin placa' : vehiculo.placa;
   const serialMotorDisplay = vehiculo.sinSerialMotor ? 'Sin serial' : vehiculo.serialMotor;
@@ -145,6 +169,14 @@ function VehiculoDetail({ vehiculo, onVolver }: { vehiculo: Vehiculo; onVolver: 
           </button>
           <button
             type="button"
+            onClick={guardarCambio}
+            disabled={saving}
+            className="px-5 py-2.5 bg-navy-900 text-white rounded-lg text-sm font-semibold hover:bg-navy-800 disabled:opacity-60"
+          >
+            {saving ? 'Guardando...' : 'Guardar cambio'}
+          </button>
+          <button
+            type="button"
             className="px-5 py-2.5 border border-navy-200 text-navy-800 rounded-lg text-sm font-semibold hover:bg-navy-50"
           >
             Transferir a otro almacén
@@ -164,23 +196,23 @@ function VehiculoDetail({ vehiculo, onVolver }: { vehiculo: Vehiculo; onVolver: 
 export default function Vehiculos() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const [page, setPage] = useState(1);
-  const [filtros, setFiltros] = useState({
-    codigo: '',
-    descripcion: '',
-    almacen: '',
-    condicionFisica: '',
-    departamento: '',
-    numeroDocumento: '',
-    estadoUso: '',
-    buscar: '',
-  });
+  const {
+    page,
+    filters: filtros,
+    modals,
+    successMsg,
+    errorMsg,
+    setPage,
+    setFilter: setModuleFilter,
+    resetFilters,
+    setModal,
+    setSuccess: setSuccessMsg,
+    setError: setErrorMsg,
+  } = useModuleUiState('vehiculos', FILTROS_INVENTARIO_VACIOS);
 
   const listQuery = useApiQuery(() => fetchVehiculos({ page: 1, limit: 5000 }), []);
   const almacenesQuery = useApiQuery(() => fetchAlmacenes({ page: 1, limit: 5000 }), []);
-  const [showRegistro, setShowRegistro] = useState(false);
-  const [successMsg, setSuccessMsg] = useState('');
-  const [errorMsg, setErrorMsg] = useState('');
+  const showRegistro = modals.registro ?? false;
 
   const detailQuery = useApiQuery(
     () => fetchVehiculoById(Number(id)),
@@ -231,8 +263,7 @@ export default function Vehiculos() {
   const paginated = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
   const setFiltro = (key: keyof typeof filtros, value: string) => {
-    setFiltros((prev) => ({ ...prev, [key]: value }));
-    setPage(1);
+    setModuleFilter(key, value);
   };
 
   const columns: Column<Vehiculo>[] = [
@@ -262,7 +293,7 @@ export default function Vehiculos() {
       <ModulePageHeader
         title="Vehículos y Maquinaria"
         breadcrumb={[{ label: 'Dashboard', to: '/dashboard' }, { label: 'Vehículos' }]}
-        onCreate={() => setShowRegistro(true)}
+        onCreate={() => setModal('registro', true)}
         createLabel="Crear Registro"
         extraActions={
           <>
@@ -275,6 +306,9 @@ export default function Vehiculos() {
       />
 
       <ModuleFilterBar
+        onClearFilters={() => {
+          resetFilters();
+        }}
         fields={[
           { key: 'codigo', label: 'Código', type: 'text', value: filtros.codigo, onChange: (v) => setFiltro('codigo', v) },
           { key: 'descripcion', label: 'Descripción', type: 'text', value: filtros.descripcion, onChange: (v) => setFiltro('descripcion', v) },
@@ -306,11 +340,10 @@ export default function Vehiculos() {
 
       <RegistroVehiculosModal
         open={showRegistro}
-        onClose={() => setShowRegistro(false)}
+        onClose={() => setModal('registro', false)}
         almacenes={almacenesQuery.data?.data ?? []}
         onSuccess={(message) => {
           listQuery.refetch();
-          setErrorMsg('');
           setSuccessMsg(message);
           setTimeout(() => setSuccessMsg(''), 4000);
         }}

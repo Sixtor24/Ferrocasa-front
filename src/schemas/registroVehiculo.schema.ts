@@ -20,11 +20,10 @@ export const itemVehiculoRegistroFormSchema = z.object({
   anioFabricacion: z.coerce
     .number({ error: 'Indique el año de fabricación' })
     .int()
-    .min(1900, 'Año inválido')
-    .max(2100, 'Año inválido'),
+    .min(0, 'El año no puede ser negativo'),
   serialMotor: z.string().optional().default(''),
   serialCarroceria: z.string().optional().default(''),
-  cantidad: z.coerce.number().int().min(1, 'La cantidad mínima es 1'),
+  cantidad: z.coerce.number().int().min(0, 'La cantidad no puede ser negativa'),
   valorAdquisicion: z.coerce
     .number({ error: 'Indique el valor de adquisición' })
     .min(0, 'El valor no puede ser negativo'),

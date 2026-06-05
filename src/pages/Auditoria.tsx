@@ -10,6 +10,9 @@ import {
 } from 'lucide-react';
 
 const accionColor: Record<string, string> = {
+  Entrada: 'text-green-600',
+  Transferencia: 'text-blue-600',
+  Salida: 'text-red-600',
   Modificó: 'text-blue-600',
   Creó: 'text-green-600',
   Acceso: 'text-gray-600',
@@ -157,21 +160,21 @@ export default function Auditoria() {
               className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy-500 bg-white"
             >
               <option>Todas las acciones</option>
-              <option>Modificó</option>
-              <option>Creó</option>
+              <option>Entrada</option>
+              <option>Transferencia</option>
+              <option>Salida</option>
               <option>Acceso</option>
-              <option>Eliminó</option>
             </select>
           </div>
-          {hayFiltros && (
-            <button
-              onClick={limpiarFiltros}
-              className="flex items-center gap-1 px-3 py-2 border border-red-200 text-red-600 rounded-lg text-sm font-medium hover:bg-red-50"
-            >
-              <X size={14} />
-              Limpiar
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={limpiarFiltros}
+            disabled={!hayFiltros}
+            className="flex items-center gap-1 px-3 py-2 border border-gray-200 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <X size={14} />
+            Limpiar filtros
+          </button>
         </div>
       </div>
 

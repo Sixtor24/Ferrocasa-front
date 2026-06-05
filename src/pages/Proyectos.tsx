@@ -188,7 +188,7 @@ export default function Proyectos() {
               onClick={() => { setFiltroTipo('Todos los tipos'); setFiltroEstado('Todos los estados'); setBusqueda(''); }}
               className="flex items-center gap-1 px-3 py-2 border border-red-200 text-red-600 rounded-lg text-sm font-medium hover:bg-red-50"
             >
-              <X size={14} /> Limpiar
+              <X size={14} /> Limpiar filtros
             </button>
           )}
         </div>

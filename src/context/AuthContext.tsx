@@ -7,6 +7,8 @@ import {
 } from '../api/services/auth.service';
 import { clearAuthSession, getRefreshToken, getStoredUser } from '../api/auth/session';
 import type { RoleName, UsuarioSistema } from '../types/auth';
+import { useApiCacheStore } from '../stores/apiCacheStore';
+import { useModuleUiStore } from '../stores/moduleUiStore';
 
 export interface User {
   id: number;
@@ -86,6 +88,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     bootstrapSession();
 
     const handleExpired = () => {
+      useApiCacheStore.getState().clear();
+      useModuleUiStore.setState({ modules: {} });
       clearAuthSession();
       setUsuario(null);
     };
@@ -102,11 +106,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       nombre_usuario: username.trim(),
       password,
     });
+    useApiCacheStore.getState().clear();
+    useModuleUiStore.setState({ modules: {} });
     setUsuario(session.usuario);
   };
 
   const logout = async () => {
     await logoutRequest();
+    useApiCacheStore.getState().clear();
+    useModuleUiStore.setState({ modules: {} });
     setUsuario(null);
   };
 

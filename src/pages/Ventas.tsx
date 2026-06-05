@@ -172,6 +172,15 @@ export default function Ventas() {
               {metodosPago.map((m) => <option key={m}>{m}</option>)}
             </select>
           </div>
+          <div className="sm:col-span-3 flex justify-end">
+            <button
+              type="button"
+              onClick={limpiar}
+              className="px-3 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50"
+            >
+              Limpiar filtros
+            </button>
+          </div>
         </div>
       )}
 
@@ -199,7 +208,9 @@ export default function Ventas() {
               "{busqueda}" <X size={12} className="cursor-pointer" onClick={() => setBusqueda('')} />
             </span>
           )}
-          <button onClick={limpiar} className="text-xs text-red-600 hover:underline ml-1">Limpiar todo</button>
+          <button type="button" onClick={limpiar} className="text-xs text-red-600 hover:underline ml-1">
+            Limpiar filtros
+          </button>
         </div>
       )}
 

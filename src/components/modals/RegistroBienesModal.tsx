@@ -19,6 +19,10 @@ import {
   monedaBienToDocumento,
   normalizeCatalogValue,
 } from '../../utils/registroBienMappers';
+import {
+  almacenesPorSede,
+  departamentosPorSede,
+} from '../../data/bienesCatalogos';
 
 export type RegistroBienesModalConfig = {
   modulo: RegistroBienesModulo;
@@ -64,6 +68,10 @@ function initialDocumento(sede: string): DocumentoRegistroDraft {
   };
 }
 
+function totalItem(item: ItemRegistroDraft) {
+  return (item.cantidad || 0) * (item.valorAdquisicion || 0);
+}
+
 function resolveAlmacenId(nombre: string, almacenes: ApiAlmacen[]) {
   const match = almacenes.find(
     (almacen) => normalizeCatalogValue(almacen.nombre) === normalizeCatalogValue(nombre),
@@ -100,12 +108,17 @@ export default function RegistroBienesModal({
   const [documentoErrors, setDocumentoErrors] = useState<Record<string, string>>({});
 
   const almacenOptions = useMemo(
-    () => filterAlmacenesByCatalog(almacenes, almacenesCatalog),
-    [almacenes, almacenesCatalog],
+    () => filterAlmacenesByCatalog(almacenes, almacenesPorSede(documento.sede) ?? almacenesCatalog),
+    [almacenes, almacenesCatalog, documento.sede],
+  );
+
+  const departamentoOptions = useMemo(
+    () => departamentosPorSede(documento.sede) ?? departamentos,
+    [departamentos, documento.sede],
   );
 
   const valorTotalDocumento = useMemo(
-    () => items.reduce((sum, item) => sum + (item.valorAdquisicion || 0), 0),
+    () => items.reduce((sum, item) => sum + totalItem(item), 0),
     [items],
   );
 
@@ -125,6 +138,13 @@ export default function RegistroBienesModal({
       delete next[key as string];
       return next;
     });
+  };
+
+  const updateSede = (sede: string) => {
+    updateDocumento('sede', sede);
+    setItems([]);
+    setEditingItem(null);
+    setItemModalOpen(false);
   };
 
   const abrirNuevoItem = () => {
@@ -307,7 +327,7 @@ export default function RegistroBienesModal({
                 ) : (
                   <select
                     value={documento.sede}
-                    onChange={(e) => updateDocumento('sede', e.target.value)}
+                    onChange={(e) => updateSede(e.target.value)}
                     className="input-field"
                   >
                     {sedes.map((sede) => (
@@ -350,7 +370,9 @@ export default function RegistroBienesModal({
                   <Th>Color</Th>
                   <Th>Serial</Th>
                   <Th>Almacén</Th>
+                  <Th>Cantidad</Th>
                   <Th>Valor de adquisición</Th>
+                  <Th>Total</Th>
                   <Th className="text-center w-16">Editar</Th>
                   <Th className="text-center w-20">
                     <button
@@ -368,7 +390,7 @@ export default function RegistroBienesModal({
               <tbody>
                 {items.length === 0 ? (
                   <tr>
-                    <td colSpan={10} className="px-4 py-10 text-center text-sm text-gray-400">
+                    <td colSpan={12} className="px-4 py-10 text-center text-sm text-gray-400">
                       No hay ítems agregados. Use el botón + para registrar cada bien.
                     </td>
                   </tr>
@@ -393,7 +415,9 @@ export default function RegistroBienesModal({
                       <Td>
                         <span className="block max-w-[140px] truncate">{item.almacen}</span>
                       </Td>
+                      <Td>{item.cantidad.toLocaleString('es-VE')}</Td>
                       <Td>{formatMoneda(item.valorAdquisicion, documento.moneda)}</Td>
+                      <Td>{formatMoneda(totalItem(item), documento.moneda)}</Td>
                       <Td className="text-center">
                         <button
                           type="button"
@@ -423,7 +447,8 @@ export default function RegistroBienesModal({
         modulo={modulo}
         item={editingItem}
         almacenOptions={almacenOptions}
-        departamentoOptions={departamentos}
+        departamentoOptions={departamentoOptions}
+        moneda={documento.moneda}
         onSave={guardarItem}
         onDelete={eliminarItem}
       />

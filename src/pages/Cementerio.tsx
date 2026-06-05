@@ -1,23 +1,28 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { toast } from 'sonner';
 import {
   fetchBienCementerioByCodigo,
   fetchBienesCementerio,
 } from '../api/services/bienes-sedes.service';
+import { cambiarEstadoBien } from '../api/services/bienes.service';
 import { fetchAlmacenes } from '../api/services/almacenes.service';
 import { useApiQuery } from '../hooks/useApiQuery';
 import { formatFecha, formatMoneda } from '../utils/formatters';
+import { estadoUsoToApi } from '../utils/registroBienMappers';
 import type { Column } from '../components/DataTable';
 import StatusBadge from '../components/StatusBadge';
 import ApiState from '../components/ApiState';
 import { ImportExcelModal, RegistroBienesCementerioModal } from '../components/modals';
 import ModulePageHeader from '../components/module/ModulePageHeader';
 import ModuleFilterBar from '../components/module/ModuleFilterBar';
+import { FILTROS_INVENTARIO_VACIOS } from '../constants/moduleFilters';
 import ModuleDataTable from '../components/module/ModuleDataTable';
 import ModulePagination from '../components/module/ModulePagination';
 import AssetDetailView from '../components/module/AssetDetailView';
+import { useModuleUiState } from '../stores/moduleUiStore';
 import type { BienMueble } from '../types/bien';
-import { CONDICIONES_FISICAS, ESTADOS_USO } from '../types/bien';
+import { ESTADOS_USO } from '../types/bien';
 import {
   ALMACENES_CEMENTERIO,
   DEPARTAMENTOS_CEMENTERIO,
@@ -47,7 +52,23 @@ function CementerioBienDetail({
   onVolver: () => void;
 }) {
   const [estadoUso, setEstadoUso] = useState(bien.estadoUso);
-  const [condicionFisica, setCondicionFisica] = useState(bien.condicionFisica);
+  const [saving, setSaving] = useState(false);
+
+  const guardarCambio = async () => {
+    setSaving(true);
+    try {
+      await cambiarEstadoBien(bien.id, estadoUsoToApi(estadoUso));
+      toast.success('Cambio guardado', {
+        description: `${bien.codigoInterno}: estado ${estadoUso}.`,
+      });
+    } catch (err) {
+      toast.error('No se pudo guardar el cambio', {
+        description: err instanceof Error ? err.message : 'Intente nuevamente.',
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <AssetDetailView
@@ -99,22 +120,6 @@ function CementerioBienDetail({
                 </select>
               ),
             },
-            {
-              label: 'Condición Física',
-              value: (
-                <select
-                  value={condicionFisica}
-                  onChange={(e) => setCondicionFisica(e.target.value as BienMueble['condicionFisica'])}
-                  className="input-field max-w-xs"
-                >
-                  {CONDICIONES_FISICAS.map((opt) => (
-                    <option key={opt} value={opt}>
-                      {opt}
-                    </option>
-                  ))}
-                </select>
-              ),
-            },
             { label: 'Almacén', value: bien.ubicacion },
             { label: 'Sede', value: bien.sede },
           ],
@@ -142,6 +147,14 @@ function CementerioBienDetail({
           </button>
           <button
             type="button"
+            onClick={guardarCambio}
+            disabled={saving}
+            className="px-5 py-2.5 bg-navy-900 text-white rounded-lg text-sm font-semibold hover:bg-navy-800 disabled:opacity-60"
+          >
+            {saving ? 'Guardando...' : 'Guardar cambio'}
+          </button>
+          <button
+            type="button"
             className="px-5 py-2.5 border border-navy-200 text-navy-800 rounded-lg text-sm font-semibold hover:bg-navy-50"
           >
             Transferir a otro almacén
@@ -161,8 +174,20 @@ function CementerioBienDetail({
 export default function Cementerio() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const [page, setPage] = useState(1);
   const [exportMsg, setExportMsg] = useState('');
+  const {
+    page,
+    filters: filtros,
+    modals,
+    successMsg,
+    errorMsg,
+    setPage,
+    setFilter: setModuleFilter,
+    resetFilters,
+    setModal,
+    setSuccess: setSuccessMsg,
+    setError: setErrorMsg,
+  } = useModuleUiState('cementerio', FILTROS_INVENTARIO_VACIOS);
   const itemId = id ? Number(id) : null;
   const bienesQuery = useApiQuery(() => fetchBienesCementerio({ page: 1, limit: 5000 }), []);
   const almacenesQuery = useApiQuery(() => fetchAlmacenes({ page: 1, limit: 5000 }), []);
@@ -171,20 +196,8 @@ export default function Cementerio() {
     [itemId],
     Boolean(itemId)
   );
-  const [filtros, setFiltros] = useState({
-    codigo: '',
-    descripcion: '',
-    almacen: '',
-    condicionFisica: '',
-    departamento: '',
-    numeroDocumento: '',
-    estadoUso: '',
-    buscar: '',
-  });
-  const [showImport, setShowImport] = useState(false);
-  const [showRegistro, setShowRegistro] = useState(false);
-  const [successMsg, setSuccessMsg] = useState('');
-  const [errorMsg, setErrorMsg] = useState('');
+  const showImport = modals.import ?? false;
+  const showRegistro = modals.registro ?? false;
 
   const bienes = bienesQuery.data?.all ?? bienesQuery.data?.data ?? [];
 
@@ -196,11 +209,6 @@ export default function Cementerio() {
       enUso: fuente.filter((b) => b.estadoUso === 'En uso').length,
       enObsolescencia: fuente.filter((b) => b.estadoUso === 'En obsolescencia').length,
       obsoletos: fuente.filter((b) => b.estadoUso === 'Obsoleto').length,
-      buenos: fuente.filter((b) => b.condicionFisica === 'Bueno').length,
-      regulares: fuente.filter((b) => b.condicionFisica === 'Regular').length,
-      danados: fuente.filter((b) =>
-        ['Dañado', 'Averiado', 'Inservible'].includes(b.condicionFisica)
-      ).length,
     };
   }, [bienes, bienesQuery.data?.meta?.total]);
 
@@ -213,7 +221,6 @@ export default function Cementerio() {
       if (filtros.codigo && !b.codigoInterno.toLowerCase().includes(filtros.codigo.toLowerCase())) return false;
       if (filtros.descripcion && !b.descripcion.toLowerCase().includes(filtros.descripcion.toLowerCase())) return false;
       if (filtros.almacen && filtros.almacen !== 'Todas' && b.ubicacion !== filtros.almacen) return false;
-      if (filtros.condicionFisica && filtros.condicionFisica !== 'Todas' && b.condicionFisica !== filtros.condicionFisica) return false;
       if (filtros.departamento && filtros.departamento !== 'Todos' && b.unidadAdministrativa !== filtros.departamento) return false;
       if (filtros.numeroDocumento && !b.numeroDocumento.includes(filtros.numeroDocumento)) return false;
       if (filtros.estadoUso && filtros.estadoUso !== 'Todos' && b.estadoUso !== filtros.estadoUso) return false;
@@ -234,8 +241,7 @@ export default function Cementerio() {
   const paginatedBienes = filteredBienes.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
   const setFiltro = (key: keyof typeof filtros, value: string) => {
-    setFiltros((prev) => ({ ...prev, [key]: value }));
-    setPage(1);
+    setModuleFilter(key, value);
   };
 
   const simularExportPdf = () => {
@@ -262,11 +268,6 @@ export default function Cementerio() {
     { key: 'sede', label: 'Sede' },
     { key: 'ubicacion', label: 'Almacén' },
     { key: 'estadoUso', label: 'Estado de uso', render: (b) => <StatusBadge status={b.estadoUso} size="sm" /> },
-    {
-      key: 'condicionFisica',
-      label: 'Condición Física',
-      render: (b) => <StatusBadge status={b.condicionFisica} showDot size="sm" />,
-    },
   ];
 
   if (id) {
@@ -282,7 +283,7 @@ export default function Cementerio() {
       <ModulePageHeader
         title="Bienes e Inmuebles: Cementerio"
         breadcrumb={[{ label: 'Dashboard', to: '/dashboard' }, { label: 'Cementerio' }]}
-        onCreate={() => setShowRegistro(true)}
+        onCreate={() => setModal('registro', true)}
         createLabel="Crear Registro"
         extraActions={
           <>
@@ -292,7 +293,7 @@ export default function Cementerio() {
             {errorMsg && <span className="text-sm text-red-600 font-medium self-center">{errorMsg}</span>}
             <button
               type="button"
-              onClick={() => setShowImport(true)}
+              onClick={() => setModal('import', true)}
               className="inline-flex items-center gap-2 px-4 py-2.5 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50"
             >
               <Upload size={16} /> Importar Excel
@@ -359,29 +360,6 @@ export default function Cementerio() {
                 valueClassName="text-red-700"
               />
             </div>
-            <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
-              <CementerioMetricCard
-                label="Condición buena"
-                value={metricas.buenos}
-                icon={<Package size={22} className="text-green-600" />}
-                iconClassName="bg-green-50"
-                valueClassName="text-green-800"
-              />
-              <CementerioMetricCard
-                label="Condición regular"
-                value={metricas.regulares}
-                icon={<AlertTriangle size={22} className="text-amber-500" />}
-                iconClassName="bg-amber-50"
-                valueClassName="text-amber-800"
-              />
-              <CementerioMetricCard
-                label="Condición dañada"
-                value={metricas.danados}
-                icon={<AlertCircle size={22} className="text-red-500" />}
-                iconClassName="bg-red-50"
-                valueClassName="text-red-800"
-              />
-            </div>
             {metricas.total === 0 && (
               <p className="mt-4 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
                 No hay bienes asociados a la sede Cementerio en el backend. Las métricas mostrarán valores cuando existan registros.
@@ -392,6 +370,9 @@ export default function Cementerio() {
       </section>
 
       <ModuleFilterBar
+        onClearFilters={() => {
+          resetFilters();
+        }}
         fields={[
           { key: 'codigo', label: 'Código', type: 'text', value: filtros.codigo, onChange: (v) => setFiltro('codigo', v) },
           { key: 'descripcion', label: 'Descripción', type: 'text', value: filtros.descripcion, onChange: (v) => setFiltro('descripcion', v) },
@@ -402,14 +383,6 @@ export default function Cementerio() {
             value: filtros.almacen,
             onChange: (v) => setFiltro('almacen', v),
             options: almacenOptions,
-          },
-          {
-            key: 'condicion',
-            label: 'Condición Física',
-            type: 'select',
-            value: filtros.condicionFisica,
-            onChange: (v) => setFiltro('condicionFisica', v),
-            options: ['Todas', ...CONDICIONES_FISICAS],
           },
           {
             key: 'departamento',
@@ -477,11 +450,10 @@ export default function Cementerio() {
 
       <RegistroBienesCementerioModal
         open={showRegistro}
-        onClose={() => setShowRegistro(false)}
+        onClose={() => setModal('registro', false)}
         almacenes={almacenesQuery.data?.data ?? []}
         onSuccess={(message) => {
           bienesQuery.refetch();
-          setErrorMsg('');
           setSuccessMsg(message);
           setTimeout(() => setSuccessMsg(''), 4000);
         }}
@@ -490,7 +462,7 @@ export default function Cementerio() {
 
       <ImportExcelModal
         open={showImport}
-        onClose={() => setShowImport(false)}
+        onClose={() => setModal('import', false)}
         tiposDisponibles={['Bienes Cementerio']}
       />
     </div>

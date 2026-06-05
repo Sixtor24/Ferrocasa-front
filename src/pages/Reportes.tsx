@@ -204,6 +204,12 @@ export default function Reportes() {
     return list;
   }, [reporteActivos, categoriasSeleccionadas, tipoMovimiento, busqueda]);
 
+  const limpiarFiltrosReporte = () => {
+    setCategoriasSeleccionadas([]);
+    setTipoMovimiento(TIPOS_MOVIMIENTO_REPORTE[0]);
+    setBusqueda('');
+  };
+
   const handleGenerar = () => {
     setGenerado(false);
     setTimeout(() => setGenerado(true), 900);
@@ -354,6 +360,14 @@ export default function Reportes() {
               className="w-full bg-navy-900 text-white py-2.5 rounded-lg font-medium hover:bg-navy-800 transition-colors flex items-center justify-center gap-2 text-sm">
               <RefreshCw size={15} />
               Generar Reporte
+            </button>
+
+            <button
+              type="button"
+              onClick={limpiarFiltrosReporte}
+              className="w-full border border-gray-200 text-gray-600 py-2.5 rounded-lg font-medium hover:bg-gray-50 transition-colors text-sm"
+            >
+              Limpiar filtros
             </button>
           </div>
         </div>

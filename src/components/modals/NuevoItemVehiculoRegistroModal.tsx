@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Modal from './Modal';
+import CurrencyAmountInput from '../forms/CurrencyAmountInput';
+import FlexibleIntegerInput from '../forms/FlexibleIntegerInput';
 import ModalField from './ModalField';
 import {
   fetchCategoriasEspecificasBySubcategoriaId,
@@ -9,19 +11,22 @@ import {
 import { fetchDepartamentos, fetchDepartamentoResponsables } from '../../api/services/departamentos.service';
 import type { ItemVehiculoRegistroDraft } from '../../types/registroVehiculoItem';
 import { CONDICIONES_VEHICULO, ESTADOS_USO_VEHICULO, type CondicionVehiculo, type EstadoUsoVehiculo } from '../../types/vehiculo';
-import { DEPARTAMENTOS_BIENES_ADMINISTRATIVOS } from '../../data/bienesCatalogos';
 import {
   itemVehiculoDraftToFormInput,
   itemVehiculoRegistroFormSchema,
 } from '../../schemas/registroVehiculo.schema';
 import { validarConZod } from '../../utils/validators';
+import { formatMoneda } from '../../utils/formatters';
 import { normalizeCatalogValue } from '../../utils/registroBienMappers';
+import type { MonedaRegistro } from '../../types/registroBienItem';
 
 type NuevoItemVehiculoRegistroModalProps = {
   open: boolean;
   onClose: () => void;
   item: ItemVehiculoRegistroDraft | null;
   almacenOptions: string[];
+  departamentoOptions: readonly string[];
+  moneda: MonedaRegistro;
   onSave: (item: ItemVehiculoRegistroDraft) => void;
   onDelete?: (key: string) => void;
 };
@@ -43,7 +48,7 @@ function createEmptyItem(
     anioFabricacion: new Date().getFullYear(),
     serialMotor: '',
     serialCarroceria: '',
-    cantidad: 1,
+    cantidad: 0,
     valorAdquisicion: 0,
     unidadAdministrativa: unidadDefault,
     responsable: '',
@@ -66,10 +71,12 @@ export default function NuevoItemVehiculoRegistroModal({
   onClose,
   item,
   almacenOptions,
+  departamentoOptions,
+  moneda,
   onSave,
   onDelete,
 }: NuevoItemVehiculoRegistroModalProps) {
-  const unidadDefault = DEPARTAMENTOS_BIENES_ADMINISTRATIVOS[0];
+  const unidadDefault = departamentoOptions[0] ?? '';
   const almacenDefault = almacenOptions[0] ?? '';
 
   const [form, setForm] = useState<ItemVehiculoRegistroDraft>(() =>
@@ -140,10 +147,11 @@ export default function NuevoItemVehiculoRegistroModal({
   }, [open, form.idSubcategoria]);
 
   const departamentosSelect = useMemo(() => {
-    const fromCatalog = [...DEPARTAMENTOS_BIENES_ADMINISTRATIVOS];
+    const fromCatalog = [...departamentoOptions];
     if (fromCatalog.length > 0) return fromCatalog;
     return departamentosApi.map((d) => d.nombre);
-  }, [departamentosApi]);
+  }, [departamentoOptions, departamentosApi]);
+  const totalCalculado = (form.cantidad || 0) * (form.valorAdquisicion || 0);
 
   const updateForm = <K extends keyof ItemVehiculoRegistroDraft>(
     key: K,
@@ -319,13 +327,11 @@ export default function NuevoItemVehiculoRegistroModal({
               />
             </ModalField>
             <ModalField label="Año de fabricación *" error={errors.anioFabricacion}>
-              <input
-                type="number"
-                min={1900}
-                max={2100}
+              <FlexibleIntegerInput
                 value={form.anioFabricacion}
-                onChange={(e) => updateForm('anioFabricacion', Number(e.target.value) || new Date().getFullYear())}
+                onChange={(value) => updateForm('anioFabricacion', value)}
                 className="input-field w-full"
+                placeholder={String(new Date().getFullYear())}
               />
             </ModalField>
             <ModalField label="Serial del motor" error={errors.serialMotor}>
@@ -343,23 +349,23 @@ export default function NuevoItemVehiculoRegistroModal({
               />
             </ModalField>
             <ModalField label="Cantidad *" error={errors.cantidad}>
-              <input
-                type="number"
-                min={1}
+              <FlexibleIntegerInput
                 value={form.cantidad}
-                onChange={(e) => updateForm('cantidad', Number(e.target.value) || 1)}
+                onChange={(value) => updateForm('cantidad', value)}
                 className="input-field w-full"
               />
             </ModalField>
             <ModalField label="Valor de Adquisición *" error={errors.valorAdquisicion}>
-              <input
-                type="number"
-                min={0}
-                step="0.01"
+              <CurrencyAmountInput
                 value={form.valorAdquisicion}
-                onChange={(e) => updateForm('valorAdquisicion', Number(e.target.value) || 0)}
+                onChange={(value) => updateForm('valorAdquisicion', value)}
                 className="input-field w-full"
               />
+            </ModalField>
+            <ModalField label="Total calculado">
+              <div className="input-field w-full bg-gray-50 font-semibold text-navy-900">
+                {formatMoneda(totalCalculado, moneda)}
+              </div>
             </ModalField>
             <ModalField label="Unidad Administrativa *" error={errors.unidadAdministrativa}>
               <select

@@ -1,10 +1,17 @@
 import { z } from 'zod';
 import type { ItemRegistroDraft } from '../types/registroBienItem';
+import type { CondicionFisica } from '../types/bien';
 
 const codigoInvalido = (valor: string) => {
   const normalizado = valor.trim().toUpperCase();
   return normalizado.length > 0 && !['S/C', 'S/C/', 'SC'].includes(normalizado);
 };
+
+function normalizeCondicionFisica(condicion: CondicionFisica): 'Bueno' | 'Regular' | 'Dañado' {
+  return condicion === 'Bueno' || condicion === 'Regular' || condicion === 'Dañado'
+    ? condicion
+    : 'Dañado';
+}
 
 export const documentoRegistroFormSchema = z.object({
   nombreProveedor: z.string().trim().min(1, 'Indique el nombre del proveedor'),
@@ -25,7 +32,7 @@ export const itemRegistroFormSchema = z
       .refine(codigoInvalido, { message: 'Debe indicar un código válido del bien' }),
     descripcion: z.string().trim().min(1, 'La descripción es obligatoria'),
     color: z.string().optional().default(''),
-    cantidad: z.coerce.number().int('La cantidad debe ser entera').min(1, 'La cantidad mínima es 1'),
+    cantidad: z.coerce.number().int('La cantidad debe ser entera').min(0, 'La cantidad no puede ser negativa'),
     unidadAdministrativa: z.string().min(1, 'Seleccione la unidad administrativa'),
     idCategoriaGeneral: z.coerce
       .number()
@@ -72,7 +79,7 @@ export function itemDraftToFormInput(item: ItemRegistroDraft): ItemRegistroForm 
     almacen: item.almacen,
     observaciones: item.observaciones,
     consumibilidad: item.consumibilidad,
-    condicionFisica: item.condicionFisica,
+    condicionFisica: normalizeCondicionFisica(item.condicionFisica),
   };
 }
 

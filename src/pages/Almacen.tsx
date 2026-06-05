@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { toast } from 'sonner';
 import { fetchAlmacenes } from '../api/services/almacenes.service';
+import { cambiarEstadoBien } from '../api/services/bienes.service';
 import {
   fetchBienAdministrativoByCodigo,
   fetchBienesAdministrativos,
@@ -9,6 +11,7 @@ import { useApiQuery } from '../hooks/useApiQuery';
 import ApiState from '../components/ApiState';
 import AssetDetailView from '../components/module/AssetDetailView';
 import ModuleFilterBar from '../components/module/ModuleFilterBar';
+import { FILTROS_INVENTARIO_VACIOS } from '../constants/moduleFilters';
 import ModuleDataTable from '../components/module/ModuleDataTable';
 import ModulePagination from '../components/module/ModulePagination';
 import {
@@ -20,6 +23,8 @@ import {
   DEPARTAMENTOS_BIENES_ADMINISTRATIVOS,
 } from '../data/bienesCatalogos';
 import { formatFecha, formatMoneda } from '../utils/formatters';
+import { estadoUsoToApi } from '../utils/registroBienMappers';
+import { useModuleUiState } from '../stores/moduleUiStore';
 import type { Column } from '../components/DataTable';
 import StatusBadge from '../components/StatusBadge';
 import { ImportExcelModal, RegistroBienesAdministrativosModal } from '../components/modals';
@@ -45,6 +50,23 @@ function proveedorDesdeBien(bien: BienMueble) {
 function AlmacenBienDetail({ bien, onVolver }: { bien: BienMueble; onVolver: () => void }) {
   const [estadoUso, setEstadoUso] = useState(bien.estadoUso);
   const [condicionFisica, setCondicionFisica] = useState(bien.condicionFisica);
+  const [saving, setSaving] = useState(false);
+
+  const guardarCambio = async () => {
+    setSaving(true);
+    try {
+      await cambiarEstadoBien(bien.id, estadoUsoToApi(estadoUso));
+      toast.success('Cambio guardado', {
+        description: `${bien.codigoInterno}: estado ${estadoUso}.`,
+      });
+    } catch (err) {
+      toast.error('No se pudo guardar el cambio', {
+        description: err instanceof Error ? err.message : 'Intente nuevamente.',
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <AssetDetailView
@@ -139,6 +161,14 @@ function AlmacenBienDetail({ bien, onVolver }: { bien: BienMueble; onVolver: () 
           </button>
           <button
             type="button"
+            onClick={guardarCambio}
+            disabled={saving}
+            className="px-5 py-2.5 bg-navy-900 text-white rounded-lg text-sm font-semibold hover:bg-navy-800 disabled:opacity-60"
+          >
+            {saving ? 'Guardando...' : 'Guardar cambio'}
+          </button>
+          <button
+            type="button"
             className="px-5 py-2.5 border border-navy-200 text-navy-800 rounded-lg text-sm font-semibold hover:bg-navy-50"
           >
             Transferir a otro almacén
@@ -158,18 +188,20 @@ function AlmacenBienDetail({ bien, onVolver }: { bien: BienMueble; onVolver: () 
 export default function Almacen() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const [page, setPage] = useState(1);
   const [exportMsg, setExportMsg] = useState('');
-  const [filtros, setFiltros] = useState({
-    codigo: '',
-    descripcion: '',
-    almacen: '',
-    condicionFisica: '',
-    departamento: '',
-    numeroDocumento: '',
-    estadoUso: '',
-    buscar: '',
-  });
+  const {
+    page,
+    filters: filtros,
+    modals,
+    successMsg,
+    errorMsg,
+    setPage,
+    setFilter: setModuleFilter,
+    resetFilters,
+    setModal,
+    setSuccess: setSuccessMsg,
+    setError: setErrorMsg,
+  } = useModuleUiState('almacen', FILTROS_INVENTARIO_VACIOS);
 
   const bienesQuery = useApiQuery(() => fetchBienesAdministrativos({ page: 1, limit: 5000 }), []);
   const almacenesQuery = useApiQuery(() => fetchAlmacenes({ page: 1, limit: 5000 }), []);
@@ -180,10 +212,8 @@ export default function Almacen() {
   );
   const lista = bienesQuery.data?.all ?? bienesQuery.data?.data ?? [];
   const displayList = lista;
-  const [showModal, setShowModal] = useState(false);
-  const [showImport, setShowImport] = useState(false);
-  const [successMsg, setSuccessMsg] = useState('');
-  const [errorMsg, setErrorMsg] = useState('');
+  const showModal = modals.registro ?? false;
+  const showImport = modals.import ?? false;
 
   const bienesStats = useMemo(() => ({
     total: displayList.length,
@@ -221,8 +251,7 @@ export default function Almacen() {
   const paginated = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
   const setFiltro = (key: keyof typeof filtros, value: string) => {
-    setFiltros((prev) => ({ ...prev, [key]: value }));
-    setPage(1);
+    setModuleFilter(key, value);
   };
 
   const simularExportPdf = () => {
@@ -291,12 +320,12 @@ export default function Almacen() {
       <ModulePageHeader
         title="Bienes e Inmuebles Administrativos"
         breadcrumb={[{ label: 'Dashboard', to: '/dashboard' }, { label: 'Bienes en Edificio Administrativo' }]}
-        onCreate={() => setShowModal(true)}
+        onCreate={() => setModal('registro', true)}
         extraActions={
           <>
             {successMsg && <span className="text-sm text-green-600 font-medium animate-pulse self-center">{successMsg}</span>}
             {errorMsg && <span className="text-sm text-red-600 font-medium self-center">{errorMsg}</span>}
-            <button type="button" onClick={() => setShowImport(true)} className="inline-flex items-center gap-2 px-4 py-2.5 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50">
+            <button type="button" onClick={() => setModal('import', true)} className="inline-flex items-center gap-2 px-4 py-2.5 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50">
               <Upload size={16} /> Importar Excel
             </button>
           </>
@@ -336,6 +365,9 @@ export default function Almacen() {
       </div>
 
       <ModuleFilterBar
+        onClearFilters={() => {
+          resetFilters();
+        }}
         fields={[
           { key: 'codigo', label: 'Código', type: 'text', value: filtros.codigo, onChange: (v) => setFiltro('codigo', v) },
           { key: 'descripcion', label: 'Descripción', type: 'text', value: filtros.descripcion, onChange: (v) => setFiltro('descripcion', v) },
@@ -420,11 +452,10 @@ export default function Almacen() {
 
       <RegistroBienesAdministrativosModal
         open={showModal}
-        onClose={() => setShowModal(false)}
+        onClose={() => setModal('registro', false)}
         almacenes={almacenesQuery.data?.data ?? []}
         onSuccess={(message) => {
           bienesQuery.refetch();
-          setErrorMsg('');
           setSuccessMsg(message);
           setTimeout(() => setSuccessMsg(''), 4000);
         }}
@@ -433,7 +464,7 @@ export default function Almacen() {
 
       <ImportExcelModal
         open={showImport}
-        onClose={() => setShowImport(false)}
+        onClose={() => setModal('import', false)}
         tiposDisponibles={['Bienes Muebles SUDEBIP', 'Inventario por Área']}
       />
     </div>
