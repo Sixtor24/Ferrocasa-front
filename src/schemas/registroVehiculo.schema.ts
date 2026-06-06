@@ -1,17 +1,7 @@
 import { z } from 'zod';
 import type { ItemVehiculoRegistroDraft } from '../types/registroVehiculoItem';
 
-const codigoInvalido = (valor: string) => {
-  const normalizado = valor.trim().toUpperCase();
-  return normalizado.length > 0 && !['S/C', 'S/C/', 'SC'].includes(normalizado);
-};
-
 export const itemVehiculoRegistroFormSchema = z.object({
-  codigoInterno: z
-    .string()
-    .trim()
-    .min(1, 'El código es obligatorio')
-    .refine(codigoInvalido, { message: 'Debe indicar un código válido del vehículo' }),
   placa: z.string().trim().min(1, 'La placa es obligatoria'),
   descripcion: z.string().trim().min(1, 'La descripción es obligatoria'),
   marca: z.string().optional().default(''),
@@ -20,7 +10,8 @@ export const itemVehiculoRegistroFormSchema = z.object({
   anioFabricacion: z.coerce
     .number({ error: 'Indique el año de fabricación' })
     .int()
-    .min(0, 'El año no puede ser negativo'),
+    .min(1900, 'El año debe ser 1900 o posterior')
+    .max(2100, 'El año no puede ser mayor a 2100'),
   serialMotor: z.string().optional().default(''),
   serialCarroceria: z.string().optional().default(''),
   cantidad: z.coerce.number().int().min(0, 'La cantidad no puede ser negativa'),
@@ -41,7 +32,6 @@ export type ItemVehiculoRegistroForm = z.infer<typeof itemVehiculoRegistroFormSc
 
 export function itemVehiculoDraftToFormInput(item: ItemVehiculoRegistroDraft): ItemVehiculoRegistroForm {
   return {
-    codigoInterno: item.codigoInterno,
     placa: item.placa,
     descripcion: item.descripcion,
     marca: item.marca,

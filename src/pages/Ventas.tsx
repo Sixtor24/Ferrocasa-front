@@ -24,6 +24,7 @@ import {
   Filter,
   Eye,
 } from 'lucide-react';
+import SearchableSelect from '../components/forms/SearchableSelect';
 
 const estatusStyle: Record<string, string> = {
   COMPLETADA: 'bg-green-100 text-green-700',
@@ -40,6 +41,7 @@ export default function Ventas() {
   const [filtroEstatus, setFiltroEstatus] = useState('Todos');
   const [filtroProyecto, setFiltroProyecto] = useState('Todos los proyectos');
   const [filtroPago, setFiltroPago] = useState('Todos');
+  const [filtroFecha, setFiltroFecha] = useState('');
   const [pagina, setPagina] = useState(1);
   const [showFilters, setShowFilters] = useState(false);
   const [exportMsg, setExportMsg] = useState('');
@@ -50,6 +52,10 @@ export default function Ventas() {
       if (filtroEstatus !== 'Todos' && v.estatus !== filtroEstatus) return false;
       if (filtroProyecto !== 'Todos los proyectos' && v.proyecto !== filtroProyecto) return false;
       if (filtroPago !== 'Todos' && v.metodoPago !== filtroPago) return false;
+      if (filtroFecha) {
+        const [year, month, day] = filtroFecha.split('-');
+        if (v.fecha !== `${day}/${month}/${year}`) return false;
+      }
       if (busqueda) {
         const q = busqueda.toLowerCase();
         return (
@@ -61,18 +67,19 @@ export default function Ventas() {
       }
       return true;
     });
-  }, [busqueda, filtroEstatus, filtroProyecto, filtroPago]);
+  }, [busqueda, filtroEstatus, filtroProyecto, filtroPago, filtroFecha]);
 
   const totalPaginas = Math.max(1, Math.ceil(filtrados.length / PER_PAGE));
   const paginaActual = Math.min(pagina, totalPaginas);
   const paginados = filtrados.slice((paginaActual - 1) * PER_PAGE, paginaActual * PER_PAGE);
 
-  const hayFiltros = filtroEstatus !== 'Todos' || filtroProyecto !== 'Todos los proyectos' || filtroPago !== 'Todos' || busqueda !== '';
+  const hayFiltros = filtroEstatus !== 'Todos' || filtroProyecto !== 'Todos los proyectos' || filtroPago !== 'Todos' || filtroFecha !== '' || busqueda !== '';
 
   const limpiar = () => {
     setFiltroEstatus('Todos');
     setFiltroProyecto('Todos los proyectos');
     setFiltroPago('Todos');
+    setFiltroFecha('');
     setBusqueda('');
     setPagina(1);
   };
@@ -150,29 +157,29 @@ export default function Ventas() {
 
       {/* Filter panel */}
       {showFilters && (
-        <div className="bg-white rounded-xl border border-gray-200 p-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="bg-white rounded-xl border border-gray-200 p-4 grid grid-cols-1 sm:grid-cols-4 gap-4">
           <div>
             <label className="text-xs font-medium text-gray-500 uppercase mb-1.5 block">Estatus</label>
-            <select value={filtroEstatus} onChange={(e) => { setFiltroEstatus(e.target.value); setPagina(1); }}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-navy-500">
-              {estatusVenta.map((e) => <option key={e}>{e}</option>)}
-            </select>
+            <SearchableSelect value={filtroEstatus} onChange={(value) => { setFiltroEstatus(value); setPagina(1); }} options={estatusVenta} />
           </div>
           <div>
             <label className="text-xs font-medium text-gray-500 uppercase mb-1.5 block">Proyecto</label>
-            <select value={filtroProyecto} onChange={(e) => { setFiltroProyecto(e.target.value); setPagina(1); }}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-navy-500">
-              {proyectosVenta.map((p) => <option key={p}>{p}</option>)}
-            </select>
+            <SearchableSelect value={filtroProyecto} onChange={(value) => { setFiltroProyecto(value); setPagina(1); }} options={proyectosVenta} />
           </div>
           <div>
             <label className="text-xs font-medium text-gray-500 uppercase mb-1.5 block">Método Pago</label>
-            <select value={filtroPago} onChange={(e) => { setFiltroPago(e.target.value); setPagina(1); }}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-navy-500">
-              {metodosPago.map((m) => <option key={m}>{m}</option>)}
-            </select>
+            <SearchableSelect value={filtroPago} onChange={(value) => { setFiltroPago(value); setPagina(1); }} options={metodosPago} />
           </div>
-          <div className="sm:col-span-3 flex justify-end">
+          <div>
+            <label className="text-xs font-medium text-gray-500 uppercase mb-1.5 block">Fecha</label>
+            <input
+              type="date"
+              value={filtroFecha}
+              onChange={(e) => { setFiltroFecha(e.target.value); setPagina(1); }}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-navy-500"
+            />
+          </div>
+          <div className="sm:col-span-4 flex justify-end">
             <button
               type="button"
               onClick={limpiar}
@@ -201,6 +208,11 @@ export default function Ventas() {
           {filtroPago !== 'Todos' && (
             <span className="bg-navy-100 text-navy-800 text-xs font-medium px-2.5 py-1 rounded-full flex items-center gap-1">
               {filtroPago} <X size={12} className="cursor-pointer" onClick={() => setFiltroPago('Todos')} />
+            </span>
+          )}
+          {filtroFecha && (
+            <span className="bg-navy-100 text-navy-800 text-xs font-medium px-2.5 py-1 rounded-full flex items-center gap-1">
+              {filtroFecha} <X size={12} className="cursor-pointer" onClick={() => setFiltroFecha('')} />
             </span>
           )}
           {busqueda && (

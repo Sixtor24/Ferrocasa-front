@@ -1,4 +1,4 @@
-import type { CondicionFisica, EstadoUso } from '../../types/bien';
+import type { CondicionFisica, EstadoUso, FormaAdquisicion } from '../../types/bien';
 import type { CondicionVehiculo, EstadoUsoVehiculo } from '../../types/vehiculo';
 
 export function mapEstadoUsoBien(api: string): EstadoUso {
@@ -39,6 +39,31 @@ export function mapLevantamientoTopografico(api: string): 'Sí' | 'No' | 'En tr�
 export function mapAcreditacionAmbiental(api: string): 'Sí' | 'No' | 'En trámite' {
   if (api === 'Si_posee') return 'Sí';
   return 'No';
+}
+
+export function mapFormaAdquisicion(api?: string | null): FormaAdquisicion {
+  const map: Record<string, FormaAdquisicion> = {
+    Compra: 'Compra',
+    Donacion: 'Donación',
+    Confiscacion: 'Confiscación',
+  };
+  return map[api ?? ''] ?? 'Desconocida';
+}
+
+export function isSinCodigoBien(codigo: string): boolean {
+  const normalizado = codigo.trim().toUpperCase();
+  return (
+    normalizado.length === 0 ||
+    normalizado === 'S/C' ||
+    normalizado === 'S/C/' ||
+    normalizado === 'SC' ||
+    normalizado.startsWith('SC/')
+  );
+}
+
+export function isSinSerialBien(serial?: string | null): boolean {
+  const normalizado = (serial ?? '').trim().toUpperCase();
+  return normalizado.length === 0 || normalizado === 'S/S';
 }
 
 export function mapMoneda(api?: string | null): 'Bs' | 'USD' | 'EUR' {

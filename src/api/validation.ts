@@ -57,7 +57,12 @@ function relationArrayResponse(schema: z.ZodTypeAny) {
   return z.union([itemResponseSchema(z.array(schema)), listResponseSchema(schema)]);
 }
 
-export function getResponseSchema(path: string) {
+function listOrCreateResponse(method: string, itemSchema: z.ZodTypeAny) {
+  if (method === 'POST') return itemResponseSchema(itemSchema);
+  return listResponseSchema(itemSchema);
+}
+
+export function getResponseSchema(path: string, method = 'GET') {
   const p = normalizePath(path);
 
   if (p === '/auth/login' || p === '/auth/refresh-token') return itemResponseSchema(authSessionSchema);
@@ -67,74 +72,76 @@ export function getResponseSchema(path: string) {
     message: z.string().optional(),
   }).passthrough();
 
-  if (p === '/usuarios') return listResponseSchema(usuarioSchema);
+  if (p === '/usuarios') return listOrCreateResponse(method, usuarioSchema);
   if (p.startsWith('/usuarios/rol/')) return relationArrayResponse(usuarioSchema);
   if (p.endsWith('/activar') && p.startsWith('/usuarios/')) return itemResponseSchema(usuarioSchema);
   if (p.startsWith('/usuarios/')) return itemResponseSchema(usuarioSchema);
 
-  if (p === '/roles') return listResponseSchema(rolSchema);
+  if (p === '/roles') return listOrCreateResponse(method, rolSchema);
   if (p.endsWith('/usuarios') && p.startsWith('/roles/')) return relationArrayResponse(usuarioSchema);
   if (p.startsWith('/roles/')) return itemResponseSchema(rolSchema);
 
   if (p === '/bienes/estadisticas') return itemResponseSchema(bienesStatsSchema);
   if (p.startsWith('/bienes/') && p !== '/bienes/vencidos') return itemResponseSchema(bienSchema);
-  if (p === '/bienes') return listResponseSchema(bienSchema);
+  if (p === '/bienes') return listOrCreateResponse(method, bienSchema);
   if (p === '/bienes/vencidos' || p.startsWith('/bienes/almacen/') || p.startsWith('/bienes/categoria/') || p.startsWith('/bienes/estado/')) {
     return relationArrayResponse(bienSchema);
   }
 
   if (p === '/vehiculos/estadisticas') return itemResponseSchema(vehiculosStatsSchema);
-  if (p === '/vehiculos') return listResponseSchema(vehiculoSchema);
+  if (p === '/vehiculos') return listOrCreateResponse(method, vehiculoSchema);
   if (p === '/vehiculos/disponibles' || p.startsWith('/vehiculos/responsable/') || p.startsWith('/vehiculos/almacen/')) {
     return relationArrayResponse(vehiculoSchema);
   }
   if (p.startsWith('/vehiculos/')) return itemResponseSchema(vehiculoSchema);
 
   if (p === '/parcelas/estadisticas') return itemResponseSchema(parcelasStatsSchema);
-  if (p === '/parcelas' || p === '/parcelas/buscar') return listResponseSchema(parcelaSchema);
+  if (p === '/parcelas' || p === '/parcelas/buscar') return listOrCreateResponse(method, parcelaSchema);
   if (p === '/parcelas/disponibles' || p === '/parcelas/comprometidas' || p === '/parcelas/desincorporadas' || p.startsWith('/parcelas/responsable/')) {
     return relationArrayResponse(parcelaSchema);
   }
   if (p.startsWith('/parcelas/')) return itemResponseSchema(parcelaSchema);
 
-  if (p === '/propiedades' || p === '/propiedades/buscar') return listResponseSchema(propiedadSchema);
+  if (p === '/propiedades' || p === '/propiedades/buscar') return listOrCreateResponse(method, propiedadSchema);
   if (p.endsWith('/parcelas') && p.startsWith('/propiedades/')) return relationArrayResponse(parcelaSchema);
   if (p.startsWith('/propiedades/')) return itemResponseSchema(propiedadSchema);
 
-  if (p === '/documentos-propiedad') return listResponseSchema(documentoPropiedadSchema);
+  if (p === '/documentos-propiedad') return listOrCreateResponse(method, documentoPropiedadSchema);
   if (p.startsWith('/documentos-propiedad/propiedad/')) return relationArrayResponse(documentoPropiedadSchema);
   if (p.endsWith('/parcelas') && p.startsWith('/documentos-propiedad/')) return relationArrayResponse(parcelaSchema);
   if (p.startsWith('/documentos-propiedad/')) return itemResponseSchema(documentoPropiedadSchema);
 
-  if (p === '/protocolos') return listResponseSchema(protocoloSchema);
+  if (p === '/protocolos') return listOrCreateResponse(method, protocoloSchema);
   if (p.startsWith('/protocolos/motivo/')) return relationArrayResponse(protocoloSchema);
   if (p.endsWith('/desincorporaciones') && p.startsWith('/protocolos/')) return relationArrayResponse(desincorporacionSchema);
   if (p.endsWith('/compromisos') && p.startsWith('/protocolos/')) return relationArrayResponse(compromisoSchema);
   if (p.startsWith('/protocolos/')) return itemResponseSchema(protocoloSchema);
 
-  if (p === '/desincorporaciones' || p === '/desincorporaciones/rango-fechas') return listResponseSchema(desincorporacionSchema);
+  if (p === '/desincorporaciones' || p === '/desincorporaciones/rango-fechas') {
+    return listOrCreateResponse(method, desincorporacionSchema);
+  }
   if (p.startsWith('/desincorporaciones/protocolo/') || p.startsWith('/desincorporaciones/parcela/')) return relationArrayResponse(desincorporacionSchema);
   if (p.startsWith('/desincorporaciones/')) return itemResponseSchema(desincorporacionSchema);
 
-  if (p === '/compromisos') return listResponseSchema(compromisoSchema);
+  if (p === '/compromisos') return listOrCreateResponse(method, compromisoSchema);
   if (p === '/compromisos/activos' || p.startsWith('/compromisos/protocolo/') || p.startsWith('/compromisos/parcela/')) return relationArrayResponse(compromisoSchema);
   if (p.startsWith('/compromisos/')) return itemResponseSchema(compromisoSchema);
 
-  if (p === '/sedes') return listResponseSchema(sedeSchema);
+  if (p === '/sedes') return listOrCreateResponse(method, sedeSchema);
   if (p.endsWith('/almacenes') && p.startsWith('/sedes/')) return relationArrayResponse(almacenSchema);
   if (p.endsWith('/departamentos') && p.startsWith('/sedes/')) return relationArrayResponse(departamentoSchema);
   if (p.endsWith('/bienes') && p.startsWith('/sedes/')) return relationArrayResponse(bienSchema);
   if (p.endsWith('/vehiculos') && p.startsWith('/sedes/')) return relationArrayResponse(vehiculoSchema);
   if (p.startsWith('/sedes/')) return itemResponseSchema(sedeSchema);
 
-  if (p === '/departamentos') return listResponseSchema(departamentoSchema);
+  if (p === '/departamentos') return listOrCreateResponse(method, departamentoSchema);
   if (p.startsWith('/departamentos/sede/')) return relationArrayResponse(departamentoSchema);
   if (p.endsWith('/responsables') && p.startsWith('/departamentos/')) return relationArrayResponse(responsableSchema);
   if (p.endsWith('/bienes') && p.startsWith('/departamentos/')) return relationArrayResponse(bienSchema);
   if (p.endsWith('/vehiculos') && p.startsWith('/departamentos/')) return relationArrayResponse(vehiculoSchema);
   if (p.startsWith('/departamentos/')) return itemResponseSchema(departamentoSchema);
 
-  if (p === '/responsables') return listResponseSchema(responsableSchema);
+  if (p === '/responsables') return listOrCreateResponse(method, responsableSchema);
   if (p.startsWith('/responsables/departamento/')) return relationArrayResponse(responsableSchema);
   if (p.endsWith('/almacenes') && p.startsWith('/responsables/')) return relationArrayResponse(almacenSchema);
   if (p.endsWith('/bienes') && p.startsWith('/responsables/')) return relationArrayResponse(bienSchema);
@@ -142,26 +149,26 @@ export function getResponseSchema(path: string) {
   if (p.endsWith('/parcelas') && p.startsWith('/responsables/')) return relationArrayResponse(parcelaSchema);
   if (p.startsWith('/responsables/')) return itemResponseSchema(responsableSchema);
 
-  if (p === '/almacenes') return listResponseSchema(almacenSchema);
+  if (p === '/almacenes') return listOrCreateResponse(method, almacenSchema);
   if (p === '/almacenes/disponibles' || p.startsWith('/almacenes/sede/') || p.startsWith('/almacenes/responsable/')) return relationArrayResponse(almacenSchema);
   if (p.endsWith('/bienes') && p.startsWith('/almacenes/')) return relationArrayResponse(bienSchema);
   if (p.endsWith('/vehiculos') && p.startsWith('/almacenes/')) return relationArrayResponse(vehiculoSchema);
   if (p.startsWith('/almacenes/')) return itemResponseSchema(almacenSchema);
 
-  if (p === '/categorias/general') return listResponseSchema(categoriaGeneralSchema);
+  if (p === '/categorias/general') return listOrCreateResponse(method, categoriaGeneralSchema);
   if (p.endsWith('/subcategorias') && p.startsWith('/categorias/general/')) return relationArrayResponse(subcategoriaSchema);
   if (p.startsWith('/categorias/general/')) return itemResponseSchema(categoriaGeneralSchema);
-  if (p === '/categorias/subcategoria') return listResponseSchema(subcategoriaSchema);
+  if (p === '/categorias/subcategoria') return listOrCreateResponse(method, subcategoriaSchema);
   if (p.startsWith('/categorias/subcategoria/general/')) return relationArrayResponse(subcategoriaSchema);
   if (p.endsWith('/especificas') && p.startsWith('/categorias/subcategoria/')) return relationArrayResponse(categoriaEspecificaSchema);
   if (p.startsWith('/categorias/subcategoria/')) return itemResponseSchema(subcategoriaSchema);
-  if (p === '/categorias/especifica') return listResponseSchema(categoriaEspecificaSchema);
+  if (p === '/categorias/especifica') return listOrCreateResponse(method, categoriaEspecificaSchema);
   if (p.startsWith('/categorias/especifica/subcategoria/')) return relationArrayResponse(categoriaEspecificaSchema);
   if (p.endsWith('/bienes') && p.startsWith('/categorias/especifica/')) return relationArrayResponse(bienSchema);
   if (p.endsWith('/vehiculos') && p.startsWith('/categorias/especifica/')) return relationArrayResponse(vehiculoSchema);
   if (p.startsWith('/categorias/especifica/')) return itemResponseSchema(categoriaEspecificaSchema);
 
-  if (p === '/documentos') return listResponseSchema(documentoSchema);
+  if (p === '/documentos') return listOrCreateResponse(method, documentoSchema);
   if (p === '/documentos/rango-fechas' || p.startsWith('/documentos/proveedor/')) return relationArrayResponse(documentoSchema);
   if (p === '/documentos/total-por-mes') return itemResponseSchema(documentosTotalesPorMesSchema);
   if (p.endsWith('/bienes') && p.startsWith('/documentos/')) return relationArrayResponse(bienSchema);
@@ -173,7 +180,7 @@ export function getResponseSchema(path: string) {
 
 export function validateApiResponse<T>(path: string, method: string, json: unknown): T {
   if (method === 'DELETE') return json as T;
-  const schema = getResponseSchema(path);
+  const schema = getResponseSchema(path, method);
   return schema ? (parseWithSchema(schema, json) as T) : (json as T);
 }
 

@@ -2,8 +2,11 @@ import type { BienMueble } from '../../types/bien';
 import type { ApiBien } from '../types';
 import { resolveAlmacenNombre } from '../utils/almacenLookup';
 import {
+  isSinCodigoBien,
+  isSinSerialBien,
   mapCondicionFisica,
   mapEstadoUsoBien,
+  mapFormaAdquisicion,
   mapMoneda,
   toIsoDate,
   toNumber,
@@ -14,8 +17,8 @@ export function mapApiBienToBienMueble(
   almacenesById: Map<number, string> = new Map(),
 ): BienMueble {
   const codigo = String(b.codigo_bien);
-  const sinCodigo = !b.serial;
-  const sinSerial = !b.serial;
+  const serial = b.serial?.trim() ?? '';
+  const sinSerial = isSinSerialBien(serial);
 
   return {
     id: b.codigo_bien,
@@ -24,11 +27,13 @@ export function mapApiBienToBienMueble(
     responsable: b.almacen?.responsable?.nombre ?? '—',
     ciResponsable: b.almacen?.ci_responsable ?? b.almacen?.responsable?.ci_responsable ?? '',
     codigoInterno: codigo,
-    sinCodigo,
+    sinCodigo: isSinCodigoBien(codigo),
     descripcion: b.descripcion ?? '—',
-    formaAdquisicion: 'Compra',
+    formaAdquisicion: mapFormaAdquisicion(b.documento?.forma_adquisicion),
     fechaAdquisicion: toIsoDate(b.documento?.fecha_adquisicion ?? b.fecha_ingreso),
-    numeroDocumento: b.documento ? String(b.documento.id_doc) : '—',
+    fechaIngreso: toIsoDate(b.fecha_ingreso),
+    numeroDocumento: b.documento?.numero_documento?.trim() || (b.documento ? String(b.documento.id_doc) : '—'),
+    nombreProveedor: b.documento?.nombre_proveedor?.trim() || '—',
     moneda: mapMoneda(b.documento?.moneda),
     valorAdquisicion: toNumber(b.valor_adquisicion),
     estadoUso: mapEstadoUsoBien(b.estado_uso),
@@ -36,13 +41,20 @@ export function mapApiBienToBienMueble(
     marca: b.marca ?? '—',
     modelo: b.modelo ?? '',
     color: b.color ?? '',
-    serial: b.serial ?? 'S/S',
+    serial: sinSerial ? 'S/S' : serial,
     sinSerial,
     categoriaGeneral: b.categoria?.subcategoria?.categoria_general?.nombre ?? '—',
     subcategoria: b.categoria?.subcategoria?.nombre ?? '—',
     categoriaEspecifica: b.categoria?.nombre ?? '—',
     codigoCategoria: String(b.id_categoria_especifica),
     ubicacion: resolveAlmacenNombre(b.id_almacen, b.almacen?.nombre, almacenesById),
+    cantidad: b.cantidad ?? null,
+    consumibilidad:
+      b.consumibilidad === 'No_perecedero'
+        ? 'No perecedero'
+        : b.consumibilidad === 'Perecederos'
+          ? 'Perecederos'
+          : (b.consumibilidad?.replace(/_/g, ' ') ?? '—'),
     fuenteRegistro: 'API',
     estatusCarga: 'Completo',
     observaciones: b.observaciones?.trim() ?? '',

@@ -11,6 +11,7 @@ import {
 import type { ApiParcela } from '../api/types';
 import { useApiQuery } from '../hooks/useApiQuery';
 import ModuleMetricCard, { formatAreaM2 } from '../components/module/ModuleMetricCard';
+import SearchableSelect from '../components/forms/SearchableSelect';
 import { ESTADOS_TRAMITE } from '../types/terreno';
 import type { ProtocolizacionTerreno, Terreno } from '../types/terreno';
 import {
@@ -145,17 +146,12 @@ function TerrenoParcelaDetail({
               {
                 label: 'Acreditación Técnica Ambiental',
                 value: (
-                  <select
+                  <SearchableSelect
                     value={acreditacion}
-                    onChange={(e) => setAcreditacion(e.target.value as Terreno['acreditacionTecnicaAmbiental'])}
-                    className="input-field max-w-xs"
-                  >
-                    {ESTADOS_TRAMITE.map((opt) => (
-                      <option key={opt} value={opt}>
-                        {opt}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(value) => setAcreditacion(value as Terreno['acreditacionTecnicaAmbiental'])}
+                    options={ESTADOS_TRAMITE}
+                    className="max-w-xs"
+                  />
                 ),
               },
               { label: 'Fecha de Ingreso', value: formatFecha(terreno.fechaIngreso) },
@@ -163,17 +159,12 @@ function TerrenoParcelaDetail({
               {
                 label: 'Levantamiento topográfico',
                 value: (
-                  <select
+                  <SearchableSelect
                     value={levantamiento}
-                    onChange={(e) => setLevantamiento(e.target.value as Terreno['levantamientoTopografico'])}
-                    className="input-field max-w-xs"
-                  >
-                    {ESTADOS_TRAMITE.map((opt) => (
-                      <option key={opt} value={opt}>
-                        {opt}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(value) => setLevantamiento(value as Terreno['levantamientoTopografico'])}
+                    options={ESTADOS_TRAMITE}
+                    className="max-w-xs"
+                  />
                 ),
               },
               { label: 'Número de Propiedad', value: terreno.nroPropiedad },
@@ -375,6 +366,7 @@ export default function Terrenos() {
         return false;
       }
       if (filtros.nroPropiedad && !t.nroPropiedad.includes(filtros.nroPropiedad)) return false;
+      if (filtros.fecha && t.fechaAdquisicion !== filtros.fecha) return false;
       if (filtros.levantamiento && filtros.levantamiento !== 'Todos' && t.levantamientoTopografico !== filtros.levantamiento) return false;
       if (filtros.acreditacion && filtros.acreditacion !== 'Todos' && t.acreditacionTecnicaAmbiental !== filtros.acreditacion) return false;
       return true;
@@ -449,6 +441,7 @@ export default function Terrenos() {
       <ModulePageHeader
         title="Terrenos"
         breadcrumb={[{ label: 'Dashboard', to: '/dashboard' }, { label: 'Terrenos' }]}
+        formatModule="terrenos"
         onCreate={() => setModal('registro', true)}
         createLabel="Crear Registro"
       />
@@ -506,6 +499,7 @@ export default function Terrenos() {
           { key: 'estado', label: 'Estado', type: 'select', value: filtros.estado, onChange: (v) => setFiltro('estado', v), options: ['Todos', ...ESTADOS_PARCELA] },
           { key: 'zonificacion', label: 'Zonificación', type: 'text', value: filtros.zonificacion, onChange: (v) => setFiltro('zonificacion', v) },
           { key: 'nroPropiedad', label: 'Nro de Propiedad', type: 'text', value: filtros.nroPropiedad, onChange: (v) => setFiltro('nroPropiedad', v) },
+          { key: 'fecha', label: 'Fecha', type: 'date', value: filtros.fecha, onChange: (v) => setFiltro('fecha', v) },
           { key: 'levantamiento', label: 'Levantamiento Topográfico', type: 'select', value: filtros.levantamiento, onChange: (v) => setFiltro('levantamiento', v), options: ['Todos', ...ESTADOS_TRAMITE] },
           { key: 'acreditacion', label: 'Acreditación Técnica Ambiental', type: 'select', value: filtros.acreditacion, onChange: (v) => setFiltro('acreditacion', v), options: ['Todos', ...ESTADOS_TRAMITE] },
           { key: 'buscar', label: 'Buscar', type: 'search', value: filtros.buscar, onChange: (v) => setFiltro('buscar', v), placeholder: 'Buscar en registros...', className: 'sm:col-span-2 lg:col-span-1' },
@@ -532,12 +526,12 @@ export default function Terrenos() {
       <RegistroParcelasModal
         open={showRegistro}
         onClose={() => setModal('registro', false)}
-        onSuccess={(message) => {
-          toast.success(message);
+        onSuccess={() => {
           refreshParcelas();
         }}
-        onError={(message) => toast.error('No se pudo registrar la parcela', { description: message })}
+        onError={() => {}}
       />
+
     </div>
   );
 }

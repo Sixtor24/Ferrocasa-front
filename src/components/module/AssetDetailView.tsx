@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { ChevronRight } from 'lucide-react';
+import SearchableSelect from '../forms/SearchableSelect';
 
 export interface DetailField {
   label: string;
@@ -55,15 +56,11 @@ export default function AssetDetailView({
                 {f.label}
               </label>
               {f.onChange && f.options ? (
-                <select
+                <SearchableSelect
                   value={f.value}
-                  onChange={(e) => f.onChange!(e.target.value)}
-                  className="input-field"
-                >
-                  {f.options.map((o) => (
-                    <option key={o}>{o}</option>
-                  ))}
-                </select>
+                  onChange={(value) => f.onChange!(value)}
+                  options={f.options}
+                />
               ) : (
                 <p className="text-sm font-medium text-navy-900 py-2.5 px-3 bg-gray-50 rounded-lg border border-gray-100">
                   {f.value || '—'}
@@ -77,14 +74,14 @@ export default function AssetDetailView({
       {sections.map((section) => (
         <section
           key={section.title}
-          className="bg-white rounded-xl border border-gray-200/80 shadow-sm overflow-hidden"
+          className="bg-white rounded-xl border border-gray-200/80 shadow-sm"
         >
           <div className="px-5 py-3.5 border-b border-gray-100 bg-linear-to-r from-navy-50/80 to-white">
             <h2 className="text-sm font-bold text-navy-900 uppercase tracking-wide">{section.title}</h2>
           </div>
           <div className="p-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-5">
             {section.fields.map((field) => (
-              <div key={field.label}>
+              <div key={field.label} className="relative overflow-visible">
                 <p className="text-xs font-medium text-gray-500 mb-1">{field.label}</p>
                 <div className="text-sm font-medium text-navy-900">{field.value ?? '—'}</div>
               </div>

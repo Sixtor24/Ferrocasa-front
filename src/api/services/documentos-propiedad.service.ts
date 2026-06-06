@@ -20,6 +20,7 @@ export type DocumentosPropiedadQuery = {
 };
 
 export type DocumentoPropiedadPayload = {
+  numero_documento?: string;
   numero_propiedad: number;
   forma_adquisicion: FormaAdquisicionPropiedad;
   area_total_m2: number;

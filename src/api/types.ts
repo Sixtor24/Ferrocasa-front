@@ -70,10 +70,13 @@ export interface ApiCategoriaEspecifica {
 
 export interface ApiDocumento {
   id_doc: number;
+  numero_documento?: string | null;
   nombre_proveedor?: string | null;
   forma_adquisicion?: string;
   fecha_adquisicion?: string | null;
   moneda?: string;
+  id_sede?: number | null;
+  sede?: ApiSede;
 }
 
 export interface ApiDocumentosTotalesPorMes {

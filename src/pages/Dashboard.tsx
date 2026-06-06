@@ -5,6 +5,7 @@ import { fetchBienesAdministrativos, fetchBienesCementerio } from '../api/servic
 import { fetchVehiculosEstadisticas } from '../api/services/vehiculos.service';
 import { fetchParcelasEstadisticas } from '../api/services/parcelas.service';
 import { useApiQuery } from '../hooks/useApiQuery';
+import SearchableSelect from '../components/forms/SearchableSelect';
 import {
   dashboardStats,
   ultimaAuditoria,
@@ -277,47 +278,40 @@ export default function Dashboard() {
               <p className="text-sm text-gray-500">Altas y bajas de activos — {periodoDescripcion}</p>
             </div>
             <div className="flex flex-wrap items-center justify-end gap-2">
-              <select
+              <SearchableSelect
                 value={periodo}
-                onChange={(e) => setPeriodo(e.target.value as PeriodoMovimiento)}
-                className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 text-gray-600 bg-white focus:outline-none focus:ring-2 focus:ring-navy-500"
-              >
-                {periodos.map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
-              </select>
-              <select
-                value={year}
-                onChange={(e) => setYear(Number(e.target.value))}
-                className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 text-gray-600 bg-white focus:outline-none focus:ring-2 focus:ring-navy-500"
-              >
-                {yearOptions.map((option) => <option key={option} value={option}>{option}</option>)}
-              </select>
+                onChange={(value) => setPeriodo(value as PeriodoMovimiento)}
+                options={periodos.map((p) => ({ value: p.key, label: p.label }))}
+                className="w-36"
+              />
+              <SearchableSelect
+                value={String(year)}
+                onChange={(value) => setYear(Number(value))}
+                options={yearOptions.map(String)}
+                className="w-28"
+              />
               {periodo === 'mensual' && (
                 <>
-                  <select
-                    value={mes}
-                    onChange={(e) => setMes(Number(e.target.value))}
-                    className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 text-gray-600 bg-white focus:outline-none focus:ring-2 focus:ring-navy-500"
+                  <SearchableSelect
+                    value={String(mes)}
+                    onChange={(value) => setMes(Number(value))}
+                    options={MESES_CALENDARIO.map((nombre, index) => ({
+                      value: String(index),
+                      label: `${nombre}${index === 1 && febreroEnBisiesto(year, index) ? ' (29 días)' : ''}`,
+                    }))}
+                    className="w-44"
                     aria-label="Mes"
-                  >
-                    {MESES_CALENDARIO.map((nombre, index) => (
-                      <option key={nombre} value={index}>
-                        {nombre}
-                        {index === 1 && febreroEnBisiesto(year, index) ? ' (29 días)' : ''}
-                      </option>
-                    ))}
-                  </select>
-                  <select
-                    value={semanaMes}
-                    onChange={(e) => setSemanaMes(Number(e.target.value))}
-                    className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 text-gray-600 bg-white focus:outline-none focus:ring-2 focus:ring-navy-500"
+                  />
+                  <SearchableSelect
+                    value={String(semanaMes)}
+                    onChange={(value) => setSemanaMes(Number(value))}
+                    options={semanasDelMes.map((semana) => ({
+                      value: String(semana.index),
+                      label: semana.label,
+                    }))}
+                    className="w-44"
                     aria-label="Semana del mes"
-                  >
-                    {semanasDelMes.map((semana) => (
-                      <option key={semana.index} value={semana.index}>
-                        {semana.label}
-                      </option>
-                    ))}
-                  </select>
+                  />
                 </>
               )}
             </div>

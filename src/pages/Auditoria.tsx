@@ -8,6 +8,7 @@ import {
   ChevronRight,
   X,
 } from 'lucide-react';
+import SearchableSelect from '../components/forms/SearchableSelect';
 
 const accionColor: Record<string, string> = {
   Entrada: 'text-green-600',
@@ -26,6 +27,7 @@ export default function Auditoria() {
   const [usuario, setUsuario] = useState('Todos los usuarios');
   const [modulo, setModulo] = useState('Todos los módulos');
   const [accion, setAccion] = useState('Todas las acciones');
+  const [fecha, setFecha] = useState('');
   const [pagina, setPagina] = useState(1);
   const [exportMsg, setExportMsg] = useState('');
 
@@ -34,6 +36,10 @@ export default function Auditoria() {
       if (usuario !== 'Todos los usuarios' && r.usuario !== usuario) return false;
       if (modulo !== 'Todos los módulos' && r.modulo !== modulo) return false;
       if (accion !== 'Todas las acciones' && r.accion !== accion) return false;
+      if (fecha) {
+        const [year, month, day] = fecha.split('-');
+        if (!r.fecha.startsWith(`${day}/${month}/${year}`)) return false;
+      }
       if (busqueda) {
         const q = busqueda.toLowerCase();
         return (
@@ -45,7 +51,7 @@ export default function Auditoria() {
       }
       return true;
     });
-  }, [usuario, modulo, accion, busqueda]);
+  }, [usuario, modulo, accion, fecha, busqueda]);
 
   const totalPaginas = Math.max(1, Math.ceil(filtrados.length / PER_PAGE));
   const paginaActual = Math.min(pagina, totalPaginas);
@@ -56,10 +62,11 @@ export default function Auditoria() {
     setUsuario('Todos los usuarios');
     setModulo('Todos los módulos');
     setAccion('Todas las acciones');
+    setFecha('');
     setPagina(1);
   };
 
-  const hayFiltros = usuario !== 'Todos los usuarios' || modulo !== 'Todos los módulos' || accion !== 'Todas las acciones' || busqueda !== '';
+  const hayFiltros = usuario !== 'Todos los usuarios' || modulo !== 'Todos los módulos' || accion !== 'Todas las acciones' || fecha !== '' || busqueda !== '';
 
   const simularExport = (tipo: string) => {
     setExportMsg(`Generando ${tipo}...`);
@@ -105,7 +112,7 @@ export default function Auditoria() {
 
       {/* Filters */}
       <div className="bg-white rounded-xl border border-gray-200 p-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4 items-end">
           <div>
             <label className="text-xs text-gray-500 mb-1.5 block">🔍 Buscar</label>
             <div className="relative">
@@ -125,46 +132,36 @@ export default function Auditoria() {
           </div>
           <div>
             <label className="text-xs text-gray-500 mb-1.5 block">👤 Usuario</label>
-            <select
+            <SearchableSelect
               value={usuario}
-              onChange={(e) => { setUsuario(e.target.value); setPagina(1); }}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy-500 bg-white"
-            >
-              <option>Todos los usuarios</option>
-              <option>jperez</option>
-              <option>mrodriguez</option>
-              <option>admin_sys</option>
-              <option>lgarcia</option>
-            </select>
+              onChange={(value) => { setUsuario(value); setPagina(1); }}
+              options={['Todos los usuarios', 'jperez', 'mrodriguez', 'admin_sys', 'lgarcia']}
+            />
           </div>
           <div>
             <label className="text-xs text-gray-500 mb-1.5 block">📦 Módulo</label>
-            <select
+            <SearchableSelect
               value={modulo}
-              onChange={(e) => { setModulo(e.target.value); setPagina(1); }}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy-500 bg-white"
-            >
-              <option>Todos los módulos</option>
-              {MODULOS_AUDITORIA_FILTRO.map((nombre) => (
-                <option key={nombre} value={nombre}>
-                  {nombre}
-                </option>
-              ))}
-            </select>
+              onChange={(value) => { setModulo(value); setPagina(1); }}
+              options={['Todos los módulos', ...MODULOS_AUDITORIA_FILTRO]}
+            />
           </div>
           <div>
             <label className="text-xs text-gray-500 mb-1.5 block">⚡ Acción</label>
-            <select
+            <SearchableSelect
               value={accion}
-              onChange={(e) => { setAccion(e.target.value); setPagina(1); }}
+              onChange={(value) => { setAccion(value); setPagina(1); }}
+              options={['Todas las acciones', 'Entrada', 'Transferencia', 'Salida', 'Acceso']}
+            />
+          </div>
+          <div>
+            <label className="text-xs text-gray-500 mb-1.5 block">📅 Fecha</label>
+            <input
+              type="date"
+              value={fecha}
+              onChange={(e) => { setFecha(e.target.value); setPagina(1); }}
               className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy-500 bg-white"
-            >
-              <option>Todas las acciones</option>
-              <option>Entrada</option>
-              <option>Transferencia</option>
-              <option>Salida</option>
-              <option>Acceso</option>
-            </select>
+            />
           </div>
           <button
             type="button"
@@ -200,6 +197,11 @@ export default function Auditoria() {
           {accion !== 'Todas las acciones' && (
             <span className="bg-navy-100 text-navy-800 text-xs font-medium px-2.5 py-1 rounded-full flex items-center gap-1">
               {accion} <X size={12} className="cursor-pointer" onClick={() => setAccion('Todas las acciones')} />
+            </span>
+          )}
+          {fecha && (
+            <span className="bg-navy-100 text-navy-800 text-xs font-medium px-2.5 py-1 rounded-full flex items-center gap-1">
+              {fecha} <X size={12} className="cursor-pointer" onClick={() => setFecha('')} />
             </span>
           )}
         </div>

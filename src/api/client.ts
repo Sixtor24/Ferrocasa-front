@@ -6,6 +6,7 @@ import {
   setAuthSession,
 } from './auth/session';
 import type { AuthSession } from '../types/auth';
+import { formatApiErrorMessage } from '../utils/apiErrorMessage';
 
 const API_BASE = import.meta.env.VITE_API_URL ?? '/api/v1';
 
@@ -126,7 +127,7 @@ export async function apiRequest<T>(
       res.status === 502
         ? 'No se pudo conectar con el API (502). En local: ejecuta el backend en el puerto 4000 y Docker/Postgres.'
         : `Error HTTP ${res.status}`;
-    throw new ApiError(json.error ?? json.message ?? fallback, res.status, json);
+    throw new ApiError(formatApiErrorMessage(json, fallback), res.status, json);
   }
 
   try {

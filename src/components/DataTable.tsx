@@ -4,6 +4,7 @@ import {
   ArrowUpDown, ArrowUp, ArrowDown,
   Download, FileText, Eye,
 } from 'lucide-react';
+import SearchableSelect from './forms/SearchableSelect';
 
 export interface Column<T> {
   key: string;
@@ -204,13 +205,11 @@ export default function DataTable<T extends { id: number | string }>({
           {filters.map((f) => (
             <div key={f.key}>
               <label className="text-xs text-gray-500 mb-1 block">{f.label}</label>
-              <select
+              <SearchableSelect
                 value={filterValues[f.key] || ''}
-                onChange={(e) => handleFilter(f.key, e.target.value)}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-navy-500"
-              >
-                {f.options.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
-              </select>
+                onChange={(value) => handleFilter(f.key, value)}
+                options={f.options}
+              />
             </div>
           ))}
           {hasActiveFilters && (

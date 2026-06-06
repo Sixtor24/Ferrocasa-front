@@ -16,6 +16,7 @@ import {
 import { changePassword } from '../api/services/auth.service';
 import { useApiQuery } from '../hooks/useApiQuery';
 import { useAuth } from '../context/AuthContext';
+import SearchableSelect from '../components/forms/SearchableSelect';
 import type { RolPayload, RolSistema, UpdateUsuarioPayload, UsuarioPayload, UsuarioSistema } from '../types/auth';
 import {
   CheckCircle2,
@@ -473,19 +474,14 @@ function AdminUsersSection({
           )}
           <label className="block">
             <span className="text-xs font-semibold text-navy-700 uppercase tracking-wide mb-1.5 block">Rol</span>
-            <select
+            <SearchableSelect
               value={form.id_rol}
-              onChange={(e) => onFormChange({ ...form, id_rol: e.target.value })}
-              className="input-field"
-              required
-            >
-              <option value="">Seleccionar rol</option>
-              {roles.map((rol) => (
-                <option key={rol.id_rol} value={rol.id_rol}>
-                  {rol.nombre_rol}
-                </option>
-              ))}
-            </select>
+              onChange={(value) => onFormChange({ ...form, id_rol: value })}
+              options={[
+                { value: '', label: 'Seleccionar rol' },
+                ...roles.map((rol) => ({ value: String(rol.id_rol), label: rol.nombre_rol })),
+              ]}
+            />
           </label>
           <label className="flex items-center gap-2 text-sm font-medium text-navy-800 md:col-span-2">
             <input

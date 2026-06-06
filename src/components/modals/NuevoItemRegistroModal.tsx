@@ -1,21 +1,28 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Controller, useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import Modal from './Modal';
 import CurrencyAmountInput from '../forms/CurrencyAmountInput';
 import FlexibleIntegerInput from '../forms/FlexibleIntegerInput';
+import SearchableSelect from '../forms/SearchableSelect';
 import ModalField from './ModalField';
 import {
   fetchCategoriasEspecificasBySubcategoriaId,
   fetchCategoriasGenerales,
   fetchSubcategoriasByGeneral,
 } from '../../api/services/categorias.service';
-import { fetchDepartamentos, fetchDepartamentoResponsables } from '../../api/services/departamentos.service';
+import { fetchDepartamentos } from '../../api/services/departamentos.service';
+import type { ApiAlmacen } from '../../api/types';
 import type { ConsumibilidadBienApi } from '../../api/services/bienes.service';
 import type { ItemRegistroDraft, MonedaRegistro, RegistroBienesModulo } from '../../types/registroBienItem';
 import { CONDICIONES_FISICAS, ESTADOS_USO, type CondicionFisica, type EstadoUso } from '../../types/bien';
-import { itemDraftToFormInput, itemRegistroFormSchema } from '../../schemas/registro.schema';
-import { validarConZod } from '../../utils/validators';
+import {
+  itemDraftToFormInput,
+  itemRegistroFormSchema,
+  type ItemRegistroForm,
+} from '../../schemas/registro.schema';
 import { formatMoneda } from '../../utils/formatters';
-import { normalizeCatalogValue } from '../../utils/registroBienMappers';
+import { resolveResponsableForAlmacen } from '../../utils/registroBienMappers';
 
 type NuevoItemRegistroModalProps = {
   open: boolean;
@@ -23,6 +30,7 @@ type NuevoItemRegistroModalProps = {
   modulo: RegistroBienesModulo;
   item: ItemRegistroDraft | null;
   almacenOptions: string[];
+  almacenes: ApiAlmacen[];
   departamentoOptions: readonly string[];
   moneda: MonedaRegistro;
   onSave: (item: ItemRegistroDraft) => void;
@@ -32,20 +40,17 @@ type NuevoItemRegistroModalProps = {
 type SelectOption = { id: number; nombre: string };
 
 const CONSUMIBILIDAD_OPTIONS: { label: string; value: ConsumibilidadBienApi }[] = [
-  { label: 'No perecederos', value: 'No_Perecederos' },
+  { label: 'No perecedero', value: 'No_perecedero' },
   { label: 'Perecederos', value: 'Perecederos' },
 ];
 
-function createEmptyItem(
-  almacenDefault: string,
-  unidadDefault: string,
-): ItemRegistroDraft {
+function createEmptyItem(almacenDefault: string, unidadDefault: string): ItemRegistroDraft {
   return {
     key: `item-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     codigoInterno: '',
     descripcion: '',
     color: '',
-    cantidad: 0,
+    cantidad: 1,
     unidadAdministrativa: unidadDefault,
     responsable: '',
     ciResponsable: '',
@@ -63,7 +68,7 @@ function createEmptyItem(
     valorAdquisicion: 0,
     almacen: almacenDefault,
     observaciones: '',
-    consumibilidad: 'No_Perecederos',
+    consumibilidad: 'No_perecedero',
     condicionFisica: 'Bueno',
   };
 }
@@ -74,6 +79,7 @@ export default function NuevoItemRegistroModal({
   modulo,
   item,
   almacenOptions,
+  almacenes,
   departamentoOptions,
   moneda,
   onSave,
@@ -82,20 +88,44 @@ export default function NuevoItemRegistroModal({
   const unidadDefault = departamentoOptions[0] ?? '';
   const almacenDefault = almacenOptions[0] ?? '';
 
-  const [form, setForm] = useState<ItemRegistroDraft>(() => createEmptyItem(almacenDefault, unidadDefault));
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [itemKey, setItemKey] = useState('');
+  const [responsable, setResponsable] = useState('');
+  const [ciResponsable, setCiResponsable] = useState('');
   const [categoriasGenerales, setCategoriasGenerales] = useState<SelectOption[]>([]);
   const [subcategorias, setSubcategorias] = useState<SelectOption[]>([]);
   const [categoriasEspecificas, setCategoriasEspecificas] = useState<SelectOption[]>([]);
   const [departamentosApi, setDepartamentosApi] = useState<{ id: number; nombre: string }[]>([]);
+
+  const {
+    register,
+    control,
+    handleSubmit,
+    reset,
+    watch,
+    setValue,
+    formState: { errors },
+  } = useForm<ItemRegistroForm>({
+    resolver: zodResolver(itemRegistroFormSchema),
+    defaultValues: itemDraftToFormInput(createEmptyItem(almacenDefault, unidadDefault)),
+  });
+
+  const idCategoriaGeneral = watch('idCategoriaGeneral');
+  const idSubcategoria = watch('idSubcategoria');
+  const sinSerial = watch('sinSerial');
+  const cantidad = watch('cantidad');
+  const valorAdquisicion = watch('valorAdquisicion');
+  const almacen = watch('almacen');
 
   const isEditing = Boolean(item);
 
   useEffect(() => {
     if (!open) return;
 
-    setErrors({});
-    setForm(item ? { ...item } : createEmptyItem(almacenDefault, unidadDefault));
+    const draft = item ?? createEmptyItem(almacenDefault, unidadDefault);
+    setItemKey(draft.key);
+    setResponsable(draft.responsable);
+    setCiResponsable(draft.ciResponsable);
+    reset(itemDraftToFormInput(draft));
 
     fetchCategoriasGenerales({ page: 1, limit: 500 }).then((res) => {
       setCategoriasGenerales(
@@ -114,14 +144,14 @@ export default function NuevoItemRegistroModal({
         })),
       );
     });
-  }, [open, item, almacenDefault, unidadDefault]);
+  }, [open, item, almacenDefault, unidadDefault, reset]);
 
   useEffect(() => {
-    if (!open || !form.idCategoriaGeneral) {
+    if (!open || !idCategoriaGeneral) {
       setSubcategorias([]);
       return;
     }
-    fetchSubcategoriasByGeneral(form.idCategoriaGeneral).then((rows) => {
+    fetchSubcategoriasByGeneral(idCategoriaGeneral).then((rows) => {
       const list = Array.isArray(rows) ? rows : [];
       setSubcategorias(
         list.map((s) => ({
@@ -130,14 +160,14 @@ export default function NuevoItemRegistroModal({
         })),
       );
     });
-  }, [open, form.idCategoriaGeneral]);
+  }, [open, idCategoriaGeneral]);
 
   useEffect(() => {
-    if (!open || !form.idSubcategoria) {
+    if (!open || !idSubcategoria) {
       setCategoriasEspecificas([]);
       return;
     }
-    fetchCategoriasEspecificasBySubcategoriaId(form.idSubcategoria).then((rows) => {
+    fetchCategoriasEspecificasBySubcategoriaId(idSubcategoria).then((rows) => {
       const list = Array.isArray(rows) ? rows : [];
       setCategoriasEspecificas(
         list.map((c) => ({
@@ -146,68 +176,38 @@ export default function NuevoItemRegistroModal({
         })),
       );
     });
-  }, [open, form.idSubcategoria]);
+  }, [open, idSubcategoria]);
 
-  const updateForm = <K extends keyof ItemRegistroDraft>(key: K, value: ItemRegistroDraft[K]) => {
-    setForm((prev) => ({ ...prev, [key]: value }));
-    setErrors((prev) => {
-      const next = { ...prev };
-      delete next[key as string];
-      return next;
-    });
-  };
-
-  const loadResponsableForUnidad = async (nombreUnidad: string) => {
-    const departamento = departamentosApi.find(
-      (d) => normalizeCatalogValue(d.nombre) === normalizeCatalogValue(nombreUnidad),
-    );
-    if (!departamento) {
-      updateForm('responsable', '');
-      updateForm('ciResponsable', '');
-      return;
-    }
-    try {
-      const responsables = await fetchDepartamentoResponsables(departamento.id);
-      const principal = responsables[0];
-      setForm((prev) => ({
-        ...prev,
-        responsable: principal?.nombre ?? '—',
-        ciResponsable: principal?.ci_responsable ?? '',
-      }));
-    } catch {
-      setForm((prev) => ({ ...prev, responsable: '—', ciResponsable: '' }));
-    }
-  };
-
-  const handleUnidadChange = (nombre: string) => {
-    updateForm('unidadAdministrativa', nombre);
-    void loadResponsableForUnidad(nombre);
+  const loadResponsableForAlmacen = async (nombreAlmacen: string) => {
+    const result = await resolveResponsableForAlmacen(nombreAlmacen, almacenes);
+    setResponsable(result.responsable);
+    setCiResponsable(result.ciResponsable);
   };
 
   useEffect(() => {
-    if (!open || !form.unidadAdministrativa || departamentosApi.length === 0) return;
-    void loadResponsableForUnidad(form.unidadAdministrativa);
+    if (!open || !almacen) return;
+    void loadResponsableForAlmacen(almacen);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, form.unidadAdministrativa, departamentosApi.length]);
+  }, [open, almacen, almacenes]);
 
-  const handleAgregar = () => {
-    const result = validarConZod(itemRegistroFormSchema, itemDraftToFormInput(form));
-    if (!result.success) {
-      setErrors(result.errors);
-      return;
-    }
-
-    const parsed = result.data!;
+  const onSubmit = (parsed: ItemRegistroForm) => {
     onSave({
-      ...form,
-      codigoInterno: parsed.codigoInterno.trim(),
+      key: itemKey,
+      codigoInterno: '',
       descripcion: parsed.descripcion,
       color: parsed.color,
       cantidad: parsed.cantidad,
       unidadAdministrativa: parsed.unidadAdministrativa,
+      responsable,
+      ciResponsable,
       idCategoriaGeneral: parsed.idCategoriaGeneral,
+      categoriaGeneralNombre:
+        categoriasGenerales.find((c) => c.id === parsed.idCategoriaGeneral)?.nombre ?? '',
       idSubcategoria: parsed.idSubcategoria,
+      subcategoriaNombre: subcategorias.find((c) => c.id === parsed.idSubcategoria)?.nombre ?? '',
       idCategoriaEspecifica: parsed.idCategoriaEspecifica,
+      categoriaEspecificaNombre:
+        categoriasEspecificas.find((c) => c.id === parsed.idCategoriaEspecifica)?.nombre ?? '',
       estadoUso: parsed.estadoUso,
       serial: parsed.sinSerial ? 'S/S' : parsed.serial.trim(),
       sinSerial: parsed.sinSerial,
@@ -228,7 +228,8 @@ export default function NuevoItemRegistroModal({
     if (fromCatalog.length > 0) return fromCatalog;
     return departamentosApi.map((d) => d.nombre);
   }, [modulo, departamentoOptions, departamentosApi]);
-  const totalCalculado = (form.cantidad || 0) * (form.valorAdquisicion || 0);
+
+  const totalCalculado = (cantidad || 0) * (valorAdquisicion || 0);
 
   return (
     <Modal
@@ -243,7 +244,7 @@ export default function NuevoItemRegistroModal({
             <button
               type="button"
               onClick={() => {
-                onDelete(form.key);
+                onDelete(itemKey);
                 onClose();
               }}
               className="px-4 py-2 text-sm font-medium text-red-700 border border-red-200 rounded-lg hover:bg-red-50"
@@ -261,7 +262,7 @@ export default function NuevoItemRegistroModal({
             </button>
             <button
               type="button"
-              onClick={handleAgregar}
+              onClick={handleSubmit(onSubmit)}
               className="px-8 py-2.5 bg-navy-900 text-white rounded-lg text-sm font-semibold hover:bg-navy-800"
             >
               {isEditing ? 'Guardar cambios' : 'Agregar'}
@@ -272,173 +273,139 @@ export default function NuevoItemRegistroModal({
     >
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="space-y-4">
-          <ModalField label="Código *" error={errors.codigoInterno}>
-            <input
-              value={form.codigoInterno}
-              onChange={(e) => updateForm('codigoInterno', e.target.value)}
-              className="input-field"
-              placeholder="BM-001"
+          <ModalField label="Descripción *" error={errors.descripcion?.message}>
+            <input {...register('descripcion')} className="input-field" />
+          </ModalField>
+          <ModalField label="Color" error={errors.color?.message}>
+            <input {...register('color')} className="input-field" />
+          </ModalField>
+          <ModalField label="Cantidad *" error={errors.cantidad?.message}>
+            <Controller
+              name="cantidad"
+              control={control}
+              render={({ field }) => <FlexibleIntegerInput value={field.value} onChange={field.onChange} />}
             />
           </ModalField>
-          <ModalField label="Descripción *" error={errors.descripcion}>
-            <input
-              value={form.descripcion}
-              onChange={(e) => updateForm('descripcion', e.target.value)}
-              className="input-field"
+          <ModalField label="Unidad Administrativa *" error={errors.unidadAdministrativa?.message}>
+            <Controller
+              name="unidadAdministrativa"
+              control={control}
+              render={({ field }) => (
+                <SearchableSelect value={field.value} onChange={field.onChange} options={departamentosSelect} />
+              )}
             />
           </ModalField>
-          <ModalField label="Color" error={errors.color}>
-            <input value={form.color} onChange={(e) => updateForm('color', e.target.value)} className="input-field" />
-          </ModalField>
-          <ModalField label="Cantidad *" error={errors.cantidad}>
-            <FlexibleIntegerInput
-              value={form.cantidad}
-              onChange={(value) => updateForm('cantidad', value)}
+          <ModalField label="Categoría *" error={errors.idCategoriaGeneral?.message}>
+            <Controller
+              name="idCategoriaGeneral"
+              control={control}
+              render={({ field }) => (
+                <SearchableSelect
+                  value={field.value ? String(field.value) : ''}
+                  onChange={(value) => {
+                    field.onChange(Number(value));
+                    setValue('idSubcategoria', 0);
+                    setValue('idCategoriaEspecifica', 0);
+                  }}
+                  options={[
+                    { value: '', label: 'Seleccionar...' },
+                    ...categoriasGenerales.map((c) => ({ value: String(c.id), label: c.nombre })),
+                  ]}
+                />
+              )}
             />
           </ModalField>
-          <ModalField label="Unidad Administrativa *" error={errors.unidadAdministrativa}>
-            <select
-              value={form.unidadAdministrativa}
-              onChange={(e) => handleUnidadChange(e.target.value)}
-              className="input-field"
-            >
-              {departamentosSelect.map((dep) => (
-                <option key={dep} value={dep}>
-                  {dep}
-                </option>
-              ))}
-            </select>
-          </ModalField>
-          <ModalField label="Responsable">
-            <input
-              value={form.responsable || '—'}
-              readOnly
-              className="input-field bg-gray-50 text-gray-700"
-              title="Se asigna al elegir la unidad administrativa"
+          <ModalField label="Sub Categoría *" error={errors.idSubcategoria?.message}>
+            <Controller
+              name="idSubcategoria"
+              control={control}
+              render={({ field }) => (
+                <SearchableSelect
+                  value={field.value ? String(field.value) : ''}
+                  onChange={(value) => {
+                    field.onChange(Number(value));
+                    setValue('idCategoriaEspecifica', 0);
+                  }}
+                  disabled={!idCategoriaGeneral}
+                  options={[
+                    { value: '', label: 'Seleccionar...' },
+                    ...subcategorias.map((c) => ({ value: String(c.id), label: c.nombre })),
+                  ]}
+                />
+              )}
             />
           </ModalField>
-          <ModalField label="Categoría *" error={errors.idCategoriaGeneral}>
-            <select
-              value={form.idCategoriaGeneral || ''}
-              onChange={(e) => {
-                const id = Number(e.target.value);
-                const nombre = categoriasGenerales.find((c) => c.id === id)?.nombre ?? '';
-                setForm((prev) => ({
-                  ...prev,
-                  idCategoriaGeneral: id,
-                  categoriaGeneralNombre: nombre,
-                  idSubcategoria: 0,
-                  subcategoriaNombre: '',
-                  idCategoriaEspecifica: 0,
-                  categoriaEspecificaNombre: '',
-                }));
-              }}
-              className="input-field"
-            >
-              <option value="">Seleccionar...</option>
-              {categoriasGenerales.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.nombre}
-                </option>
-              ))}
-            </select>
+          <ModalField label="Categoría Específica *" error={errors.idCategoriaEspecifica?.message}>
+            <Controller
+              name="idCategoriaEspecifica"
+              control={control}
+              render={({ field }) => (
+                <SearchableSelect
+                  value={field.value ? String(field.value) : ''}
+                  onChange={(value) => field.onChange(Number(value))}
+                  disabled={!idSubcategoria}
+                  options={[
+                    { value: '', label: 'Seleccionar...' },
+                    ...categoriasEspecificas.map((c) => ({ value: String(c.id), label: c.nombre })),
+                  ]}
+                />
+              )}
+            />
           </ModalField>
-          <ModalField label="Sub Categoría *" error={errors.idSubcategoria}>
-            <select
-              value={form.idSubcategoria || ''}
-              onChange={(e) => {
-                const id = Number(e.target.value);
-                const nombre = subcategorias.find((c) => c.id === id)?.nombre ?? '';
-                setForm((prev) => ({
-                  ...prev,
-                  idSubcategoria: id,
-                  subcategoriaNombre: nombre,
-                  idCategoriaEspecifica: 0,
-                  categoriaEspecificaNombre: '',
-                }));
-              }}
-              className="input-field"
-              disabled={!form.idCategoriaGeneral}
-            >
-              <option value="">Seleccionar...</option>
-              {subcategorias.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.nombre}
-                </option>
-              ))}
-            </select>
-          </ModalField>
-          <ModalField label="Categoría Específica *" error={errors.idCategoriaEspecifica}>
-            <select
-              value={form.idCategoriaEspecifica || ''}
-              onChange={(e) => {
-                const id = Number(e.target.value);
-                const nombre = categoriasEspecificas.find((c) => c.id === id)?.nombre ?? '';
-                setForm((prev) => ({
-                  ...prev,
-                  idCategoriaEspecifica: id,
-                  categoriaEspecificaNombre: nombre,
-                }));
-              }}
-              className="input-field"
-              disabled={!form.idSubcategoria}
-            >
-              <option value="">Seleccionar...</option>
-              {categoriasEspecificas.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.nombre}
-                </option>
-              ))}
-            </select>
-          </ModalField>
-          <ModalField label="Estado de uso *" error={errors.estadoUso}>
-            <select
-              value={form.estadoUso}
-              onChange={(e) => updateForm('estadoUso', e.target.value as EstadoUso)}
-              className="input-field"
-            >
-              {ESTADOS_USO.map((estado) => (
-                <option key={estado} value={estado}>
-                  {estado}
-                </option>
-              ))}
-            </select>
+          <ModalField label="Estado de uso *" error={errors.estadoUso?.message}>
+            <Controller
+              name="estadoUso"
+              control={control}
+              render={({ field }) => (
+                <SearchableSelect
+                  value={field.value}
+                  onChange={(value) => field.onChange(value as EstadoUso)}
+                  options={ESTADOS_USO}
+                />
+              )}
+            />
           </ModalField>
         </div>
 
         <div className="space-y-4">
-          <ModalField label="Serial" error={errors.serial}>
+          <ModalField label="Serial" error={errors.serial?.message}>
             <div className="flex items-center gap-3">
               <input
-                value={form.serial}
-                onChange={(e) => updateForm('serial', e.target.value)}
-                disabled={form.sinSerial}
+                {...register('serial')}
+                disabled={sinSerial}
                 className="input-field flex-1 font-mono"
               />
               <label className="flex items-center gap-2 text-sm text-gray-600 whitespace-nowrap cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={form.sinSerial}
-                  onChange={(e) => {
-                    updateForm('sinSerial', e.target.checked);
-                    if (e.target.checked) updateForm('serial', 'S/S');
-                  }}
-                  className="rounded"
+                <Controller
+                  name="sinSerial"
+                  control={control}
+                  render={({ field }) => (
+                    <input
+                      type="checkbox"
+                      checked={field.value}
+                      onChange={(e) => {
+                        field.onChange(e.target.checked);
+                        if (e.target.checked) setValue('serial', 'S/S');
+                      }}
+                      className="rounded"
+                    />
+                  )}
                 />
                 Sin serial
               </label>
             </div>
           </ModalField>
-          <ModalField label="Marca *" error={errors.marca}>
-            <input value={form.marca} onChange={(e) => updateForm('marca', e.target.value)} className="input-field" />
+          <ModalField label="Marca *" error={errors.marca?.message}>
+            <input {...register('marca')} className="input-field" />
           </ModalField>
-          <ModalField label="Modelo" error={errors.modelo}>
-            <input value={form.modelo} onChange={(e) => updateForm('modelo', e.target.value)} className="input-field" />
+          <ModalField label="Modelo" error={errors.modelo?.message}>
+            <input {...register('modelo')} className="input-field" />
           </ModalField>
-          <ModalField label="Valor de Adquisición *" error={errors.valorAdquisicion}>
-            <CurrencyAmountInput
-              value={form.valorAdquisicion}
-              onChange={(value) => updateForm('valorAdquisicion', value)}
+          <ModalField label="Valor de Adquisición *" error={errors.valorAdquisicion?.message}>
+            <Controller
+              name="valorAdquisicion"
+              control={control}
+              render={({ field }) => <CurrencyAmountInput value={field.value} onChange={field.onChange} />}
             />
           </ModalField>
           <ModalField label="Total calculado">
@@ -446,53 +413,59 @@ export default function NuevoItemRegistroModal({
               {formatMoneda(totalCalculado, moneda)}
             </div>
           </ModalField>
-          <ModalField label="Almacén *" error={errors.almacen}>
-            <select
-              value={form.almacen}
-              onChange={(e) => updateForm('almacen', e.target.value)}
-              className="input-field"
-            >
-              {almacenOptions.map((nombre) => (
-                <option key={nombre} value={nombre}>
-                  {nombre}
-                </option>
-              ))}
-            </select>
-          </ModalField>
-          <ModalField label="Observaciones" error={errors.observaciones}>
-            <textarea
-              value={form.observaciones}
-              onChange={(e) => updateForm('observaciones', e.target.value)}
-              className="input-field"
-              rows={4}
+          <ModalField label="Almacén *" error={errors.almacen?.message}>
+            <Controller
+              name="almacen"
+              control={control}
+              render={({ field }) => (
+                <SearchableSelect
+                  value={field.value}
+                  onChange={(value) => {
+                    field.onChange(value);
+                    void loadResponsableForAlmacen(value);
+                  }}
+                  options={almacenOptions}
+                />
+              )}
             />
           </ModalField>
-          <ModalField label="Consumibilidad *" error={errors.consumibilidad}>
-            <select
-              value={form.consumibilidad}
-              onChange={(e) => updateForm('consumibilidad', e.target.value as ConsumibilidadBienApi)}
-              className="input-field"
-            >
-              {CONSUMIBILIDAD_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
+          <ModalField label="Responsable">
+            <input
+              value={responsable || '—'}
+              readOnly
+              className="input-field bg-gray-50 text-gray-700"
+              title="Se asigna al elegir el almacén"
+            />
+          </ModalField>
+          <ModalField label="Observaciones" error={errors.observaciones?.message}>
+            <textarea {...register('observaciones')} className="input-field" rows={4} />
+          </ModalField>
+          <ModalField label="Consumibilidad *" error={errors.consumibilidad?.message}>
+            <Controller
+              name="consumibilidad"
+              control={control}
+              render={({ field }) => (
+                <SearchableSelect
+                  value={field.value}
+                  onChange={(value) => field.onChange(value as ConsumibilidadBienApi)}
+                  options={CONSUMIBILIDAD_OPTIONS}
+                />
+              )}
+            />
           </ModalField>
           {modulo !== 'cementerio' && (
-            <ModalField label="Condición Física *" error={errors.condicionFisica}>
-              <select
-                value={form.condicionFisica}
-                onChange={(e) => updateForm('condicionFisica', e.target.value as CondicionFisica)}
-                className="input-field"
-              >
-                {CONDICIONES_FISICAS.map((condicion) => (
-                  <option key={condicion} value={condicion}>
-                    {condicion}
-                  </option>
-                ))}
-              </select>
+            <ModalField label="Condición Física *" error={errors.condicionFisica?.message}>
+              <Controller
+                name="condicionFisica"
+                control={control}
+                render={({ field }) => (
+                  <SearchableSelect
+                    value={field.value}
+                    onChange={(value) => field.onChange(value as CondicionFisica)}
+                    options={CONDICIONES_FISICAS}
+                  />
+                )}
+              />
             </ModalField>
           )}
         </div>

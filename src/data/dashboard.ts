@@ -46,6 +46,6 @@ export const estatusInmuebles = {
 };
 
 export const ultimaAuditoria = {
-  mensaje: 'Registro masivo: 120 bienes importados vía Excel — Sede Puerto Ordaz',
+  mensaje: 'Registro masivo: 120 bienes cargados — Sede Puerto Ordaz',
   hora: '10:45 AM',
 };

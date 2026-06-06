@@ -17,7 +17,11 @@ export interface BienMueble {
   descripcion: string;
   formaAdquisicion: FormaAdquisicion;
   fechaAdquisicion: string;         // ISO date o vacío
+  fechaIngreso: string;             // bien.fecha_ingreso
   numeroDocumento: string;
+  nombreProveedor: string;
+  cantidad: number | null;
+  consumibilidad: string;
   moneda: MonedaBien;
   valorAdquisicion: number | null;
   estadoUso: EstadoUso;

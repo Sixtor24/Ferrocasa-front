@@ -1,17 +1,24 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Pencil, Plus } from 'lucide-react';
+import { Controller, useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import Modal from './Modal';
 import NuevoItemRegistroModal from './NuevoItemRegistroModal';
+import SearchableSelect from '../forms/SearchableSelect';
 import { createBien } from '../../api/services/bienes.service';
 import { createDocumento, type FormaAdquisicionDocumento } from '../../api/services/documentos.service';
-import type { ApiAlmacen } from '../../api/types';
-import type { DocumentoRegistroDraft, ItemRegistroDraft, RegistroBienesModulo } from '../../types/registroBienItem';
+import { buildRegistroBienesSuccessMessage } from '../../utils/assetNotify';
+import { rollbackRegistroBienes } from '../../utils/registroRollback';
+import { fetchSedes } from '../../api/services/sedes.service';
+import type { ApiAlmacen, ApiSede } from '../../api/types';
+import type { ItemRegistroDraft, RegistroBienesModulo } from '../../types/registroBienItem';
 import { MONEDAS_REGISTRO } from '../../types/registroBienItem';
 import { formatMoneda } from '../../utils/formatters';
 import {
   documentoRegistroFormSchema,
   itemDraftToFormInput,
   registroItemsListSchema,
+  type DocumentoRegistroForm,
 } from '../../schemas/registro.schema';
 import { validarConZod } from '../../utils/validators';
 import {
@@ -19,6 +26,11 @@ import {
   monedaBienToDocumento,
   normalizeCatalogValue,
 } from '../../utils/registroBienMappers';
+import {
+  extractRegistroError,
+  notifyRegistroError,
+  notifyRegistroSuccess,
+} from '../../utils/registroNotify';
 import {
   almacenesPorSede,
   departamentosPorSede,
@@ -57,7 +69,7 @@ function sedeLabel(value: string) {
   return SEDE_LABELS[value] ?? value;
 }
 
-function initialDocumento(sede: string): DocumentoRegistroDraft {
+function documentoDefaultValues(sede: string): DocumentoRegistroForm {
   return {
     numeroDocumento: '',
     nombreProveedor: '',
@@ -100,22 +112,52 @@ export default function RegistroBienesModal({
   almacenesCatalog,
 }: RegistroBienesModalProps) {
   const sedeInicial = sedes[0] ?? '';
-  const [documento, setDocumento] = useState<DocumentoRegistroDraft>(() => initialDocumento(sedeInicial));
   const [items, setItems] = useState<ItemRegistroDraft[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [itemModalOpen, setItemModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<ItemRegistroDraft | null>(null);
-  const [documentoErrors, setDocumentoErrors] = useState<Record<string, string>>({});
+  const [itemsError, setItemsError] = useState<string | null>(null);
+  const [sedesApi, setSedesApi] = useState<ApiSede[]>([]);
+
+  const {
+    register,
+    control,
+    handleSubmit,
+    reset,
+    watch,
+    formState: { errors: documentoErrors },
+  } = useForm<DocumentoRegistroForm>({
+    resolver: zodResolver(documentoRegistroFormSchema),
+    defaultValues: documentoDefaultValues(sedeInicial),
+  });
+
+  const sede = watch('sede');
+  const moneda = watch('moneda');
+  const prevSedeRef = useRef(sede);
 
   const almacenOptions = useMemo(
-    () => filterAlmacenesByCatalog(almacenes, almacenesPorSede(documento.sede) ?? almacenesCatalog),
-    [almacenes, almacenesCatalog, documento.sede],
+    () => filterAlmacenesByCatalog(almacenes, almacenesPorSede(sede) ?? almacenesCatalog),
+    [almacenes, almacenesCatalog, sede],
   );
 
   const departamentoOptions = useMemo(
-    () => departamentosPorSede(documento.sede) ?? departamentos,
-    [departamentos, documento.sede],
+    () => departamentosPorSede(sede) ?? departamentos,
+    [departamentos, sede],
   );
+
+  const sedeSelectOptions = useMemo(() => {
+    const catalogNormalized = new Set(sedes.map(normalizeCatalogValue));
+    const fromApi = sedesApi.filter((sedeApi) => {
+      const apiName = normalizeCatalogValue(sedeApi.nombre);
+      return [...catalogNormalized].some(
+        (catalogName) => apiName === catalogName || apiName.includes(catalogName) || catalogName.includes(apiName),
+      );
+    });
+    if (fromApi.length > 0) {
+      return fromApi.map((sedeApi) => ({ value: sedeApi.nombre, label: sedeLabel(sedeApi.nombre) }));
+    }
+    return sedes.map((s) => ({ value: s, label: sedeLabel(s) }));
+  }, [sedes, sedesApi]);
 
   const valorTotalDocumento = useMemo(
     () => items.reduce((sum, item) => sum + totalItem(item), 0),
@@ -124,28 +166,26 @@ export default function RegistroBienesModal({
 
   useEffect(() => {
     if (!open) return;
-    setDocumento(initialDocumento(sedeInicial));
+    reset(documentoDefaultValues(sedeInicial));
     setItems([]);
     setEditingItem(null);
     setItemModalOpen(false);
-    setDocumentoErrors({});
-  }, [open, sedeInicial]);
+    setItemsError(null);
+    prevSedeRef.current = sedeInicial;
 
-  const updateDocumento = <K extends keyof DocumentoRegistroDraft>(key: K, value: DocumentoRegistroDraft[K]) => {
-    setDocumento((prev) => ({ ...prev, [key]: value }));
-    setDocumentoErrors((prev) => {
-      const next = { ...prev };
-      delete next[key as string];
-      return next;
+    fetchSedes({ page: 1, limit: 500 }).then((res) => {
+      setSedesApi(res.data ?? []);
     });
-  };
+  }, [open, sedeInicial, reset]);
 
-  const updateSede = (sede: string) => {
-    updateDocumento('sede', sede);
+  useEffect(() => {
+    if (prevSedeRef.current === sede) return;
+    prevSedeRef.current = sede;
     setItems([]);
     setEditingItem(null);
     setItemModalOpen(false);
-  };
+    setItemsError(null);
+  }, [sede]);
 
   const abrirNuevoItem = () => {
     setEditingItem(null);
@@ -169,77 +209,82 @@ export default function RegistroBienesModal({
     setItems((prev) => prev.filter((i) => i.key !== key));
   };
 
-  const validar = (): string | null => {
-    const docResult = validarConZod(documentoRegistroFormSchema, {
-      nombreProveedor: documento.nombreProveedor,
-      fechaAdquisicion: documento.fechaAdquisicion,
-      formaAdquisicion: documento.formaAdquisicion,
-      sede: documento.sede,
-      moneda: documento.moneda,
-    });
-    if (!docResult.success) {
-      setDocumentoErrors(docResult.errors);
-      return Object.values(docResult.errors)[0] ?? 'Revise los datos del documento';
-    }
-    setDocumentoErrors({});
-
+  const validarItems = (): string | null => {
     const itemsResult = validarConZod(
       registroItemsListSchema,
       items.map((item) => itemDraftToFormInput(item)),
     );
     if (!itemsResult.success) {
-      return Object.values(itemsResult.errors)[0] ?? 'Revise los ítems agregados';
+      const message = Object.values(itemsResult.errors)[0] ?? 'Revise los ítems agregados';
+      setItemsError(message);
+      return message;
     }
+    setItemsError(null);
 
     for (const [index, item] of items.entries()) {
       const idAlmacen = resolveAlmacenId(item.almacen, almacenes);
       if (!idAlmacen) {
-        return `El almacén "${item.almacen}" del ítem ${index + 1} debe existir en configuración`;
+        const message = `El almacén "${item.almacen}" del ítem ${index + 1} debe existir en configuración`;
+        setItemsError(message);
+        return message;
       }
     }
     return null;
   };
 
-  const handleCargar = async () => {
-    const validationError = validar();
+  const handleCargar = handleSubmit(async (documento) => {
+    const validationError = validarItems();
     if (validationError) {
+      notifyRegistroError('No se pudo cargar el registro', validationError);
       onError(validationError);
       return;
     }
 
     setSubmitting(true);
+    let idDoc: number | null = null;
+    const codigosBien: number[] = [];
+
     try {
       const documentoCreado = await createDocumento({
+        numero_documento: documento.numeroDocumento?.trim() || undefined,
         nombre_proveedor: documento.nombreProveedor.trim(),
         forma_adquisicion: documento.formaAdquisicion,
         fecha_adquisicion: documento.fechaAdquisicion,
         moneda: monedaBienToDocumento(documento.moneda),
       });
 
-      const idDoc = documentoCreado.id_doc;
+      idDoc = documentoCreado.id_doc;
       const fechaIngreso = documento.fechaAdquisicion;
 
       for (const item of items) {
         const idAlmacen = resolveAlmacenId(item.almacen, almacenes)!;
-        await createBien(
+        const bienCreado = await createBien(
           itemRegistroToBienPayload(item, {
             idDoc,
             fechaIngreso,
             idAlmacen,
           }),
         );
+        codigosBien.push(bienCreado.id);
       }
 
-      onSuccess(`Documento ${idDoc} cargado con ${items.length} ítem(s)`);
+      const message = buildRegistroBienesSuccessMessage({
+        numeroDocumento: documento.numeroDocumento,
+        nombreProveedor: documento.nombreProveedor,
+        items,
+      });
+      notifyRegistroSuccess(message);
+      onSuccess(message);
       onClose();
     } catch (err) {
-      onError(err instanceof Error ? err.message : 'No se pudo cargar el registro');
+      await rollbackRegistroBienes({ idDoc, codigosBien });
+      const message = extractRegistroError(err, 'No se pudo cargar el registro');
+      notifyRegistroError('No se pudo cargar el registro', message);
+      onError(message);
     } finally {
       setSubmitting(false);
     }
-  };
-
-  const displayCodigo = (item: ItemRegistroDraft) => item.codigoInterno;
+  });
 
   const displaySerial = (item: ItemRegistroDraft) =>
     item.sinSerial || !item.serial.trim() ? 'S/S' : item.serial;
@@ -273,87 +318,79 @@ export default function RegistroBienesModal({
               <Field label="Nro de Documento">
                 <input
                   type="text"
-                  value={documento.numeroDocumento}
-                  readOnly
-                  placeholder="Se asigna al cargar"
-                  className="input-field bg-gray-50"
+                  {...register('numeroDocumento')}
+                  placeholder="Ingrese nro de documento"
+                  className="input-field"
                 />
               </Field>
             <Field label="Nombre de Proveedor">
               <input
                 type="text"
-                value={documento.nombreProveedor}
-                onChange={(e) => updateDocumento('nombreProveedor', e.target.value)}
+                {...register('nombreProveedor')}
                 className={`input-field ${documentoErrors.nombreProveedor ? 'border-red-400' : ''}`}
               />
               {documentoErrors.nombreProveedor && (
-                <p className="text-xs text-red-600 mt-1">{documentoErrors.nombreProveedor}</p>
+                <p className="text-xs text-red-600 mt-1">{documentoErrors.nombreProveedor.message}</p>
               )}
             </Field>
             <Field label="Fecha Adquisición">
               <input
                 type="date"
-                value={documento.fechaAdquisicion}
-                onChange={(e) => updateDocumento('fechaAdquisicion', e.target.value)}
+                {...register('fechaAdquisicion')}
                 className={`input-field ${documentoErrors.fechaAdquisicion ? 'border-red-400' : ''}`}
               />
               {documentoErrors.fechaAdquisicion && (
-                <p className="text-xs text-red-600 mt-1">{documentoErrors.fechaAdquisicion}</p>
+                <p className="text-xs text-red-600 mt-1">{documentoErrors.fechaAdquisicion.message}</p>
               )}
             </Field>
               <Field label="Forma de Adquisición">
-                <select
-                  value={documento.formaAdquisicion}
-                  onChange={(e) =>
-                    updateDocumento('formaAdquisicion', e.target.value as FormaAdquisicionDocumento)
-                  }
-                  className="input-field"
-                >
-                  {FORMAS_DOCUMENTO.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
+                <Controller
+                  name="formaAdquisicion"
+                  control={control}
+                  render={({ field }) => (
+                    <SearchableSelect
+                      value={field.value}
+                      onChange={(value) => field.onChange(value as FormaAdquisicionDocumento)}
+                      options={FORMAS_DOCUMENTO}
+                    />
+                  )}
+                />
               </Field>
               <Field label="Sede">
                 {sedeReadOnly ? (
                   <input
                     type="text"
-                    value={sedeLabel(documento.sede)}
+                    value={sedeLabel(sede)}
                     readOnly
                     className="input-field bg-gray-50 font-medium text-navy-900"
+                    title="Sede fija del módulo; se guarda con el documento"
                   />
                 ) : (
-                  <select
-                    value={documento.sede}
-                    onChange={(e) => updateSede(e.target.value)}
-                    className="input-field"
-                  >
-                    {sedes.map((sede) => (
-                      <option key={sede} value={sede}>
-                        {sedeLabel(sede)}
-                      </option>
-                    ))}
-                  </select>
+                  <Controller
+                    name="sede"
+                    control={control}
+                    render={({ field }) => (
+                      <SearchableSelect value={field.value} onChange={field.onChange} options={sedeSelectOptions} />
+                    )}
+                  />
                 )}
               </Field>
               <Field label="Moneda">
-                <select
-                  value={documento.moneda}
-                  onChange={(e) => updateDocumento('moneda', e.target.value as DocumentoRegistroDraft['moneda'])}
-                  className="input-field"
-                >
-                  {MONEDAS_REGISTRO.map((moneda) => (
-                    <option key={moneda} value={moneda}>
-                      {moneda}
-                    </option>
-                  ))}
-                </select>
+                <Controller
+                  name="moneda"
+                  control={control}
+                  render={({ field }) => (
+                    <SearchableSelect
+                      value={field.value}
+                      onChange={field.onChange}
+                      options={MONEDAS_REGISTRO}
+                    />
+                  )}
+                />
               </Field>
               <Field label="Valor Total de Documento">
                 <div className="input-field bg-gray-50 font-semibold text-navy-900">
-                  {formatMoneda(valorTotalDocumento, documento.moneda)}
+                  {formatMoneda(valorTotalDocumento, moneda)}
                 </div>
               </Field>
             </div>
@@ -363,7 +400,6 @@ export default function RegistroBienesModal({
             <table className="w-full min-w-[1100px] text-sm">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-200">
-                  <Th>Código</Th>
                   <Th>Descripción</Th>
                   <Th>Marca</Th>
                   <Th>Modelo</Th>
@@ -390,7 +426,7 @@ export default function RegistroBienesModal({
               <tbody>
                 {items.length === 0 ? (
                   <tr>
-                    <td colSpan={12} className="px-4 py-10 text-center text-sm text-gray-400">
+                    <td colSpan={11} className="px-4 py-10 text-center text-sm text-gray-400">
                       No hay ítems agregados. Use el botón + para registrar cada bien.
                     </td>
                   </tr>
@@ -400,9 +436,6 @@ export default function RegistroBienesModal({
                       key={item.key}
                       className={`border-b border-gray-100 ${index % 2 === 1 ? 'bg-gray-50/80' : 'bg-white'}`}
                     >
-                      <Td>
-                        <span className="font-mono text-navy-900">{displayCodigo(item)}</span>
-                      </Td>
                       <Td>
                         <span className="block max-w-[180px] truncate">{item.descripcion}</span>
                       </Td>
@@ -416,8 +449,8 @@ export default function RegistroBienesModal({
                         <span className="block max-w-[140px] truncate">{item.almacen}</span>
                       </Td>
                       <Td>{item.cantidad.toLocaleString('es-VE')}</Td>
-                      <Td>{formatMoneda(item.valorAdquisicion, documento.moneda)}</Td>
-                      <Td>{formatMoneda(totalItem(item), documento.moneda)}</Td>
+                      <Td>{formatMoneda(item.valorAdquisicion, moneda)}</Td>
+                      <Td>{formatMoneda(totalItem(item), moneda)}</Td>
                       <Td className="text-center">
                         <button
                           type="button"
@@ -434,6 +467,7 @@ export default function RegistroBienesModal({
                 )}
               </tbody>
             </table>
+            {itemsError && <p className="text-xs text-red-600 p-3">{itemsError}</p>}
           </section>
         </div>
       </Modal>
@@ -447,8 +481,9 @@ export default function RegistroBienesModal({
         modulo={modulo}
         item={editingItem}
         almacenOptions={almacenOptions}
+        almacenes={almacenes}
         departamentoOptions={departamentoOptions}
-        moneda={documento.moneda}
+        moneda={moneda}
         onSave={guardarItem}
         onDelete={eliminarItem}
       />

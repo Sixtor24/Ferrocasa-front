@@ -2,11 +2,6 @@ import { z } from 'zod';
 import type { ItemRegistroDraft } from '../types/registroBienItem';
 import type { CondicionFisica } from '../types/bien';
 
-const codigoInvalido = (valor: string) => {
-  const normalizado = valor.trim().toUpperCase();
-  return normalizado.length > 0 && !['S/C', 'S/C/', 'SC'].includes(normalizado);
-};
-
 function normalizeCondicionFisica(condicion: CondicionFisica): 'Bueno' | 'Regular' | 'Dañado' {
   return condicion === 'Bueno' || condicion === 'Regular' || condicion === 'Dañado'
     ? condicion
@@ -14,6 +9,7 @@ function normalizeCondicionFisica(condicion: CondicionFisica): 'Bueno' | 'Regula
 }
 
 export const documentoRegistroFormSchema = z.object({
+  numeroDocumento: z.string().optional().default(''),
   nombreProveedor: z.string().trim().min(1, 'Indique el nombre del proveedor'),
   fechaAdquisicion: z.string().min(1, 'Indique la fecha de adquisición'),
   formaAdquisicion: z.enum(['Compra', 'Donacion', 'Confiscacion']),
@@ -25,14 +21,12 @@ export type DocumentoRegistroForm = z.infer<typeof documentoRegistroFormSchema>;
 
 export const itemRegistroFormSchema = z
   .object({
-    codigoInterno: z
-      .string()
-      .trim()
-      .min(1, 'El código es obligatorio')
-      .refine(codigoInvalido, { message: 'Debe indicar un código válido del bien' }),
     descripcion: z.string().trim().min(1, 'La descripción es obligatoria'),
     color: z.string().optional().default(''),
-    cantidad: z.coerce.number().int('La cantidad debe ser entera').min(0, 'La cantidad no puede ser negativa'),
+    cantidad: z.coerce
+      .number()
+      .int('La cantidad debe ser entera')
+      .min(1, 'La cantidad debe ser al menos 1'),
     unidadAdministrativa: z.string().min(1, 'Seleccione la unidad administrativa'),
     idCategoriaGeneral: z.coerce
       .number()
@@ -50,7 +44,7 @@ export const itemRegistroFormSchema = z
       .min(0, 'El valor no puede ser negativo'),
     almacen: z.string().min(1, 'Seleccione el almacén'),
     observaciones: z.string().optional().default(''),
-    consumibilidad: z.enum(['Perecederos', 'No_Perecederos']),
+    consumibilidad: z.enum(['Perecederos', 'No_perecedero']),
     condicionFisica: z.enum(['Bueno', 'Regular', 'Dañado']),
   })
   .refine((data) => data.sinSerial || data.serial.trim().length > 0, {
@@ -62,7 +56,6 @@ export type ItemRegistroForm = z.infer<typeof itemRegistroFormSchema>;
 
 export function itemDraftToFormInput(item: ItemRegistroDraft): ItemRegistroForm {
   return {
-    codigoInterno: item.codigoInterno,
     descripcion: item.descripcion,
     color: item.color,
     cantidad: item.cantidad,

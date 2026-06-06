@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react';
 import { RotateCcw } from 'lucide-react';
+import SearchableSelect from '../forms/SearchableSelect';
 
-export type FilterFieldType = 'text' | 'select' | 'search';
+export type FilterFieldType = 'text' | 'select' | 'search' | 'date';
 
 export interface FilterField {
   key: string;
@@ -30,20 +31,15 @@ export default function ModuleFilterBar({ fields, onClearFilters, children }: Mo
           <div key={field.key} className={field.className}>
             <label className="filter-label">{field.label}</label>
             {field.type === 'select' ? (
-              <select
+              <SearchableSelect
                 value={field.value}
-                onChange={(e) => field.onChange(e.target.value)}
-                className="input-field"
-              >
-                {(field.options ?? ['Todos']).map((opt) => (
-                  <option key={opt} value={opt === 'Todos' || opt === 'Todas' ? '' : opt}>
-                    {opt}
-                  </option>
-                ))}
-              </select>
+                onChange={field.onChange}
+                options={field.options ?? ['Todos']}
+                placeholder={field.placeholder ?? 'Todos'}
+              />
             ) : (
               <input
-                type="text"
+                type={field.type === 'date' ? 'date' : 'text'}
                 value={field.value}
                 onChange={(e) => field.onChange(e.target.value)}
                 placeholder={field.placeholder ?? ''}

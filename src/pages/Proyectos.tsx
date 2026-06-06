@@ -14,6 +14,7 @@ import {
   Search,
   X,
 } from 'lucide-react';
+import SearchableSelect from '../components/forms/SearchableSelect';
 
 const estadoColor: Record<string, string> = {
   'EN CONSTRUCCIÓN': 'text-blue-600',
@@ -144,16 +145,12 @@ export default function Proyectos() {
               </button>
             )}
           </div>
-          <select
+          <SearchableSelect
             value={filtroTipo}
-            onChange={(e) => setFiltroTipo(e.target.value)}
-            className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-navy-500"
-          >
-            <option>Todos los tipos</option>
-            <option>EDIFICIO</option>
-            <option>URBANISMO</option>
-            <option>TOWNHOUSES</option>
-          </select>
+            onChange={setFiltroTipo}
+            options={['Todos los tipos', 'EDIFICIO', 'URBANISMO', 'TOWNHOUSES']}
+            className="w-full sm:w-48"
+          />
         </div>
       </div>
 
@@ -162,26 +159,19 @@ export default function Proyectos() {
         <div className="bg-white rounded-xl border border-gray-200 p-4 grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
           <div>
             <label className="text-xs text-gray-500 mb-1.5 block">Estado del proyecto</label>
-            <select
+            <SearchableSelect
               value={filtroEstado}
-              onChange={(e) => setFiltroEstado(e.target.value)}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-navy-500"
-            >
-              {estados.map((e) => <option key={e}>{e}</option>)}
-            </select>
+              onChange={setFiltroEstado}
+              options={estados}
+            />
           </div>
           <div>
             <label className="text-xs text-gray-500 mb-1.5 block">Tipo</label>
-            <select
+            <SearchableSelect
               value={filtroTipo}
-              onChange={(e) => setFiltroTipo(e.target.value)}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-navy-500"
-            >
-              <option>Todos los tipos</option>
-              <option>EDIFICIO</option>
-              <option>URBANISMO</option>
-              <option>TOWNHOUSES</option>
-            </select>
+              onChange={setFiltroTipo}
+              options={['Todos los tipos', 'EDIFICIO', 'URBANISMO', 'TOWNHOUSES']}
+            />
           </div>
           {hayFiltros && (
             <button

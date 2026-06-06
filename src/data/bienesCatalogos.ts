@@ -104,7 +104,13 @@ export const ALMACENES_AREA_EXTERNA = [
 ] as const;
 
 export const SEDES_CEMENTERIO = ['Cementerio'] as const;
-export const DEPARTAMENTOS_CEMENTERIO = ['Cementerio'] as const;
+export const DEPARTAMENTOS_CEMENTERIO = [
+  'Administración',
+  'Crematorio',
+  'Mantenimiento y Jardinería',
+  'Sala Velatoria',
+  'Servicios Generales',
+] as const;
 export const ALMACENES_CEMENTERIO = [
   'Entrada PPAL',
   'Oficinas',

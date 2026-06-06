@@ -27,10 +27,12 @@ export type DocumentosRangoFechasQuery = {
 };
 
 export type DocumentoPayload = {
+  numero_documento?: string;
   nombre_proveedor: string;
   forma_adquisicion: FormaAdquisicionDocumento;
   fecha_adquisicion: string;
   moneda: MonedaDocumento;
+  id_sede?: number;
 };
 
 function mapDocumentosList(res: ApiListResponse<ApiDocumento>) {

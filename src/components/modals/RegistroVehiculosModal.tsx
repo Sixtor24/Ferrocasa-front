@@ -1,26 +1,37 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Pencil, Plus } from 'lucide-react';
+import { Controller, useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import Modal from './Modal';
 import NuevoItemVehiculoRegistroModal from './NuevoItemVehiculoRegistroModal';
+import SearchableSelect from '../forms/SearchableSelect';
 import { createDocumento, type FormaAdquisicionDocumento } from '../../api/services/documentos.service';
+import { fetchSedes } from '../../api/services/sedes.service';
 import { createVehiculo } from '../../api/services/vehiculos.service';
-import type { ApiAlmacen } from '../../api/types';
+import type { ApiAlmacen, ApiSede } from '../../api/types';
 import {
   almacenesPorSede,
   departamentosPorSede,
   SEDES_VEHICULOS,
 } from '../../data/bienesCatalogos';
 import { MONEDAS_REGISTRO } from '../../types/registroBienItem';
-import type { DocumentoVehiculoRegistroDraft, ItemVehiculoRegistroDraft } from '../../types/registroVehiculoItem';
-import { documentoRegistroFormSchema } from '../../schemas/registro.schema';
+import type { ItemVehiculoRegistroDraft } from '../../types/registroVehiculoItem';
+import { documentoRegistroFormSchema, type DocumentoRegistroForm } from '../../schemas/registro.schema';
 import {
   itemVehiculoDraftToFormInput,
   registroVehiculosListSchema,
 } from '../../schemas/registroVehiculo.schema';
 import { formatMoneda } from '../../utils/formatters';
 import { validarConZod } from '../../utils/validators';
-import { monedaBienToDocumento } from '../../utils/registroBienMappers';
+import { monedaBienToDocumento, normalizeCatalogValue } from '../../utils/registroBienMappers';
+import { buildRegistroVehiculosSuccessMessage } from '../../utils/assetNotify';
+import { rollbackRegistroVehiculos } from '../../utils/registroRollback';
 import { itemVehiculoToPayload, resolveAlmacenIdVehiculo } from '../../utils/registroVehiculoMappers';
+import {
+  extractRegistroError,
+  notifyRegistroError,
+  notifyRegistroSuccess,
+} from '../../utils/registroNotify';
 
 type RegistroVehiculosModalProps = {
   open: boolean;
@@ -46,7 +57,7 @@ function sedeLabel(value: string) {
   return SEDE_LABELS[value] ?? value;
 }
 
-function initialDocumento(): DocumentoVehiculoRegistroDraft {
+function documentoDefaultValues(): DocumentoRegistroForm {
   return {
     numeroDocumento: '',
     nombreProveedor: '',
@@ -68,24 +79,54 @@ export default function RegistroVehiculosModal({
   onSuccess,
   onError,
 }: RegistroVehiculosModalProps) {
-  const [documento, setDocumento] = useState<DocumentoVehiculoRegistroDraft>(initialDocumento);
   const [items, setItems] = useState<ItemVehiculoRegistroDraft[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [itemModalOpen, setItemModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<ItemVehiculoRegistroDraft | null>(null);
-  const [documentoErrors, setDocumentoErrors] = useState<Record<string, string>>({});
+  const [itemsError, setItemsError] = useState<string | null>(null);
+  const [sedesApi, setSedesApi] = useState<ApiSede[]>([]);
+
+  const {
+    register,
+    control,
+    handleSubmit,
+    reset,
+    watch,
+    formState: { errors: documentoErrors },
+  } = useForm<DocumentoRegistroForm>({
+    resolver: zodResolver(documentoRegistroFormSchema),
+    defaultValues: documentoDefaultValues(),
+  });
+
+  const sede = watch('sede');
+  const moneda = watch('moneda');
+  const prevSedeRef = useRef(sede);
 
   const almacenOptions = useMemo(() => {
-    const catalog = new Set(almacenesPorSede(documento.sede).map((nombre) => nombre.toLowerCase()));
+    const catalog = new Set(almacenesPorSede(sede).map((nombre) => nombre.toLowerCase()));
     const fromApi = almacenes.map((a) => a.nombre).filter(Boolean);
     const matchingApi = fromApi.filter((nombre) => catalog.has(nombre.toLowerCase()));
-    return matchingApi.length > 0 ? matchingApi : [...almacenesPorSede(documento.sede)];
-  }, [almacenes, documento.sede]);
+    return matchingApi.length > 0 ? matchingApi : [...almacenesPorSede(sede)];
+  }, [almacenes, sede]);
 
   const departamentoOptions = useMemo(
-    () => departamentosPorSede(documento.sede),
-    [documento.sede],
+    () => departamentosPorSede(sede),
+    [sede],
   );
+
+  const sedeSelectOptions = useMemo(() => {
+    const catalogNormalized = new Set(SEDES_VEHICULOS.map(normalizeCatalogValue));
+    const fromApi = sedesApi.filter((sedeApi) => {
+      const apiName = normalizeCatalogValue(sedeApi.nombre);
+      return [...catalogNormalized].some(
+        (catalogName) => apiName === catalogName || apiName.includes(catalogName) || catalogName.includes(apiName),
+      );
+    });
+    if (fromApi.length > 0) {
+      return fromApi.map((sedeApi) => ({ value: sedeApi.nombre, label: sedeLabel(sedeApi.nombre) }));
+    }
+    return SEDES_VEHICULOS.map((s) => ({ value: s, label: sedeLabel(s) }));
+  }, [sedesApi]);
 
   const valorTotalDocumento = useMemo(
     () => items.reduce((sum, item) => sum + totalItem(item), 0),
@@ -94,31 +135,26 @@ export default function RegistroVehiculosModal({
 
   useEffect(() => {
     if (!open) return;
-    setDocumento(initialDocumento());
+    reset(documentoDefaultValues());
     setItems([]);
     setEditingItem(null);
     setItemModalOpen(false);
-    setDocumentoErrors({});
-  }, [open]);
+    setItemsError(null);
+    prevSedeRef.current = SEDES_VEHICULOS[0];
 
-  const updateDocumento = <K extends keyof DocumentoVehiculoRegistroDraft>(
-    key: K,
-    value: DocumentoVehiculoRegistroDraft[K],
-  ) => {
-    setDocumento((prev) => ({ ...prev, [key]: value }));
-    setDocumentoErrors((prev) => {
-      const next = { ...prev };
-      delete next[key as string];
-      return next;
+    fetchSedes({ page: 1, limit: 500 }).then((res) => {
+      setSedesApi(res.data ?? []);
     });
-  };
+  }, [open, reset]);
 
-  const updateSede = (sede: string) => {
-    updateDocumento('sede', sede);
+  useEffect(() => {
+    if (prevSedeRef.current === sede) return;
+    prevSedeRef.current = sede;
     setItems([]);
     setEditingItem(null);
     setItemModalOpen(false);
-  };
+    setItemsError(null);
+  }, [sede]);
 
   const abrirNuevoItem = () => {
     setEditingItem(null);
@@ -142,75 +178,82 @@ export default function RegistroVehiculosModal({
     setItems((prev) => prev.filter((i) => i.key !== key));
   };
 
-  const validar = (): string | null => {
-    const docResult = validarConZod(documentoRegistroFormSchema, {
-      nombreProveedor: documento.nombreProveedor,
-      fechaAdquisicion: documento.fechaAdquisicion,
-      formaAdquisicion: documento.formaAdquisicion,
-      sede: documento.sede,
-      moneda: documento.moneda,
-    });
-    if (!docResult.success) {
-      setDocumentoErrors(docResult.errors);
-      return Object.values(docResult.errors)[0] ?? 'Revise los datos del documento';
-    }
-    setDocumentoErrors({});
-
+  const validarItems = (): string | null => {
     const itemsResult = validarConZod(
       registroVehiculosListSchema,
       items.map((item) => itemVehiculoDraftToFormInput(item)),
     );
     if (!itemsResult.success) {
-      return Object.values(itemsResult.errors)[0] ?? 'Revise los ítems agregados';
+      const message = Object.values(itemsResult.errors)[0] ?? 'Revise los ítems agregados';
+      setItemsError(message);
+      return message;
     }
+    setItemsError(null);
 
     for (const [index, item] of items.entries()) {
       const idAlmacen = resolveAlmacenIdVehiculo(item.almacen, almacenes);
       if (!idAlmacen) {
-        return `El almacén "${item.almacen}" del ítem ${index + 1} debe existir en configuración`;
+        const message = `El almacén "${item.almacen}" del ítem ${index + 1} debe existir en configuración`;
+        setItemsError(message);
+        return message;
       }
     }
     return null;
   };
 
-  const handleCargar = async () => {
-    const validationError = validar();
+  const handleCargar = handleSubmit(async (documento) => {
+    const validationError = validarItems();
     if (validationError) {
+      notifyRegistroError('No se pudo cargar el registro', validationError);
       onError(validationError);
       return;
     }
 
     setSubmitting(true);
+    let idDoc: number | null = null;
+    const codigosVehiculo: number[] = [];
+
     try {
       const documentoCreado = await createDocumento({
+        numero_documento: documento.numeroDocumento?.trim() || undefined,
         nombre_proveedor: documento.nombreProveedor.trim(),
         forma_adquisicion: documento.formaAdquisicion,
         fecha_adquisicion: documento.fechaAdquisicion,
         moneda: monedaBienToDocumento(documento.moneda),
       });
 
-      const idDoc = documentoCreado.id_doc;
+      idDoc = documentoCreado.id_doc;
       const fechaIngreso = documento.fechaAdquisicion;
 
       for (const item of items) {
         const idAlmacen = resolveAlmacenIdVehiculo(item.almacen, almacenes)!;
-        await createVehiculo(
+        const vehiculoCreado = await createVehiculo(
           itemVehiculoToPayload(item, {
             idDoc,
             fechaIngreso,
             idAlmacen,
           }),
         );
+        codigosVehiculo.push(vehiculoCreado.id);
       }
 
-      onSuccess(`Documento ${idDoc} cargado con ${items.length} vehículo(s)`);
+      const message = buildRegistroVehiculosSuccessMessage({
+        numeroDocumento: documento.numeroDocumento,
+        nombreProveedor: documento.nombreProveedor,
+        items,
+      });
+      notifyRegistroSuccess(message);
+      onSuccess(message);
       onClose();
     } catch (err) {
-      onError(err instanceof Error ? err.message : 'No se pudo cargar el registro');
+      await rollbackRegistroVehiculos({ idDoc, codigosVehiculo });
+      const message = extractRegistroError(err, 'No se pudo cargar el registro');
+      notifyRegistroError('No se pudo cargar el registro', message);
+      onError(message);
     } finally {
       setSubmitting(false);
     }
-  };
+  });
 
   return (
     <>
@@ -241,77 +284,69 @@ export default function RegistroVehiculosModal({
               <Field label="Nro de Documento">
                 <input
                   type="text"
-                  readOnly
-                  placeholder="Se asigna al cargar"
-                  className="input-field bg-gray-50"
+                  {...register('numeroDocumento')}
+                  placeholder="Ingrese nro de documento"
+                  className="input-field"
                 />
               </Field>
               <Field label="Nombre de Proveedor">
                 <input
                   type="text"
-                  value={documento.nombreProveedor}
-                  onChange={(e) => updateDocumento('nombreProveedor', e.target.value)}
+                  {...register('nombreProveedor')}
                   className={`input-field ${documentoErrors.nombreProveedor ? 'border-red-400' : ''}`}
                 />
                 {documentoErrors.nombreProveedor && (
-                  <p className="text-xs text-red-600 mt-1">{documentoErrors.nombreProveedor}</p>
+                  <p className="text-xs text-red-600 mt-1">{documentoErrors.nombreProveedor.message}</p>
                 )}
               </Field>
               <Field label="Fecha Adquisición">
                 <input
                   type="date"
-                  value={documento.fechaAdquisicion}
-                  onChange={(e) => updateDocumento('fechaAdquisicion', e.target.value)}
+                  {...register('fechaAdquisicion')}
                   className={`input-field ${documentoErrors.fechaAdquisicion ? 'border-red-400' : ''}`}
                 />
                 {documentoErrors.fechaAdquisicion && (
-                  <p className="text-xs text-red-600 mt-1">{documentoErrors.fechaAdquisicion}</p>
+                  <p className="text-xs text-red-600 mt-1">{documentoErrors.fechaAdquisicion.message}</p>
                 )}
               </Field>
               <Field label="Forma de Adquisición">
-                <select
-                  value={documento.formaAdquisicion}
-                  onChange={(e) =>
-                    updateDocumento('formaAdquisicion', e.target.value as FormaAdquisicionDocumento)
-                  }
-                  className="input-field"
-                >
-                  {FORMAS_DOCUMENTO.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
+                <Controller
+                  name="formaAdquisicion"
+                  control={control}
+                  render={({ field }) => (
+                    <SearchableSelect
+                      value={field.value}
+                      onChange={(value) => field.onChange(value as FormaAdquisicionDocumento)}
+                      options={FORMAS_DOCUMENTO}
+                    />
+                  )}
+                />
               </Field>
               <Field label="Sede">
-                <select
-                  value={documento.sede}
-                  onChange={(e) => updateSede(e.target.value)}
-                  className="input-field"
-                >
-                  {SEDES_VEHICULOS.map((sede) => (
-                    <option key={sede} value={sede}>
-                      {sedeLabel(sede)}
-                    </option>
-                  ))}
-                </select>
+                <Controller
+                  name="sede"
+                  control={control}
+                  render={({ field }) => (
+                    <SearchableSelect value={field.value} onChange={field.onChange} options={sedeSelectOptions} />
+                  )}
+                />
               </Field>
               <Field label="Moneda">
-                <select
-                  value={documento.moneda}
-                  onChange={(e) => updateDocumento('moneda', e.target.value as DocumentoVehiculoRegistroDraft['moneda'])}
-                  className="input-field"
-                >
-                  {MONEDAS_REGISTRO.map((moneda) => (
-                    <option key={moneda} value={moneda}>
-                      {moneda}
-                    </option>
-                  ))}
-                </select>
+                <Controller
+                  name="moneda"
+                  control={control}
+                  render={({ field }) => (
+                    <SearchableSelect
+                      value={field.value}
+                      onChange={field.onChange}
+                      options={MONEDAS_REGISTRO}
+                    />
+                  )}
+                />
               </Field>
               <Field label="Valor Total de Documento">
                 <div className="input-field bg-gray-50 font-semibold text-navy-900">
-                  {formatMoneda(valorTotalDocumento, documento.moneda)}
+                  {formatMoneda(valorTotalDocumento, moneda)}
                 </div>
               </Field>
             </div>
@@ -321,7 +356,6 @@ export default function RegistroVehiculosModal({
             <table className="w-full min-w-[1100px] text-sm">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-200">
-                  <Th>Código</Th>
                   <Th>Descripción</Th>
                   <Th>Marca</Th>
                   <Th>Modelo</Th>
@@ -348,7 +382,7 @@ export default function RegistroVehiculosModal({
               <tbody>
                 {items.length === 0 ? (
                   <tr>
-                    <td colSpan={12} className="px-4 py-10 text-center text-sm text-gray-400">
+                    <td colSpan={11} className="px-4 py-10 text-center text-sm text-gray-400">
                       No hay ítems agregados. Use el botón + para registrar cada vehículo.
                     </td>
                   </tr>
@@ -358,9 +392,6 @@ export default function RegistroVehiculosModal({
                       key={item.key}
                       className={`border-b border-gray-100 ${index % 2 === 1 ? 'bg-gray-50/80' : 'bg-white'}`}
                     >
-                      <Td>
-                        <span className="font-mono text-navy-900">{item.codigoInterno}</span>
-                      </Td>
                       <Td>
                         <span className="block max-w-[180px] truncate">{item.descripcion}</span>
                       </Td>
@@ -374,8 +405,8 @@ export default function RegistroVehiculosModal({
                         <span className="block max-w-[140px] truncate">{item.almacen}</span>
                       </Td>
                       <Td>{item.cantidad.toLocaleString('es-VE')}</Td>
-                      <Td>{formatMoneda(item.valorAdquisicion, documento.moneda)}</Td>
-                      <Td>{formatMoneda(totalItem(item), documento.moneda)}</Td>
+                      <Td>{formatMoneda(item.valorAdquisicion, moneda)}</Td>
+                      <Td>{formatMoneda(totalItem(item), moneda)}</Td>
                       <Td className="text-center">
                         <button
                           type="button"
@@ -392,6 +423,7 @@ export default function RegistroVehiculosModal({
                 )}
               </tbody>
             </table>
+            {itemsError && <p className="text-xs text-red-600 p-3">{itemsError}</p>}
           </section>
         </div>
       </Modal>
@@ -404,8 +436,9 @@ export default function RegistroVehiculosModal({
         }}
         item={editingItem}
         almacenOptions={almacenOptions}
+        almacenes={almacenes}
         departamentoOptions={departamentoOptions}
-        moneda={documento.moneda}
+        moneda={moneda}
         onSave={guardarItem}
         onDelete={eliminarItem}
       />

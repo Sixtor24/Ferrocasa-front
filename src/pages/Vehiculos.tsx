@@ -1,14 +1,26 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
-import { cambiarEstadoVehiculo, fetchVehiculos, fetchVehiculoById } from '../api/services/vehiculos.service';
+import {
+  cambiarEstadoVehiculo,
+  fetchVehiculos,
+  fetchVehiculoById,
+} from '../api/services/vehiculos.service';
 import { fetchAlmacenes } from '../api/services/almacenes.service';
 import { useApiQuery } from '../hooks/useApiQuery';
 import { RegistroVehiculosModal } from '../components/modals';
+import RetirarInventarioModal from '../components/modals/RetirarInventarioModal';
+import TransferirAlmacenModal from '../components/modals/TransferirAlmacenModal';
+import {
+  useVehiculoInventarioActions,
+  type InventarioVehiculoActionResult,
+} from '../hooks/useVehiculoInventarioActions';
+import type { ApiAlmacen } from '../api/types';
 import { CONDICIONES_VEHICULO, ESTADOS_USO_VEHICULO } from '../types/vehiculo';
 import type { Vehiculo } from '../types/vehiculo';
 import ModulePageHeader from '../components/module/ModulePageHeader';
 import ModuleFilterBar from '../components/module/ModuleFilterBar';
+import SearchableSelect from '../components/forms/SearchableSelect';
 import { FILTROS_INVENTARIO_VACIOS } from '../constants/moduleFilters';
 import ModuleDataTable from '../components/module/ModuleDataTable';
 import ModulePagination from '../components/module/ModulePagination';
@@ -16,6 +28,7 @@ import AssetDetailView from '../components/module/AssetDetailView';
 import ApiState from '../components/ApiState';
 import StatusBadge from '../components/StatusBadge';
 import { formatFecha, formatMoneda } from '../utils/formatters';
+import { notifyVehiculoActualizado } from '../utils/assetNotify';
 import { estadoUsoVehiculoToApi } from '../utils/registroVehiculoMappers';
 import { useModuleUiState } from '../stores/moduleUiStore';
 import type { Column } from '../components/DataTable';
@@ -36,10 +49,26 @@ function catalogOptions(values: string[], allLabel: string) {
   return [allLabel, ...unique];
 }
 
-function VehiculoDetail({ vehiculo, onVolver }: { vehiculo: Vehiculo; onVolver: () => void }) {
+function VehiculoDetail({
+  vehiculo,
+  almacenes,
+  onVolver,
+  onInventarioAction,
+}: {
+  vehiculo: Vehiculo;
+  almacenes: ApiAlmacen[];
+  onVolver: () => void;
+  onInventarioAction?: (result: InventarioVehiculoActionResult) => void;
+}) {
   const [estadoUso, setEstadoUso] = useState(vehiculo.estadoUso);
   const [condicionFisica, setCondicionFisica] = useState(vehiculo.condicionFisica);
   const [saving, setSaving] = useState(false);
+  const inventario = useVehiculoInventarioActions({ vehiculo, almacenes, onActionSuccess: onInventarioAction });
+
+  useEffect(() => {
+    setEstadoUso(vehiculo.estadoUso);
+    setCondicionFisica(vehiculo.condicionFisica);
+  }, [vehiculo.estadoUso, vehiculo.condicionFisica]);
 
   const guardarCambio = async () => {
     setSaving(true);
@@ -48,9 +77,7 @@ function VehiculoDetail({ vehiculo, onVolver }: { vehiculo: Vehiculo; onVolver: 
         estado_vehiculo: 'Carga_Total',
         estado_uso: estadoUsoVehiculoToApi(estadoUso),
       });
-      toast.success('Cambio guardado', {
-        description: `${vehiculo.codigoInterno}: estado ${estadoUso}.`,
-      });
+      notifyVehiculoActualizado(vehiculo, estadoUso);
     } catch (err) {
       toast.error('No se pudo guardar el cambio', {
         description: err instanceof Error ? err.message : 'Intente nuevamente.',
@@ -67,6 +94,7 @@ function VehiculoDetail({ vehiculo, onVolver }: { vehiculo: Vehiculo; onVolver: 
     : (vehiculo.serialCarroceria || '—');
 
   return (
+    <>
     <AssetDetailView
       title="Vehículos y Maquinaria"
       breadcrumb={[
@@ -88,17 +116,14 @@ function VehiculoDetail({ vehiculo, onVolver }: { vehiculo: Vehiculo; onVolver: 
             {
               label: 'Estado de uso',
               value: (
-                <select
+                <SearchableSelect
                   value={estadoUso}
-                  onChange={(e) => setEstadoUso(e.target.value as Vehiculo['estadoUso'])}
-                  className="input-field max-w-xs"
-                >
-                  {ESTADOS_USO_VEHICULO.map((opt) => (
-                    <option key={opt} value={opt}>
-                      {opt}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(value) => setEstadoUso(value as Vehiculo['estadoUso'])}
+                  options={ESTADOS_USO_VEHICULO}
+                  className="max-w-xs"
+                  disabled={inventario.retirado}
+                  disableSearch
+                />
               ),
             },
             { label: 'Fecha de Ingreso', value: formatFecha(vehiculo.fechaAdquisicion) },
@@ -106,17 +131,14 @@ function VehiculoDetail({ vehiculo, onVolver }: { vehiculo: Vehiculo; onVolver: 
             {
               label: 'Condición Física',
               value: (
-                <select
+                <SearchableSelect
                   value={condicionFisica}
-                  onChange={(e) => setCondicionFisica(e.target.value as Vehiculo['condicionFisica'])}
-                  className="input-field max-w-xs"
-                >
-                  {CONDICIONES_VEHICULO.map((opt) => (
-                    <option key={opt} value={opt}>
-                      {opt}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(value) => setCondicionFisica(value as Vehiculo['condicionFisica'])}
+                  options={CONDICIONES_VEHICULO}
+                  className="max-w-xs"
+                  disabled={inventario.retirado}
+                  disableSearch
+                />
               ),
             },
             { label: 'Color', value: vehiculo.color },
@@ -177,19 +199,41 @@ function VehiculoDetail({ vehiculo, onVolver }: { vehiculo: Vehiculo; onVolver: 
           </button>
           <button
             type="button"
-            className="px-5 py-2.5 border border-navy-200 text-navy-800 rounded-lg text-sm font-semibold hover:bg-navy-50"
+            onClick={() => inventario.setTransferOpen(true)}
+            disabled={inventario.retirado || inventario.transferLoading || inventario.retireLoading}
+            className="px-5 py-2.5 border border-navy-200 text-navy-800 rounded-lg text-sm font-semibold hover:bg-navy-50 disabled:opacity-50"
           >
             Transferir a otro almacén
           </button>
           <button
             type="button"
-            className="px-5 py-2.5 border border-red-200 text-red-700 rounded-lg text-sm font-semibold hover:bg-red-50"
+            onClick={() => inventario.setRetireOpen(true)}
+            disabled={inventario.retirado || inventario.transferLoading || inventario.retireLoading}
+            className="px-5 py-2.5 border border-red-200 text-red-700 rounded-lg text-sm font-semibold hover:bg-red-50 disabled:opacity-50"
           >
             Retirar de Inventario
           </button>
         </>
       }
     />
+    <TransferirAlmacenModal
+      open={inventario.transferOpen}
+      onClose={() => inventario.setTransferOpen(false)}
+      assetLabel={inventario.assetLabel}
+      sedeActual={inventario.sedeActual}
+      almacenActual={inventario.almacenActual}
+      almacenes={inventario.almacenes}
+      onConfirm={inventario.handleTransfer}
+      loading={inventario.transferLoading}
+    />
+    <RetirarInventarioModal
+      open={inventario.retireOpen}
+      onClose={() => inventario.setRetireOpen(false)}
+      assetLabel={inventario.assetLabel}
+      onConfirm={inventario.handleRetire}
+      loading={inventario.retireLoading}
+    />
+    </>
   );
 }
 
@@ -242,6 +286,7 @@ export default function Vehiculos() {
       if (filtros.condicionFisica && filtros.condicionFisica !== 'Todas' && v.condicionFisica !== filtros.condicionFisica) return false;
       if (filtros.departamento && filtros.departamento !== 'Todos' && v.unidadAdministrativa !== filtros.departamento) return false;
       if (filtros.numeroDocumento && !v.numeroDocumento.includes(filtros.numeroDocumento)) return false;
+      if (filtros.fecha && v.fechaAdquisicion !== filtros.fecha) return false;
       if (filtros.estadoUso && filtros.estadoUso !== 'Todos' && v.estadoUso !== filtros.estadoUso) return false;
       if (q) {
         const hay =
@@ -283,7 +328,23 @@ export default function Vehiculos() {
   if (id) {
     return (
       <ApiState loading={detailQuery.loading} error={detailQuery.error} onRetry={detailQuery.refetch}>
-        {vehiculo && <VehiculoDetail vehiculo={vehiculo} onVolver={() => navigate('/vehiculos')} />}
+        {vehiculo && (
+          <VehiculoDetail
+            vehiculo={vehiculo}
+            almacenes={almacenesQuery.data?.data ?? []}
+            onVolver={() => navigate('/vehiculos')}
+            onInventarioAction={async (result) => {
+              if (result.type === 'transfer') {
+                void vehiculosQuery.refetch();
+                setModuleFilter('almacen', result.almacenDestino);
+                await detailQuery.refetch();
+                return;
+              }
+              void vehiculosQuery.refetch();
+              await detailQuery.refetch();
+            }}
+          />
+        )}
       </ApiState>
     );
   }
@@ -293,6 +354,7 @@ export default function Vehiculos() {
       <ModulePageHeader
         title="Vehículos y Maquinaria"
         breadcrumb={[{ label: 'Dashboard', to: '/dashboard' }, { label: 'Vehículos' }]}
+        formatModule="vehiculos"
         onCreate={() => setModal('registro', true)}
         createLabel="Crear Registro"
         extraActions={
@@ -316,6 +378,7 @@ export default function Vehiculos() {
           { key: 'condicion', label: 'Condición Física', type: 'select', value: filtros.condicionFisica, onChange: (v) => setFiltro('condicionFisica', v), options: ['Todas', ...CONDICIONES_VEHICULO] },
           { key: 'departamento', label: 'Unidad Administrativa', type: 'select', value: filtros.departamento, onChange: (v) => setFiltro('departamento', v), options: unidadAdministrativaOptions },
           { key: 'documento', label: 'Número de documento', type: 'text', value: filtros.numeroDocumento, onChange: (v) => setFiltro('numeroDocumento', v) },
+          { key: 'fecha', label: 'Fecha', type: 'date', value: filtros.fecha, onChange: (v) => setFiltro('fecha', v) },
           { key: 'estado', label: 'Estado de uso', type: 'select', value: filtros.estadoUso, onChange: (v) => setFiltro('estadoUso', v), options: ['Todos', ...ESTADOS_USO_VEHICULO] },
           { key: 'buscar', label: 'Buscar', type: 'search', value: filtros.buscar, onChange: (v) => setFiltro('buscar', v), placeholder: 'Buscar...', className: 'lg:col-span-1' },
         ]}
@@ -342,13 +405,12 @@ export default function Vehiculos() {
         open={showRegistro}
         onClose={() => setModal('registro', false)}
         almacenes={almacenesQuery.data?.data ?? []}
-        onSuccess={(message) => {
+        onSuccess={() => {
           listQuery.refetch();
-          setSuccessMsg(message);
-          setTimeout(() => setSuccessMsg(''), 4000);
         }}
-        onError={setErrorMsg}
+        onError={() => {}}
       />
+
     </div>
   );
 }

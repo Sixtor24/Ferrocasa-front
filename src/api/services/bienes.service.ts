@@ -18,7 +18,7 @@ export type BienesQuery = {
 
 export type EstadoUsoBienApi = 'En_Uso' | 'En_Reparacion' | 'Dado_de_Baja' | 'Almacenado';
 export type CondicionFisicaBienApi = 'Bueno' | 'Regular' | 'Dañado' | 'Averiado' | 'Inservible';
-export type ConsumibilidadBienApi = 'Perecederos' | 'No_Perecederos';
+export type ConsumibilidadBienApi = 'Perecederos' | 'No_perecedero';
 
 export type BienPayload = {
   descripcion: string;
@@ -38,7 +38,6 @@ export type BienPayload = {
   consumibilidad: ConsumibilidadBienApi;
   usuario_carga?: string | null;
   id_categoria_especifica: number;
-  unidad_administrativa?: string | null;
   observaciones?: string | null;
 };
 
@@ -84,13 +83,17 @@ async function enrichBienConResponsable(apiBien: ApiBien, bien: BienMueble): Pro
   }
 }
 
-export async function fetchBienByCodigo(codigo: number): Promise<BienMueble> {
+export async function fetchApiBienByCodigo(codigo: number): Promise<ApiBien> {
   const res = await apiRequest<ApiItemResponse<ApiBien>>(`/bienes/${codigo}`);
   if (!res.data) throw new Error('Respuesta vacía del API');
+  return res.data;
+}
 
+export async function fetchBienByCodigo(codigo: number): Promise<BienMueble> {
+  const apiBien = await fetchApiBienByCodigo(codigo);
   const almacenesById = await fetchAlmacenesCatalog();
-  const bien = mapApiBienToBienMueble(res.data, almacenesById);
-  return enrichBienConResponsable(res.data, bien);
+  const bien = mapApiBienToBienMueble(apiBien, almacenesById);
+  return enrichBienConResponsable(apiBien, bien);
 }
 
 export async function fetchBienesEstadisticas(): Promise<ApiBienesEstadisticas> {

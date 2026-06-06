@@ -1,23 +1,27 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Controller, useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import Modal from './Modal';
 import CurrencyAmountInput from '../forms/CurrencyAmountInput';
 import FlexibleIntegerInput from '../forms/FlexibleIntegerInput';
+import SearchableSelect from '../forms/SearchableSelect';
 import ModalField from './ModalField';
 import {
   fetchCategoriasEspecificasBySubcategoriaId,
   fetchCategoriasGenerales,
   fetchSubcategoriasByGeneral,
 } from '../../api/services/categorias.service';
-import { fetchDepartamentos, fetchDepartamentoResponsables } from '../../api/services/departamentos.service';
+import { fetchDepartamentos } from '../../api/services/departamentos.service';
+import type { ApiAlmacen } from '../../api/types';
 import type { ItemVehiculoRegistroDraft } from '../../types/registroVehiculoItem';
 import { CONDICIONES_VEHICULO, ESTADOS_USO_VEHICULO, type CondicionVehiculo, type EstadoUsoVehiculo } from '../../types/vehiculo';
 import {
   itemVehiculoDraftToFormInput,
   itemVehiculoRegistroFormSchema,
+  type ItemVehiculoRegistroForm,
 } from '../../schemas/registroVehiculo.schema';
-import { validarConZod } from '../../utils/validators';
 import { formatMoneda } from '../../utils/formatters';
-import { normalizeCatalogValue } from '../../utils/registroBienMappers';
+import { resolveResponsableForAlmacen } from '../../utils/registroBienMappers';
 import type { MonedaRegistro } from '../../types/registroBienItem';
 
 type NuevoItemVehiculoRegistroModalProps = {
@@ -25,6 +29,7 @@ type NuevoItemVehiculoRegistroModalProps = {
   onClose: () => void;
   item: ItemVehiculoRegistroDraft | null;
   almacenOptions: string[];
+  almacenes: ApiAlmacen[];
   departamentoOptions: readonly string[];
   moneda: MonedaRegistro;
   onSave: (item: ItemVehiculoRegistroDraft) => void;
@@ -33,10 +38,7 @@ type NuevoItemVehiculoRegistroModalProps = {
 
 type SelectOption = { id: number; nombre: string };
 
-function createEmptyItem(
-  almacenDefault: string,
-  unidadDefault: string,
-): ItemVehiculoRegistroDraft {
+function createEmptyItem(almacenDefault: string, unidadDefault: string): ItemVehiculoRegistroDraft {
   return {
     key: `veh-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     codigoInterno: '',
@@ -71,6 +73,7 @@ export default function NuevoItemVehiculoRegistroModal({
   onClose,
   item,
   almacenOptions,
+  almacenes,
   departamentoOptions,
   moneda,
   onSave,
@@ -79,21 +82,43 @@ export default function NuevoItemVehiculoRegistroModal({
   const unidadDefault = departamentoOptions[0] ?? '';
   const almacenDefault = almacenOptions[0] ?? '';
 
-  const [form, setForm] = useState<ItemVehiculoRegistroDraft>(() =>
-    createEmptyItem(almacenDefault, unidadDefault),
-  );
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [itemKey, setItemKey] = useState('');
+  const [responsable, setResponsable] = useState('');
+  const [ciResponsable, setCiResponsable] = useState('');
   const [departamentosApi, setDepartamentosApi] = useState<{ id: number; nombre: string }[]>([]);
   const [categoriasGenerales, setCategoriasGenerales] = useState<SelectOption[]>([]);
   const [subcategorias, setSubcategorias] = useState<SelectOption[]>([]);
   const [categoriasEspecificas, setCategoriasEspecificas] = useState<SelectOption[]>([]);
 
+  const {
+    register,
+    control,
+    handleSubmit,
+    reset,
+    watch,
+    setValue,
+    formState: { errors },
+  } = useForm<ItemVehiculoRegistroForm>({
+    resolver: zodResolver(itemVehiculoRegistroFormSchema),
+    defaultValues: itemVehiculoDraftToFormInput(createEmptyItem(almacenDefault, unidadDefault)),
+  });
+
+  const idCategoriaGeneral = watch('idCategoriaGeneral');
+  const idSubcategoria = watch('idSubcategoria');
+  const cantidad = watch('cantidad');
+  const valorAdquisicion = watch('valorAdquisicion');
+  const almacen = watch('almacen');
+
   const isEditing = Boolean(item);
 
   useEffect(() => {
     if (!open) return;
-    setErrors({});
-    setForm(item ? { ...item } : createEmptyItem(almacenDefault, unidadDefault));
+
+    const draft = item ?? createEmptyItem(almacenDefault, unidadDefault);
+    setItemKey(draft.key);
+    setResponsable(draft.responsable);
+    setCiResponsable(draft.ciResponsable);
+    reset(itemVehiculoDraftToFormInput(draft));
 
     fetchDepartamentos({ page: 1, limit: 500 }).then((res) => {
       setDepartamentosApi(
@@ -112,14 +137,14 @@ export default function NuevoItemVehiculoRegistroModal({
         })),
       );
     });
-  }, [open, item, almacenDefault, unidadDefault]);
+  }, [open, item, almacenDefault, unidadDefault, reset]);
 
   useEffect(() => {
-    if (!open || !form.idCategoriaGeneral) {
+    if (!open || !idCategoriaGeneral) {
       setSubcategorias([]);
       return;
     }
-    fetchSubcategoriasByGeneral(form.idCategoriaGeneral).then((rows) => {
+    fetchSubcategoriasByGeneral(idCategoriaGeneral).then((rows) => {
       const list = Array.isArray(rows) ? rows : [];
       setSubcategorias(
         list.map((s) => ({
@@ -128,14 +153,14 @@ export default function NuevoItemVehiculoRegistroModal({
         })),
       );
     });
-  }, [open, form.idCategoriaGeneral]);
+  }, [open, idCategoriaGeneral]);
 
   useEffect(() => {
-    if (!open || !form.idSubcategoria) {
+    if (!open || !idSubcategoria) {
       setCategoriasEspecificas([]);
       return;
     }
-    fetchCategoriasEspecificasBySubcategoriaId(form.idSubcategoria).then((rows) => {
+    fetchCategoriasEspecificasBySubcategoriaId(idSubcategoria).then((rows) => {
       const list = Array.isArray(rows) ? rows : [];
       setCategoriasEspecificas(
         list.map((c) => ({
@@ -144,70 +169,32 @@ export default function NuevoItemVehiculoRegistroModal({
         })),
       );
     });
-  }, [open, form.idSubcategoria]);
+  }, [open, idSubcategoria]);
 
   const departamentosSelect = useMemo(() => {
     const fromCatalog = [...departamentoOptions];
     if (fromCatalog.length > 0) return fromCatalog;
     return departamentosApi.map((d) => d.nombre);
   }, [departamentoOptions, departamentosApi]);
-  const totalCalculado = (form.cantidad || 0) * (form.valorAdquisicion || 0);
 
-  const updateForm = <K extends keyof ItemVehiculoRegistroDraft>(
-    key: K,
-    value: ItemVehiculoRegistroDraft[K],
-  ) => {
-    setForm((prev) => ({ ...prev, [key]: value }));
-    setErrors((prev) => {
-      const next = { ...prev };
-      delete next[key as string];
-      return next;
-    });
-  };
+  const totalCalculado = (cantidad || 0) * (valorAdquisicion || 0);
 
-  const loadResponsableForUnidad = async (nombreUnidad: string) => {
-    const departamento = departamentosApi.find(
-      (d) => normalizeCatalogValue(d.nombre) === normalizeCatalogValue(nombreUnidad),
-    );
-    if (!departamento) {
-      setForm((prev) => ({ ...prev, responsable: '', ciResponsable: '' }));
-      return;
-    }
-    try {
-      const responsables = await fetchDepartamentoResponsables(departamento.id);
-      const principal = responsables[0];
-      setForm((prev) => ({
-        ...prev,
-        responsable: principal?.nombre ?? '—',
-        ciResponsable: principal?.ci_responsable ?? '',
-      }));
-    } catch {
-      setForm((prev) => ({ ...prev, responsable: '—', ciResponsable: '' }));
-    }
-  };
-
-  const handleUnidadChange = (nombre: string) => {
-    updateForm('unidadAdministrativa', nombre);
-    void loadResponsableForUnidad(nombre);
+  const loadResponsableForAlmacen = async (nombreAlmacen: string) => {
+    const result = await resolveResponsableForAlmacen(nombreAlmacen, almacenes);
+    setResponsable(result.responsable);
+    setCiResponsable(result.ciResponsable);
   };
 
   useEffect(() => {
-    if (!open || !form.unidadAdministrativa || departamentosApi.length === 0) return;
-    void loadResponsableForUnidad(form.unidadAdministrativa);
+    if (!open || !almacen) return;
+    void loadResponsableForAlmacen(almacen);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, form.unidadAdministrativa, departamentosApi.length]);
+  }, [open, almacen, almacenes]);
 
-  const handleAgregar = () => {
-    const result = validarConZod(itemVehiculoRegistroFormSchema, itemVehiculoDraftToFormInput(form));
-    if (!result.success) {
-      setErrors(result.errors);
-      return;
-    }
-
-    const parsed = result.data!;
+  const onSubmit = (parsed: ItemVehiculoRegistroForm) => {
     onSave({
-      ...form,
-      codigoInterno: parsed.codigoInterno.trim(),
+      key: itemKey,
+      codigoInterno: '',
       placa: parsed.placa.trim(),
       descripcion: parsed.descripcion,
       marca: parsed.marca,
@@ -219,6 +206,8 @@ export default function NuevoItemVehiculoRegistroModal({
       cantidad: parsed.cantidad,
       valorAdquisicion: parsed.valorAdquisicion,
       unidadAdministrativa: parsed.unidadAdministrativa,
+      responsable,
+      ciResponsable,
       almacen: parsed.almacen,
       idCategoriaGeneral: parsed.idCategoriaGeneral,
       idSubcategoria: parsed.idSubcategoria,
@@ -227,12 +216,10 @@ export default function NuevoItemVehiculoRegistroModal({
       condicionFisica: parsed.condicionFisica,
       observaciones: parsed.observaciones,
       categoriaGeneralNombre:
-        categoriasGenerales.find((c) => c.id === parsed.idCategoriaGeneral)?.nombre ?? form.categoriaGeneralNombre,
-      subcategoriaNombre:
-        subcategorias.find((c) => c.id === parsed.idSubcategoria)?.nombre ?? form.subcategoriaNombre,
+        categoriasGenerales.find((c) => c.id === parsed.idCategoriaGeneral)?.nombre ?? '',
+      subcategoriaNombre: subcategorias.find((c) => c.id === parsed.idSubcategoria)?.nombre ?? '',
       categoriaEspecificaNombre:
-        categoriasEspecificas.find((c) => c.id === parsed.idCategoriaEspecifica)?.nombre ??
-        form.categoriaEspecificaNombre,
+        categoriasEspecificas.find((c) => c.id === parsed.idCategoriaEspecifica)?.nombre ?? '',
     });
     onClose();
   };
@@ -250,7 +237,7 @@ export default function NuevoItemVehiculoRegistroModal({
             <button
               type="button"
               onClick={() => {
-                onDelete(form.key);
+                onDelete(itemKey);
                 onClose();
               }}
               className="px-4 py-2 text-sm font-medium text-red-700 border border-red-200 rounded-lg hover:bg-red-50"
@@ -268,7 +255,7 @@ export default function NuevoItemVehiculoRegistroModal({
             </button>
             <button
               type="button"
-              onClick={handleAgregar}
+              onClick={handleSubmit(onSubmit)}
               className="px-8 py-2.5 bg-navy-900 text-white rounded-lg text-sm font-semibold hover:bg-navy-800"
             >
               {isEditing ? 'Guardar cambios' : 'Agregar'}
@@ -283,83 +270,67 @@ export default function NuevoItemVehiculoRegistroModal({
             Datos del vehículo
           </h4>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
-            <ModalField label="Código *" error={errors.codigoInterno}>
-              <input
-                value={form.codigoInterno}
-                onChange={(e) => updateForm('codigoInterno', e.target.value)}
-                className="input-field w-full"
-                placeholder="VH-001"
+            <ModalField label="Placa / Serial *" error={errors.placa?.message}>
+              <Controller
+                name="placa"
+                control={control}
+                render={({ field }) => (
+                  <input
+                    value={field.value}
+                    onChange={(e) => field.onChange(e.target.value.toUpperCase())}
+                    className="input-field w-full font-mono"
+                  />
+                )}
               />
             </ModalField>
-            <ModalField label="Placa / Serial *" error={errors.placa}>
-              <input
-                value={form.placa}
-                onChange={(e) => updateForm('placa', e.target.value.toUpperCase())}
-                className="input-field w-full font-mono"
+            <ModalField label="Descripción *" error={errors.descripcion?.message} className="md:col-span-2">
+              <input {...register('descripcion')} className="input-field w-full" />
+            </ModalField>
+            <ModalField label="Marca" error={errors.marca?.message}>
+              <input {...register('marca')} className="input-field w-full" />
+            </ModalField>
+            <ModalField label="Modelo" error={errors.modelo?.message}>
+              <input {...register('modelo')} className="input-field w-full" />
+            </ModalField>
+            <ModalField label="Color" error={errors.color?.message}>
+              <input {...register('color')} className="input-field w-full" />
+            </ModalField>
+            <ModalField label="Año de fabricación *" error={errors.anioFabricacion?.message}>
+              <Controller
+                name="anioFabricacion"
+                control={control}
+                render={({ field }) => (
+                  <FlexibleIntegerInput
+                    value={field.value}
+                    onChange={field.onChange}
+                    className="input-field w-full"
+                    placeholder={String(new Date().getFullYear())}
+                  />
+                )}
               />
             </ModalField>
-            <ModalField label="Descripción *" error={errors.descripcion} className="md:col-span-2">
-              <input
-                value={form.descripcion}
-                onChange={(e) => updateForm('descripcion', e.target.value)}
-                className="input-field w-full"
+            <ModalField label="Serial del motor" error={errors.serialMotor?.message}>
+              <input {...register('serialMotor')} className="input-field w-full font-mono" />
+            </ModalField>
+            <ModalField label="Serial de carrocería" error={errors.serialCarroceria?.message}>
+              <input {...register('serialCarroceria')} className="input-field w-full font-mono" />
+            </ModalField>
+            <ModalField label="Cantidad *" error={errors.cantidad?.message}>
+              <Controller
+                name="cantidad"
+                control={control}
+                render={({ field }) => (
+                  <FlexibleIntegerInput value={field.value} onChange={field.onChange} className="input-field w-full" />
+                )}
               />
             </ModalField>
-            <ModalField label="Marca" error={errors.marca}>
-              <input
-                value={form.marca}
-                onChange={(e) => updateForm('marca', e.target.value)}
-                className="input-field w-full"
-              />
-            </ModalField>
-            <ModalField label="Modelo" error={errors.modelo}>
-              <input
-                value={form.modelo}
-                onChange={(e) => updateForm('modelo', e.target.value)}
-                className="input-field w-full"
-              />
-            </ModalField>
-            <ModalField label="Color" error={errors.color}>
-              <input
-                value={form.color}
-                onChange={(e) => updateForm('color', e.target.value)}
-                className="input-field w-full"
-              />
-            </ModalField>
-            <ModalField label="Año de fabricación *" error={errors.anioFabricacion}>
-              <FlexibleIntegerInput
-                value={form.anioFabricacion}
-                onChange={(value) => updateForm('anioFabricacion', value)}
-                className="input-field w-full"
-                placeholder={String(new Date().getFullYear())}
-              />
-            </ModalField>
-            <ModalField label="Serial del motor" error={errors.serialMotor}>
-              <input
-                value={form.serialMotor}
-                onChange={(e) => updateForm('serialMotor', e.target.value)}
-                className="input-field w-full font-mono"
-              />
-            </ModalField>
-            <ModalField label="Serial de carrocería" error={errors.serialCarroceria}>
-              <input
-                value={form.serialCarroceria}
-                onChange={(e) => updateForm('serialCarroceria', e.target.value)}
-                className="input-field w-full font-mono"
-              />
-            </ModalField>
-            <ModalField label="Cantidad *" error={errors.cantidad}>
-              <FlexibleIntegerInput
-                value={form.cantidad}
-                onChange={(value) => updateForm('cantidad', value)}
-                className="input-field w-full"
-              />
-            </ModalField>
-            <ModalField label="Valor de Adquisición *" error={errors.valorAdquisicion}>
-              <CurrencyAmountInput
-                value={form.valorAdquisicion}
-                onChange={(value) => updateForm('valorAdquisicion', value)}
-                className="input-field w-full"
+            <ModalField label="Valor de Adquisición *" error={errors.valorAdquisicion?.message}>
+              <Controller
+                name="valorAdquisicion"
+                control={control}
+                render={({ field }) => (
+                  <CurrencyAmountInput value={field.value} onChange={field.onChange} className="input-field w-full" />
+                )}
               />
             </ModalField>
             <ModalField label="Total calculado">
@@ -367,37 +338,37 @@ export default function NuevoItemVehiculoRegistroModal({
                 {formatMoneda(totalCalculado, moneda)}
               </div>
             </ModalField>
-            <ModalField label="Unidad Administrativa *" error={errors.unidadAdministrativa}>
-              <select
-                value={form.unidadAdministrativa}
-                onChange={(e) => handleUnidadChange(e.target.value)}
-                className="input-field w-full"
-              >
-                {departamentosSelect.map((dep) => (
-                  <option key={dep} value={dep}>
-                    {dep}
-                  </option>
-                ))}
-              </select>
+            <ModalField label="Unidad Administrativa *" error={errors.unidadAdministrativa?.message}>
+              <Controller
+                name="unidadAdministrativa"
+                control={control}
+                render={({ field }) => (
+                  <SearchableSelect value={field.value} onChange={field.onChange} options={departamentosSelect} />
+                )}
+              />
             </ModalField>
-            <ModalField label="Almacén *" error={errors.almacen}>
-              <select
-                value={form.almacen}
-                onChange={(e) => updateForm('almacen', e.target.value)}
-                className="input-field w-full"
-              >
-                {almacenOptions.map((nombre) => (
-                  <option key={nombre} value={nombre}>
-                    {nombre}
-                  </option>
-                ))}
-              </select>
+            <ModalField label="Almacén *" error={errors.almacen?.message}>
+              <Controller
+                name="almacen"
+                control={control}
+                render={({ field }) => (
+                  <SearchableSelect
+                    value={field.value}
+                    onChange={(value) => {
+                      field.onChange(value);
+                      void loadResponsableForAlmacen(value);
+                    }}
+                    options={almacenOptions}
+                  />
+                )}
+              />
             </ModalField>
             <ModalField label="Responsable" className="md:col-span-2">
               <input
-                value={form.responsable || '—'}
+                value={responsable || '—'}
                 readOnly
                 className="input-field w-full bg-gray-50 text-gray-700"
+                title="Se asigna al elegir el almacén"
               />
             </ModalField>
           </div>
@@ -408,116 +379,94 @@ export default function NuevoItemVehiculoRegistroModal({
             Clasificación y estado
           </h4>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-x-6 gap-y-4">
-            <ModalField label="Categoría *" error={errors.idCategoriaGeneral}>
-              <select
-                value={form.idCategoriaGeneral || ''}
-                onChange={(e) => {
-                  const id = Number(e.target.value);
-                  const nombre = categoriasGenerales.find((c) => c.id === id)?.nombre ?? '';
-                  setForm((prev) => ({
-                    ...prev,
-                    idCategoriaGeneral: id,
-                    categoriaGeneralNombre: nombre,
-                    idSubcategoria: 0,
-                    subcategoriaNombre: '',
-                    idCategoriaEspecifica: 0,
-                    categoriaEspecificaNombre: '',
-                  }));
-                }}
-                className="input-field w-full"
-              >
-                <option value="">Seleccionar...</option>
-                {categoriasGenerales.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.nombre}
-                  </option>
-                ))}
-              </select>
+            <ModalField label="Categoría *" error={errors.idCategoriaGeneral?.message}>
+              <Controller
+                name="idCategoriaGeneral"
+                control={control}
+                render={({ field }) => (
+                  <SearchableSelect
+                    value={field.value ? String(field.value) : ''}
+                    onChange={(value) => {
+                      field.onChange(Number(value));
+                      setValue('idSubcategoria', 0);
+                      setValue('idCategoriaEspecifica', 0);
+                    }}
+                    options={[
+                      { value: '', label: 'Seleccionar...' },
+                      ...categoriasGenerales.map((c) => ({ value: String(c.id), label: c.nombre })),
+                    ]}
+                  />
+                )}
+              />
             </ModalField>
-            <ModalField label="Sub Categoría *" error={errors.idSubcategoria}>
-              <select
-                value={form.idSubcategoria || ''}
-                onChange={(e) => {
-                  const id = Number(e.target.value);
-                  const nombre = subcategorias.find((c) => c.id === id)?.nombre ?? '';
-                  setForm((prev) => ({
-                    ...prev,
-                    idSubcategoria: id,
-                    subcategoriaNombre: nombre,
-                    idCategoriaEspecifica: 0,
-                    categoriaEspecificaNombre: '',
-                  }));
-                }}
-                className="input-field w-full"
-                disabled={!form.idCategoriaGeneral}
-              >
-                <option value="">Seleccionar...</option>
-                {subcategorias.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.nombre}
-                  </option>
-                ))}
-              </select>
+            <ModalField label="Sub Categoría *" error={errors.idSubcategoria?.message}>
+              <Controller
+                name="idSubcategoria"
+                control={control}
+                render={({ field }) => (
+                  <SearchableSelect
+                    value={field.value ? String(field.value) : ''}
+                    onChange={(value) => {
+                      field.onChange(Number(value));
+                      setValue('idCategoriaEspecifica', 0);
+                    }}
+                    disabled={!idCategoriaGeneral}
+                    options={[
+                      { value: '', label: 'Seleccionar...' },
+                      ...subcategorias.map((c) => ({ value: String(c.id), label: c.nombre })),
+                    ]}
+                  />
+                )}
+              />
             </ModalField>
-            <ModalField label="Categoría Específica *" error={errors.idCategoriaEspecifica}>
-              <select
-                value={form.idCategoriaEspecifica || ''}
-                onChange={(e) => {
-                  const id = Number(e.target.value);
-                  const nombre = categoriasEspecificas.find((c) => c.id === id)?.nombre ?? '';
-                  setForm((prev) => ({
-                    ...prev,
-                    idCategoriaEspecifica: id,
-                    categoriaEspecificaNombre: nombre,
-                  }));
-                }}
-                className="input-field w-full"
-                disabled={!form.idSubcategoria}
-              >
-                <option value="">Seleccionar...</option>
-                {categoriasEspecificas.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.nombre}
-                  </option>
-                ))}
-              </select>
+            <ModalField label="Categoría Específica *" error={errors.idCategoriaEspecifica?.message}>
+              <Controller
+                name="idCategoriaEspecifica"
+                control={control}
+                render={({ field }) => (
+                  <SearchableSelect
+                    value={field.value ? String(field.value) : ''}
+                    onChange={(value) => field.onChange(Number(value))}
+                    disabled={!idSubcategoria}
+                    options={[
+                      { value: '', label: 'Seleccionar...' },
+                      ...categoriasEspecificas.map((c) => ({ value: String(c.id), label: c.nombre })),
+                    ]}
+                  />
+                )}
+              />
             </ModalField>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
-            <ModalField label="Estado de uso *" error={errors.estadoUso}>
-              <select
-                value={form.estadoUso}
-                onChange={(e) => updateForm('estadoUso', e.target.value as EstadoUsoVehiculo)}
-                className="input-field w-full"
-              >
-                {ESTADOS_USO_VEHICULO.map((estado) => (
-                  <option key={estado} value={estado}>
-                    {estado}
-                  </option>
-                ))}
-              </select>
+            <ModalField label="Estado de uso *" error={errors.estadoUso?.message}>
+              <Controller
+                name="estadoUso"
+                control={control}
+                render={({ field }) => (
+                  <SearchableSelect
+                    value={field.value}
+                    onChange={(value) => field.onChange(value as EstadoUsoVehiculo)}
+                    options={ESTADOS_USO_VEHICULO}
+                  />
+                )}
+              />
             </ModalField>
-            <ModalField label="Condición Física *" error={errors.condicionFisica}>
-              <select
-                value={form.condicionFisica}
-                onChange={(e) => updateForm('condicionFisica', e.target.value as CondicionVehiculo)}
-                className="input-field w-full"
-              >
-                {CONDICIONES_VEHICULO.map((condicion) => (
-                  <option key={condicion} value={condicion}>
-                    {condicion}
-                  </option>
-                ))}
-              </select>
+            <ModalField label="Condición Física *" error={errors.condicionFisica?.message}>
+              <Controller
+                name="condicionFisica"
+                control={control}
+                render={({ field }) => (
+                  <SearchableSelect
+                    value={field.value}
+                    onChange={(value) => field.onChange(value as CondicionVehiculo)}
+                    options={CONDICIONES_VEHICULO}
+                  />
+                )}
+              />
             </ModalField>
           </div>
-          <ModalField label="Observaciones" error={errors.observaciones}>
-            <textarea
-              value={form.observaciones}
-              onChange={(e) => updateForm('observaciones', e.target.value)}
-              className="input-field w-full"
-              rows={4}
-            />
+          <ModalField label="Observaciones" error={errors.observaciones?.message}>
+            <textarea {...register('observaciones')} className="input-field w-full" rows={4} />
           </ModalField>
         </section>
       </div>

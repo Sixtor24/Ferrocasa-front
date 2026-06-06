@@ -1,12 +1,27 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Pencil, Plus } from 'lucide-react';
+import { Controller, useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { createDocumentoPropiedad, type FormaAdquisicionPropiedad } from '../../api/services/documentos-propiedad.service';
 import { createParcela } from '../../api/services/parcelas.service';
 import { createPropiedad } from '../../api/services/propiedades.service';
-import { MONEDAS_REGISTRO, type MonedaRegistro } from '../../types/registroBienItem';
+import { MONEDAS_REGISTRO } from '../../types/registroBienItem';
 import { formatMoneda } from '../../utils/formatters';
+import {
+  documentoParcelaFormSchema,
+  parcelaDraftToFormInput,
+  registroParcelasListSchema,
+  type DocumentoParcelaForm,
+} from '../../schemas/registroParcela.schema';
+import { validarConZod } from '../../utils/validators';
+import {
+  extractRegistroError,
+  notifyRegistroError,
+  notifyRegistroSuccess,
+} from '../../utils/registroNotify';
 import Modal from './Modal';
 import NuevaParcelaModal, { type ParcelaRegistroDraft } from './NuevaParcelaModal';
+import SearchableSelect from '../forms/SearchableSelect';
 
 type RegistroParcelasModalProps = {
   open: boolean;
@@ -15,22 +30,14 @@ type RegistroParcelasModalProps = {
   onError: (message: string) => void;
 };
 
-type DocumentoParcelaDraft = {
-  numeroPropiedad: number;
-  nombrePropiedad: string;
-  ubicacionPropiedad: string;
-  fechaAdquisicion: string;
-  formaAdquisicion: FormaAdquisicionPropiedad;
-  moneda: MonedaRegistro;
-};
-
 const FORMAS_DOCUMENTO: { label: string; value: FormaAdquisicionPropiedad }[] = [
   { label: 'Compra', value: 'Compra' },
   { label: 'Donación', value: 'Donacion' },
   { label: 'Confiscación', value: 'Confiscacion' },
 ];
 
-const initialDocumento: DocumentoParcelaDraft = {
+const documentoDefaultValues: DocumentoParcelaForm = {
+  numeroDocumento: '',
   numeroPropiedad: 0,
   nombrePropiedad: '',
   ubicacionPropiedad: '',
@@ -58,7 +65,7 @@ function levantamientoToApi(value: ParcelaRegistroDraft['levantamientoTopografic
   return 'No';
 }
 
-async function ensurePropiedad(documento: DocumentoParcelaDraft) {
+async function ensurePropiedad(documento: DocumentoParcelaForm) {
   try {
     await createPropiedad({
       numero_propiedad: documento.numeroPropiedad,
@@ -78,33 +85,37 @@ export default function RegistroParcelasModal({
   onSuccess,
   onError,
 }: RegistroParcelasModalProps) {
-  const [documento, setDocumento] = useState<DocumentoParcelaDraft>(initialDocumento);
   const [items, setItems] = useState<ParcelaRegistroDraft[]>([]);
   const [itemModalOpen, setItemModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<ParcelaRegistroDraft | null>(null);
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [itemsError, setItemsError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  const {
+    register,
+    control,
+    handleSubmit,
+    reset,
+    watch,
+    formState: { errors },
+  } = useForm<DocumentoParcelaForm>({
+    resolver: zodResolver(documentoParcelaFormSchema),
+    defaultValues: documentoDefaultValues,
+  });
+
+  const moneda = watch('moneda');
 
   const totalArea = useMemo(() => areaTotal(items), [items]);
   const totalValor = useMemo(() => valorTotal(items), [items]);
 
   useEffect(() => {
     if (!open) return;
-    setDocumento(initialDocumento);
+    reset(documentoDefaultValues);
     setItems([]);
     setEditingItem(null);
     setItemModalOpen(false);
-    setErrors({});
-  }, [open]);
-
-  const updateDocumento = <K extends keyof DocumentoParcelaDraft>(key: K, value: DocumentoParcelaDraft[K]) => {
-    setDocumento((prev) => ({ ...prev, [key]: value }));
-    setErrors((prev) => {
-      const next = { ...prev };
-      delete next[key as string];
-      return next;
-    });
-  };
+    setItemsError(null);
+  }, [open, reset]);
 
   const guardarItem = (item: ParcelaRegistroDraft) => {
     setItems((prev) => {
@@ -118,20 +129,25 @@ export default function RegistroParcelasModal({
     setItems((prev) => prev.filter((item) => item.key !== key));
   };
 
-  const validate = () => {
-    const next: Record<string, string> = {};
-    if (!documento.numeroPropiedad) next.numeroPropiedad = 'Indique el nro de propiedad';
-    if (!documento.nombrePropiedad.trim()) next.nombrePropiedad = 'Indique el nombre de la propiedad';
-    if (!documento.ubicacionPropiedad.trim()) next.ubicacionPropiedad = 'Indique la ubicación';
-    if (!documento.fechaAdquisicion) next.fechaAdquisicion = 'Indique la fecha de adquisición';
-    if (items.length === 0) next.items = 'Agregue al menos una parcela con el botón +';
-    setErrors(next);
-    return Object.keys(next).length === 0;
+  const validarItems = (): string | null => {
+    const itemsResult = validarConZod(
+      registroParcelasListSchema,
+      items.map((item) => parcelaDraftToFormInput(item)),
+    );
+    if (!itemsResult.success) {
+      const message = Object.values(itemsResult.errors)[0] ?? 'Agregue al menos una parcela con el botón +';
+      setItemsError(message);
+      return message;
+    }
+    setItemsError(null);
+    return null;
   };
 
-  const handleCargar = async () => {
-    if (!validate()) {
-      onError('Revise los datos del registro de parcelas');
+  const handleCargar = handleSubmit(async (documento) => {
+    const validationError = validarItems();
+    if (validationError) {
+      notifyRegistroError('No se pudo cargar el registro', validationError);
+      onError(validationError);
       return;
     }
 
@@ -142,6 +158,7 @@ export default function RegistroParcelasModal({
       const createdIds: number[] = [];
       for (const item of items) {
         const doc = await createDocumentoPropiedad({
+          numero_documento: documento.numeroDocumento?.trim() || undefined,
           numero_propiedad: documento.numeroPropiedad,
           forma_adquisicion: documento.formaAdquisicion,
           area_total_m2: item.areaTotalM2,
@@ -166,14 +183,18 @@ export default function RegistroParcelasModal({
         createdIds.push(parcela.id);
       }
 
-      onSuccess(`Registro cargado con ${createdIds.length} parcela(s)`);
+      const message = `Registro cargado con ${createdIds.length} parcela(s)`;
+      notifyRegistroSuccess(message);
+      onSuccess(message);
       onClose();
     } catch (err) {
-      onError(err instanceof Error ? err.message : 'No se pudo cargar el registro de parcelas');
+      const message = extractRegistroError(err, 'No se pudo cargar el registro de parcelas');
+      notifyRegistroError('No se pudo cargar el registro', message);
+      onError(message);
     } finally {
       setSubmitting(false);
     }
-  };
+  });
 
   return (
     <>
@@ -218,73 +239,70 @@ export default function RegistroParcelasModal({
               <Field label="Nro de Documento">
                 <input
                   type="text"
-                  readOnly
-                  placeholder="Se asigna al cargar"
-                  className="input-field bg-gray-50"
+                  {...register('numeroDocumento')}
+                  placeholder="Ingrese nro de documento"
+                  className="input-field"
                 />
               </Field>
               <Field label="Nro de Propiedad">
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={documento.numeroPropiedad > 0 ? String(documento.numeroPropiedad) : ''}
-                  onChange={(e) => updateDocumento('numeroPropiedad', Number(e.target.value.replace(/\D/g, '')))}
-                  className={`input-field ${errors.numeroPropiedad ? 'border-red-400' : ''}`}
+                <Controller
+                  name="numeroPropiedad"
+                  control={control}
+                  render={({ field }) => (
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={field.value > 0 ? String(field.value) : ''}
+                      onChange={(e) => field.onChange(Number(e.target.value.replace(/\D/g, '')) || 0)}
+                      className={`input-field ${errors.numeroPropiedad ? 'border-red-400' : ''}`}
+                    />
+                  )}
                 />
-                {errors.numeroPropiedad && <p className="text-xs text-red-600 mt-1">{errors.numeroPropiedad}</p>}
+                {errors.numeroPropiedad && <p className="text-xs text-red-600 mt-1">{errors.numeroPropiedad.message}</p>}
               </Field>
               <Field label="Nombre de Propiedad">
                 <input
-                  value={documento.nombrePropiedad}
-                  onChange={(e) => updateDocumento('nombrePropiedad', e.target.value)}
+                  {...register('nombrePropiedad')}
                   className={`input-field ${errors.nombrePropiedad ? 'border-red-400' : ''}`}
                 />
-                {errors.nombrePropiedad && <p className="text-xs text-red-600 mt-1">{errors.nombrePropiedad}</p>}
+                {errors.nombrePropiedad && <p className="text-xs text-red-600 mt-1">{errors.nombrePropiedad.message}</p>}
               </Field>
               <Field label="Ubicación">
                 <input
-                  value={documento.ubicacionPropiedad}
-                  onChange={(e) => updateDocumento('ubicacionPropiedad', e.target.value)}
+                  {...register('ubicacionPropiedad')}
                   className={`input-field ${errors.ubicacionPropiedad ? 'border-red-400' : ''}`}
                 />
-                {errors.ubicacionPropiedad && <p className="text-xs text-red-600 mt-1">{errors.ubicacionPropiedad}</p>}
+                {errors.ubicacionPropiedad && <p className="text-xs text-red-600 mt-1">{errors.ubicacionPropiedad.message}</p>}
               </Field>
               <Field label="Fecha Adquisición">
                 <input
                   type="date"
-                  value={documento.fechaAdquisicion}
-                  onChange={(e) => updateDocumento('fechaAdquisicion', e.target.value)}
+                  {...register('fechaAdquisicion')}
                   className={`input-field ${errors.fechaAdquisicion ? 'border-red-400' : ''}`}
                 />
-                {errors.fechaAdquisicion && <p className="text-xs text-red-600 mt-1">{errors.fechaAdquisicion}</p>}
+                {errors.fechaAdquisicion && <p className="text-xs text-red-600 mt-1">{errors.fechaAdquisicion.message}</p>}
               </Field>
               <Field label="Forma de Adquisición">
-                <select
-                  value={documento.formaAdquisicion}
-                  onChange={(e) =>
-                    updateDocumento('formaAdquisicion', e.target.value as FormaAdquisicionPropiedad)
-                  }
-                  className="input-field"
-                >
-                  {FORMAS_DOCUMENTO.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
+                <Controller
+                  name="formaAdquisicion"
+                  control={control}
+                  render={({ field }) => (
+                    <SearchableSelect
+                      value={field.value}
+                      onChange={(value) => field.onChange(value as FormaAdquisicionPropiedad)}
+                      options={FORMAS_DOCUMENTO}
+                    />
+                  )}
+                />
               </Field>
               <Field label="Moneda">
-                <select
-                  value={documento.moneda}
-                  onChange={(e) => updateDocumento('moneda', e.target.value as MonedaRegistro)}
-                  className="input-field"
-                >
-                  {MONEDAS_REGISTRO.map((moneda) => (
-                    <option key={moneda} value={moneda}>
-                      {moneda}
-                    </option>
-                  ))}
-                </select>
+                <Controller
+                  name="moneda"
+                  control={control}
+                  render={({ field }) => (
+                    <SearchableSelect value={field.value} onChange={field.onChange} options={MONEDAS_REGISTRO} />
+                  )}
+                />
               </Field>
               <Field label="Área Total M²">
                 <div className="input-field bg-gray-50 font-semibold text-navy-900">
@@ -293,7 +311,7 @@ export default function RegistroParcelasModal({
               </Field>
               <Field label="Valor Total de Adquisición">
                 <div className="input-field bg-gray-50 font-semibold text-navy-900">
-                  {formatMoneda(totalValor, documento.moneda)}
+                  {formatMoneda(totalValor, moneda)}
                 </div>
               </Field>
             </div>
@@ -331,7 +349,7 @@ export default function RegistroParcelasModal({
                       <Td>{item.identificacion}</Td>
                       <Td><span className="block max-w-[180px] truncate">{item.ubicacionAdicional}</span></Td>
                       <Td>{item.areaTotalM2.toLocaleString('es-VE')}</Td>
-                      <Td>{formatMoneda(item.valorAdquisicion, documento.moneda)}</Td>
+                      <Td>{formatMoneda(item.valorAdquisicion, moneda)}</Td>
                       <Td>{item.zonificacion}</Td>
                       <Td>{item.zona}</Td>
                       <Td>{item.levantamientoTopografico}</Td>
@@ -364,7 +382,7 @@ export default function RegistroParcelasModal({
                 )}
               </tbody>
             </table>
-            {errors.items && <p className="text-xs text-red-600 p-3">{errors.items}</p>}
+            {itemsError && <p className="text-xs text-red-600 p-3">{itemsError}</p>}
           </section>
         </div>
       </Modal>

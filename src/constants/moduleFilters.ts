@@ -5,6 +5,7 @@ export const FILTROS_INVENTARIO_VACIOS = {
   condicionFisica: '',
   departamento: '',
   numeroDocumento: '',
+  fecha: '',
   estadoUso: '',
   buscar: '',
 };
@@ -15,6 +16,7 @@ export const FILTROS_TERRENOS_VACIOS = {
   estado: '',
   zonificacion: '',
   nroPropiedad: '',
+  fecha: '',
   levantamiento: '',
   acreditacion: '',
   buscar: '',

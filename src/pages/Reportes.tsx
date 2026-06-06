@@ -12,6 +12,7 @@ import {
 import { useApiQuery } from '../hooks/useApiQuery';
 import ModuleMetricCard from '../components/module/ModuleMetricCard';
 import StatusBadge from '../components/StatusBadge';
+import SearchableSelect from '../components/forms/SearchableSelect';
 import {
   FileSpreadsheet,
   FileText,
@@ -316,10 +317,11 @@ export default function Reportes() {
             {/* Tipo movimiento */}
             <div>
               <label className="text-xs font-medium text-gray-500 uppercase mb-1.5 block">Movimiento</label>
-              <select value={tipoMovimiento} onChange={(e) => setTipoMovimiento(e.target.value)}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-navy-500">
-                {TIPOS_MOVIMIENTO_REPORTE.map((t) => <option key={t}>{t}</option>)}
-              </select>
+              <SearchableSelect
+                value={tipoMovimiento}
+                onChange={(value) => setTipoMovimiento(value as TipoMovimientoActivo)}
+                options={TIPOS_MOVIMIENTO_REPORTE}
+              />
             </div>
 
             {/* Categoría (módulos) */}

@@ -88,15 +88,20 @@ async function enrichVehiculoConResponsable(apiVehiculo: ApiVehiculo, vehiculo: 
   }
 }
 
+export async function fetchApiVehiculoById(id: number): Promise<ApiVehiculo> {
+  const res = await apiRequest<ApiItemResponse<ApiVehiculo>>(`/vehiculos/${id}`);
+  if (!res.data) throw new Error('Respuesta vacía del API');
+  return res.data;
+}
+
 export async function fetchVehiculoById(id: number): Promise<Vehiculo> {
-  const [res, almacenesById] = await Promise.all([
-    apiRequest<ApiItemResponse<ApiVehiculo>>(`/vehiculos/${id}`),
+  const [apiVehiculo, almacenesById] = await Promise.all([
+    fetchApiVehiculoById(id),
     fetchAlmacenesCatalog(),
   ]);
-  if (!res.data) throw new Error('Respuesta vacía del API');
 
-  const vehiculo = mapApiVehiculoToVehiculo(res.data, almacenesById);
-  return enrichVehiculoConResponsable(res.data, vehiculo);
+  const vehiculo = mapApiVehiculoToVehiculo(apiVehiculo, almacenesById);
+  return enrichVehiculoConResponsable(apiVehiculo, vehiculo);
 }
 
 export async function fetchVehiculosEstadisticas(): Promise<ApiVehiculosEstadisticas> {

@@ -1,23 +1,18 @@
 import { useEffect, useState } from 'react';
+import { Controller, useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import CurrencyAmountInput from '../forms/CurrencyAmountInput';
+import SearchableSelect from '../forms/SearchableSelect';
 import Modal from './Modal';
 import ModalField from './ModalField';
 import { ESTADOS_TRAMITE, ZONIFICACIONES } from '../../types/terreno';
 import { parseMontoInput, sanitizeMontoDraft } from '../../utils/formatters';
+import {
+  parcelaRegistroFormSchema,
+  type ParcelaRegistroForm,
+} from '../../schemas/registroParcela.schema';
 
-export type ParcelaRegistroDraft = {
-  key: string;
-  identificacion: string;
-  zona: string;
-  zonificacion: string;
-  ubicacionAdicional: string;
-  areaTotalM2: number;
-  valorAdquisicion: number;
-  ciResponsable: string;
-  observaciones: string;
-  acreditacionTecnicaAmbiental: 'Sí' | 'No' | 'En trámite';
-  levantamientoTopografico: 'Sí' | 'No' | 'En trámite';
-};
+export type ParcelaRegistroDraft = ParcelaRegistroForm & { key: string };
 
 type NuevaParcelaModalProps = {
   open: boolean;
@@ -43,6 +38,11 @@ function emptyParcela(): ParcelaRegistroDraft {
   };
 }
 
+function parcelaToFormValues(item: ParcelaRegistroDraft): ParcelaRegistroForm {
+  const { key: _key, ...form } = item;
+  return form;
+}
+
 export default function NuevaParcelaModal({
   open,
   item,
@@ -50,50 +50,38 @@ export default function NuevaParcelaModal({
   onSave,
   onDelete,
 }: NuevaParcelaModalProps) {
-  const [form, setForm] = useState<ParcelaRegistroDraft>(() => emptyParcela());
+  const [itemKey, setItemKey] = useState('');
   const [areaDraft, setAreaDraft] = useState('');
-  const [errors, setErrors] = useState<Record<string, string>>({});
   const isEditing = Boolean(item);
+
+  const {
+    register,
+    control,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<ParcelaRegistroForm>({
+    resolver: zodResolver(parcelaRegistroFormSchema),
+    defaultValues: parcelaToFormValues(emptyParcela()),
+  });
 
   useEffect(() => {
     if (!open) return;
-    const next = item ? { ...item } : emptyParcela();
-    setForm(next);
+    const next = item ?? emptyParcela();
+    setItemKey(next.key);
+    reset(parcelaToFormValues(next));
     setAreaDraft(next.areaTotalM2 > 0 ? String(next.areaTotalM2).replace('.', ',') : '');
-    setErrors({});
-  }, [open, item]);
+  }, [open, item, reset]);
 
-  const updateForm = <K extends keyof ParcelaRegistroDraft>(key: K, value: ParcelaRegistroDraft[K]) => {
-    setForm((prev) => ({ ...prev, [key]: value }));
-    setErrors((prev) => {
-      const next = { ...prev };
-      delete next[key as string];
-      return next;
-    });
-  };
-
-  const validate = () => {
-    const next: Record<string, string> = {};
-    if (!form.identificacion.trim()) next.identificacion = 'Indique la identificación';
-    if (!form.zona.trim()) next.zona = 'Indique lote / manzana';
-    if (!form.zonificacion.trim()) next.zonificacion = 'Seleccione la zonificación';
-    if (!form.ubicacionAdicional.trim()) next.ubicacionAdicional = 'Indique la ubicación adicional';
-    if (form.areaTotalM2 <= 0) next.areaTotalM2 = 'Indique el área total';
-    if (form.valorAdquisicion < 0) next.valorAdquisicion = 'El valor no puede ser negativo';
-    if (!form.ciResponsable.trim()) next.ciResponsable = 'Indique la CI del responsable';
-    setErrors(next);
-    return Object.keys(next).length === 0;
-  };
-
-  const handleSave = () => {
-    if (!validate()) return;
+  const onSubmit = (parsed: ParcelaRegistroForm) => {
     onSave({
-      ...form,
-      identificacion: form.identificacion.trim(),
-      zona: form.zona.trim(),
-      ubicacionAdicional: form.ubicacionAdicional.trim(),
-      ciResponsable: form.ciResponsable.trim(),
-      observaciones: form.observaciones.trim(),
+      ...parsed,
+      key: itemKey,
+      identificacion: parsed.identificacion.trim(),
+      zona: parsed.zona.trim(),
+      ubicacionAdicional: parsed.ubicacionAdicional.trim(),
+      ciResponsable: parsed.ciResponsable.trim(),
+      observaciones: parsed.observaciones?.trim() ?? '',
     });
     onClose();
   };
@@ -111,7 +99,7 @@ export default function NuevaParcelaModal({
             <button
               type="button"
               onClick={() => {
-                onDelete(form.key);
+                onDelete(itemKey);
                 onClose();
               }}
               className="px-4 py-2 border border-red-200 text-red-700 rounded-lg text-sm font-semibold hover:bg-red-50"
@@ -123,7 +111,7 @@ export default function NuevaParcelaModal({
           )}
           <button
             type="button"
-            onClick={handleSave}
+            onClick={handleSubmit(onSubmit)}
             className="px-6 py-2.5 bg-navy-900 text-white rounded-lg text-sm font-semibold hover:bg-navy-800"
           >
             {isEditing ? 'Guardar' : 'Agregar'}
@@ -133,104 +121,87 @@ export default function NuevaParcelaModal({
     >
       <div className="space-y-5">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <ModalField label="Identificación *" error={errors.identificacion}>
-            <input
-              value={form.identificacion}
-              onChange={(e) => updateForm('identificacion', e.target.value)}
-              className="input-field"
+          <ModalField label="Identificación *" error={errors.identificacion?.message}>
+            <input {...register('identificacion')} className="input-field" />
+          </ModalField>
+          <ModalField label="Lote / Manzana *" error={errors.zona?.message}>
+            <input {...register('zona')} className="input-field" />
+          </ModalField>
+          <ModalField label="Zonificación *" error={errors.zonificacion?.message}>
+            <Controller
+              name="zonificacion"
+              control={control}
+              render={({ field }) => (
+                <SearchableSelect value={field.value} onChange={field.onChange} options={ZONIFICACIONES} />
+              )}
             />
           </ModalField>
-          <ModalField label="Lote / Manzana *" error={errors.zona}>
-            <input
-              value={form.zona}
-              onChange={(e) => updateForm('zona', e.target.value)}
-              className="input-field"
-            />
+          <ModalField label="CI Responsable *" error={errors.ciResponsable?.message}>
+            <input {...register('ciResponsable')} className="input-field" />
           </ModalField>
-          <ModalField label="Zonificación *" error={errors.zonificacion}>
-            <select
-              value={form.zonificacion}
-              onChange={(e) => updateForm('zonificacion', e.target.value)}
-              className="input-field"
-            >
-              {ZONIFICACIONES.map((zona) => (
-                <option key={zona} value={zona}>
-                  {zona}
-                </option>
-              ))}
-            </select>
-          </ModalField>
-          <ModalField label="CI Responsable *" error={errors.ciResponsable}>
+          <ModalField label="Ubicación Adicional *" error={errors.ubicacionAdicional?.message} className="md:col-span-2">
             <input
-              value={form.ciResponsable}
-              onChange={(e) => updateForm('ciResponsable', e.target.value)}
-              className="input-field"
-            />
-          </ModalField>
-          <ModalField label="Ubicación Adicional *" error={errors.ubicacionAdicional} className="md:col-span-2">
-            <input
-              value={form.ubicacionAdicional}
-              onChange={(e) => updateForm('ubicacionAdicional', e.target.value)}
+              {...register('ubicacionAdicional')}
               placeholder="Sector, referencia o ubicación adicional"
               className="input-field"
             />
           </ModalField>
-          <ModalField label="Área Total M² *" error={errors.areaTotalM2}>
-            <input
-              type="text"
-              inputMode="decimal"
-              value={areaDraft}
-              onChange={(e) => {
-                const next = sanitizeMontoDraft(e.target.value);
-                setAreaDraft(next);
-                updateForm('areaTotalM2', parseMontoInput(next));
-              }}
-              className="input-field"
+          <ModalField label="Área Total M² *" error={errors.areaTotalM2?.message}>
+            <Controller
+              name="areaTotalM2"
+              control={control}
+              render={({ field }) => (
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={areaDraft}
+                  onChange={(e) => {
+                    const next = sanitizeMontoDraft(e.target.value);
+                    setAreaDraft(next);
+                    field.onChange(parseMontoInput(next));
+                  }}
+                  className="input-field"
+                />
+              )}
             />
           </ModalField>
-          <ModalField label="Valor de Adquisición">
-            <CurrencyAmountInput
-              value={form.valorAdquisicion}
-              onChange={(value) => updateForm('valorAdquisicion', value)}
+          <ModalField label="Valor de Adquisición" error={errors.valorAdquisicion?.message}>
+            <Controller
+              name="valorAdquisicion"
+              control={control}
+              render={({ field }) => (
+                <CurrencyAmountInput value={field.value} onChange={field.onChange} />
+              )}
             />
           </ModalField>
           <ModalField label="Acreditación Técnica Ambiental">
-            <select
-              value={form.acreditacionTecnicaAmbiental}
-              onChange={(e) =>
-                updateForm('acreditacionTecnicaAmbiental', e.target.value as ParcelaRegistroDraft['acreditacionTecnicaAmbiental'])
-              }
-              className="input-field"
-            >
-              {ESTADOS_TRAMITE.map((estado) => (
-                <option key={estado} value={estado}>
-                  {estado}
-                </option>
-              ))}
-            </select>
+            <Controller
+              name="acreditacionTecnicaAmbiental"
+              control={control}
+              render={({ field }) => (
+                <SearchableSelect
+                  value={field.value}
+                  onChange={field.onChange}
+                  options={ESTADOS_TRAMITE}
+                />
+              )}
+            />
           </ModalField>
           <ModalField label="Levantamiento topográfico">
-            <select
-              value={form.levantamientoTopografico}
-              onChange={(e) =>
-                updateForm('levantamientoTopografico', e.target.value as ParcelaRegistroDraft['levantamientoTopografico'])
-              }
-              className="input-field"
-            >
-              {ESTADOS_TRAMITE.map((estado) => (
-                <option key={estado} value={estado}>
-                  {estado}
-                </option>
-              ))}
-            </select>
+            <Controller
+              name="levantamientoTopografico"
+              control={control}
+              render={({ field }) => (
+                <SearchableSelect
+                  value={field.value}
+                  onChange={field.onChange}
+                  options={ESTADOS_TRAMITE}
+                />
+              )}
+            />
           </ModalField>
           <ModalField label="Observaciones" className="md:col-span-2">
-            <textarea
-              value={form.observaciones}
-              onChange={(e) => updateForm('observaciones', e.target.value)}
-              className="input-field"
-              rows={4}
-            />
+            <textarea {...register('observaciones')} className="input-field" rows={4} />
           </ModalField>
         </div>
       </div>

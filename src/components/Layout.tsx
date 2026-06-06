@@ -44,6 +44,8 @@ export default function Layout() {
   const navigate = useNavigate();
   const location = useLocation();
   const [showNotif, setShowNotif] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const [clock, setClock] = useState(() => new Date());
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     try {
@@ -53,6 +55,7 @@ export default function Layout() {
     }
   });
   const notifRef = useRef<HTMLDivElement>(null);
+  const userMenuRef = useRef<HTMLDivElement>(null);
 
   const toggleSidebarCollapsed = () => {
     setSidebarCollapsed((prev) => {
@@ -73,12 +76,19 @@ export default function Layout() {
 
   useEffect(() => {
     setShowNotif(false);
+    setShowUserMenu(false);
     setSidebarOpen(false);
   }, [location.pathname]);
 
   useEffect(() => {
+    const timer = window.setInterval(() => setClock(new Date()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
     const handleClick = (e: MouseEvent) => {
       if (notifRef.current && !notifRef.current.contains(e.target as Node)) setShowNotif(false);
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) setShowUserMenu(false);
     };
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
@@ -89,6 +99,13 @@ export default function Layout() {
     year: 'numeric',
     month: 'long',
     day: 'numeric',
+  });
+
+  const timeNow = clock.toLocaleTimeString('es-VE', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
   });
 
   const sidebarWidth = sidebarCollapsed ? 'w-[4.25rem]' : 'w-56';
@@ -148,36 +165,6 @@ export default function Layout() {
           ))}
         </nav>
 
-        <div className={`p-2 border-t border-gray-200 ${sidebarCollapsed ? 'flex justify-center' : ''}`}>
-          {sidebarCollapsed ? (
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="p-2 text-gray-400 hover:text-red-500 transition-colors rounded-lg"
-              title="Cerrar sesión"
-            >
-              <LogOut size={18} />
-            </button>
-          ) : (
-            <div className="flex items-center gap-2 p-1">
-              <div className="w-9 h-9 bg-navy-100 rounded-full flex items-center justify-center shrink-0">
-                <span className="text-navy-800 text-xs font-bold">{user?.avatar}</span>
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-navy-900 truncate">{user?.nombre}</p>
-                <p className="text-xs text-gray-500 truncate">{user?.rol}</p>
-              </div>
-              <button
-                type="button"
-                onClick={handleLogout}
-                className="text-gray-400 hover:text-red-500 transition-colors p-1"
-                title="Cerrar sesión"
-              >
-                <LogOut size={16} />
-              </button>
-            </div>
-          )}
-        </div>
       </aside>
 
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
@@ -200,27 +187,26 @@ export default function Layout() {
             >
               {sidebarCollapsed ? <PanelLeft size={20} /> : <PanelLeftClose size={20} />}
             </button>
-            <div className="hidden md:flex items-center gap-2 text-sm text-gray-500 min-w-0">
-              <Calendar size={16} className="shrink-0" />
-              <span className="capitalize truncate">{today}</span>
-            </div>
           </div>
           <div className="flex items-center gap-2 sm:gap-4 shrink-0">
-            <NavLink
-              to="/configuracion"
-              className={({ isActive }) =>
-                `inline-flex items-center justify-center gap-2 h-9 rounded-lg border px-2.5 sm:px-3 text-sm font-semibold transition-colors ${
-                  isActive
-                    ? 'border-navy-900 bg-navy-900 text-white shadow-sm'
-                    : 'border-gray-200 bg-white text-navy-700 hover:border-navy-200 hover:bg-navy-50'
-                }`
-              }
-              aria-label="Abrir configuración"
-              title="Configuración"
+            <div className="hidden md:flex items-center gap-3 sm:gap-4 text-sm text-gray-500">
+              <div className="flex items-center gap-2 min-w-0">
+                <Calendar size={16} className="shrink-0" />
+                <span className="capitalize truncate">{today}</span>
+              </div>
+              <time
+                dateTime={clock.toISOString()}
+                className="font-mono text-sm sm:text-base font-semibold tabular-nums text-navy-900 tracking-wide"
+              >
+                {timeNow}
+              </time>
+            </div>
+            <time
+              dateTime={clock.toISOString()}
+              className="md:hidden font-mono text-sm font-semibold tabular-nums text-navy-900 tracking-wide"
             >
-              <Settings size={17} />
-              <span className="hidden lg:inline">Configuración</span>
-            </NavLink>
+              {timeNow}
+            </time>
             <div className="relative" ref={notifRef}>
               {showNotif && (
                 <div className="absolute top-full right-0 mt-2 w-72 sm:w-80 bg-white border border-gray-200 rounded-xl shadow-lg z-50 overflow-hidden">
@@ -240,9 +226,65 @@ export default function Layout() {
                 </div>
               )}
             </div>
-            <div className="hidden sm:flex items-center gap-2 text-sm font-medium text-navy-900">
-              {user?.nombre}
-              <ChevronDown size={16} className="text-gray-400" />
+            <div className="relative" ref={userMenuRef}>
+              <button
+                type="button"
+                onClick={() => setShowUserMenu((prev) => !prev)}
+                className="sm:hidden inline-flex items-center justify-center w-9 h-9 rounded-lg border border-gray-200 text-navy-700 hover:bg-navy-50 transition-colors"
+                aria-expanded={showUserMenu}
+                aria-haspopup="menu"
+                aria-label="Menú de usuario"
+              >
+                <ChevronDown
+                  size={18}
+                  className={`transition-transform ${showUserMenu ? 'rotate-180' : ''}`}
+                />
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowUserMenu((prev) => !prev)}
+                className="hidden sm:flex items-center gap-2 text-sm font-medium text-navy-900 rounded-lg px-2 py-1.5 hover:bg-gray-50 transition-colors"
+                aria-expanded={showUserMenu}
+                aria-haspopup="menu"
+                aria-label="Menú de usuario"
+              >
+                <span className="max-w-[140px] truncate">{user?.nombre}</span>
+                <ChevronDown
+                  size={16}
+                  className={`text-gray-400 shrink-0 transition-transform ${showUserMenu ? 'rotate-180' : ''}`}
+                />
+              </button>
+              {showUserMenu && (
+                <div
+                  role="menu"
+                  className="absolute top-full right-0 mt-2 w-52 bg-white border border-gray-200 rounded-xl shadow-lg z-50 overflow-hidden py-1"
+                >
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setShowUserMenu(false);
+                      navigate('/configuracion');
+                    }}
+                    className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-navy-900 hover:bg-navy-50 transition-colors text-left"
+                  >
+                    <Settings size={16} className="text-gray-500 shrink-0" />
+                    Configuración
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setShowUserMenu(false);
+                      void handleLogout();
+                    }}
+                    className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors text-left border-t border-gray-100"
+                  >
+                    <LogOut size={16} className="shrink-0" />
+                    Salir del sistema
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </header>

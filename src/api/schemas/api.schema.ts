@@ -79,10 +79,13 @@ export const categoriaEspecificaSchema: z.ZodTypeAny = z.lazy(() => z.object({
 
 export const documentoSchema = z.object({
   id_doc: z.number(),
+  numero_documento: z.string().nullable().optional(),
   nombre_proveedor: z.string().nullable().optional(),
   forma_adquisicion: z.string().optional(),
   fecha_adquisicion: dateLike,
   moneda: z.string().optional(),
+  id_sede: z.number().nullable().optional(),
+  sede: sedeSchema.optional(),
 }).passthrough();
 
 export const rolSchema = z.object({
@@ -323,6 +326,7 @@ export const payloadSchemas = {
     ubicacion: z.string().min(1),
   }),
   documentoPropiedad: z.object({
+    numero_documento: z.string().optional(),
     numero_propiedad: z.number().int(),
     forma_adquisicion: z.enum(['Compra', 'Donacion', 'Confiscacion']),
     area_total_m2: z.number().positive(),
@@ -375,19 +379,19 @@ export const payloadSchemas = {
     fecha_ingreso: z.string().min(1),
     fecha_egreso: z.string().nullable().optional(),
     valor_adquisicion: z.number().nonnegative(),
-    marca: z.string().nullable().optional(),
+    marca: z.string().min(1),
     modelo: z.string().nullable().optional(),
     color: z.string().nullable().optional(),
     material: z.string().nullable().optional(),
-    serial: z.string().nullable().optional(),
+    serial: z.string().min(1),
     estado_uso: z.enum(['En_Uso', 'En_Reparacion', 'Dado_de_Baja', 'Almacenado']),
     condicion_fisica: z.enum(['Bueno', 'Regular', 'Dañado', 'Averiado', 'Inservible']),
     id_almacen: z.number().int(),
     cantidad: z.number().int().positive(),
-    consumibilidad: z.enum(['Perecederos', 'No_Perecederos']),
+    consumibilidad: z.enum(['Perecederos', 'No_perecedero']),
     usuario_carga: z.string().nullable().optional(),
     id_categoria_especifica: z.number().int(),
-    unidad_administrativa: z.string().nullable().optional(),
+    observaciones: z.string().nullable().optional(),
   }),
   vehiculo: z.object({
     descripcion: z.string().min(1),
@@ -431,10 +435,12 @@ export const payloadSchemas = {
     id_subcategoria: z.number().int(),
   }),
   documento: z.object({
+    numero_documento: z.string().optional(),
     nombre_proveedor: z.string().min(1),
     forma_adquisicion: z.enum(['Compra', 'Donacion', 'Confiscacion']),
     fecha_adquisicion: z.string().min(1),
     moneda: z.enum(['VES', 'USD', 'EUR']),
+    id_sede: z.number().int().positive().optional(),
   }),
   simpleName: z.object({ nombre: z.string().min(1) }),
 };
