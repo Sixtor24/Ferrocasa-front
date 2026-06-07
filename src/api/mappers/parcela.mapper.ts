@@ -3,6 +3,7 @@ import type { Inmueble } from '../../types/inmueble';
 import type { ApiParcela } from '../types';
 import {
   extractFechaAdquisicionMeta,
+  extractFechaIngresoMeta,
   extractNumeroDocumentoMeta,
   stripParcelaObservacionesMeta,
 } from '../../utils/parcelaFechaMeta';
@@ -13,6 +14,14 @@ import {
   toIsoDate,
   toNumber,
 } from './enums';
+
+function fechaIngresoParcela(p: ApiParcela): string {
+  return (
+    toIsoDate(p.fecha_ingreso)
+    || extractFechaIngresoMeta(p.observaciones)
+    || ''
+  );
+}
 
 function fechaAdquisicionParcela(p: ApiParcela): string {
   return (
@@ -60,7 +69,7 @@ export function mapApiParcelaToTerreno(p: ApiParcela): Terreno {
     acreditacionTecnicaAmbiental: mapAcreditacionAmbiental(p.acreditacion_ambiental),
     nombre: p.nombre ?? '—',
     nroPropiedad: String(p.documento?.propiedad?.numero_propiedad ?? p.documento?.numero_propiedad ?? '—'),
-    fechaIngreso: fechaAdquisicionParcela(p) || '—',
+    fechaIngreso: fechaIngresoParcela(p) || '—',
     zona: p.zona ?? '—',
     ubicacionAdicional: p.ubicacion_adicional ?? '—',
     responsable: p.responsable?.nombre ?? '—',

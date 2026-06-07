@@ -177,6 +177,7 @@ export default function RegistroParcelasModal({
 
         const observaciones = buildParcelaObservacionesMeta(item.observaciones ?? '', {
           fechaAdquisicion: documento.fechaAdquisicion,
+          fechaIngreso: new Date().toISOString().split('T')[0],
           numeroDocumento: documento.numeroDocumento,
         });
 

@@ -198,6 +198,8 @@ export interface ApiParcela {
   id_terreno: number;
   nombre?: string | null;
   zona?: string | null;
+  /** Día en que se registró la parcela en el sistema (si el API lo expone). */
+  fecha_ingreso?: string | null;
   id_documento_propiedad: number;
   id_desincorporada?: number | null;
   id_comprometida?: number | null;

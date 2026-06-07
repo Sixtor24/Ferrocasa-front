@@ -94,18 +94,23 @@ export async function fetchParcelasAll(query: Omit<ParcelasQuery, 'page' | 'limi
 
 async function enrichParcelaDocumento(raw: ApiParcela): Promise<ApiParcela> {
   if (!raw.id_documento_propiedad) return raw;
-  if (toIsoDate(raw.documento?.fecha_adquisicion)) return raw;
+
+  const docAnidado = raw.documento;
+  const tieneDocumentoCompleto = Boolean(
+    docAnidado?.forma_adquisicion
+    && (toIsoDate(docAnidado.fecha_adquisicion) || docAnidado.numero_documento)
+    && docAnidado.propiedad?.ubicacion,
+  );
+  if (tieneDocumentoCompleto) return raw;
 
   try {
     const doc = await fetchDocumentoPropiedadById(raw.id_documento_propiedad);
-    if (!toIsoDate(doc.fecha_adquisicion)) return raw;
-
     return {
       ...raw,
       documento: {
-        ...raw.documento,
         ...doc,
-        propiedad: raw.documento?.propiedad ?? doc.propiedad,
+        ...docAnidado,
+        propiedad: docAnidado?.propiedad ?? doc.propiedad,
       },
     };
   } catch {
