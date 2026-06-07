@@ -43,6 +43,14 @@ export function almacenPerteneceASede(
   return nombre === ref || nombre.includes(ref) || ref.includes(nombre);
 }
 
+export function nombresAlmacenesPorSede(almacenes: ApiAlmacen[], sedeNombre: string): string[] {
+  const sedeId = resolveAlmacenSedeId(almacenes, '', sedeNombre);
+  return almacenes
+    .filter((almacen) => almacenPerteneceASede(almacen, sedeId, sedeNombre))
+    .map((almacen) => almacen.nombre.trim())
+    .filter((nombre) => nombre.length > 0);
+}
+
 export function filterAlmacenesMismaSede(
   almacenes: ApiAlmacen[],
   almacenActual: string,

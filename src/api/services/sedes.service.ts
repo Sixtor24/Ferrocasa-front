@@ -12,6 +12,7 @@ import { mapApiBienToBienMueble } from '../mappers/bien.mapper';
 import { mapApiVehiculoToVehiculo } from '../mappers/vehiculo.mapper';
 import { buildAlmacenNombreMap } from '../utils/almacenLookup';
 import { fetchAlmacenes, fetchAlmacenesBySede } from './almacenes.service';
+import { API_MAX_LIMIT, listParams } from '../pagination';
 
 export type SedesQuery = {
   page?: number;
@@ -34,10 +35,10 @@ function mapSedesList(res: ApiListResponse<ApiSede>) {
 }
 
 export async function fetchSedes(query: SedesQuery = {}) {
+  const paging = listParams(query.page, query.limit, 10);
   const res = await apiRequest<ApiListResponse<ApiSede>>('/sedes', {
     params: {
-      page: query.page ?? 1,
-      limit: query.limit ?? 10,
+      ...paging,
       search: query.search,
     },
   });
@@ -74,7 +75,7 @@ async function resolveAlmacenMapForSede(idSede: number, almacenesById?: Map<numb
     // fallback al catálogo global
   }
 
-  const global = await fetchAlmacenes({ page: 1, limit: 5000 });
+  const global = await fetchAlmacenes({ page: 1, limit: API_MAX_LIMIT });
   return buildAlmacenNombreMap(global.data);
 }
 

@@ -2,6 +2,11 @@ import { z } from 'zod';
 import type { ItemVehiculoRegistroDraft } from '../types/registroVehiculoItem';
 
 export const itemVehiculoRegistroFormSchema = z.object({
+  codigoInterno: z
+    .string()
+    .trim()
+    .min(1, 'El código es obligatorio')
+    .regex(/^\d+$/, 'Indique un código numérico válido'),
   placa: z.string().trim().min(1, 'La placa es obligatoria'),
   descripcion: z.string().trim().min(1, 'La descripción es obligatoria'),
   marca: z.string().optional().default(''),
@@ -19,6 +24,7 @@ export const itemVehiculoRegistroFormSchema = z.object({
     .number({ error: 'Indique el valor de adquisición' })
     .min(0, 'El valor no puede ser negativo'),
   unidadAdministrativa: z.string().min(1, 'Seleccione la unidad administrativa'),
+  ciResponsable: z.string().trim().min(1, 'Seleccione el responsable'),
   almacen: z.string().min(1, 'Seleccione el almacén'),
   idCategoriaGeneral: z.coerce.number().int().positive('Seleccione la categoría'),
   idSubcategoria: z.coerce.number().int().positive('Seleccione la subcategoría'),
@@ -32,6 +38,7 @@ export type ItemVehiculoRegistroForm = z.infer<typeof itemVehiculoRegistroFormSc
 
 export function itemVehiculoDraftToFormInput(item: ItemVehiculoRegistroDraft): ItemVehiculoRegistroForm {
   return {
+    codigoInterno: item.codigoInterno,
     placa: item.placa,
     descripcion: item.descripcion,
     marca: item.marca,
@@ -43,6 +50,7 @@ export function itemVehiculoDraftToFormInput(item: ItemVehiculoRegistroDraft): I
     cantidad: item.cantidad,
     valorAdquisicion: item.valorAdquisicion,
     unidadAdministrativa: item.unidadAdministrativa,
+    ciResponsable: item.ciResponsable,
     almacen: item.almacen,
     idCategoriaGeneral: item.idCategoriaGeneral,
     idSubcategoria: item.idSubcategoria,
@@ -55,4 +63,18 @@ export function itemVehiculoDraftToFormInput(item: ItemVehiculoRegistroDraft): I
 
 export const registroVehiculosListSchema = z
   .array(itemVehiculoRegistroFormSchema)
-  .min(1, 'Agregue al menos un ítem con el botón +');
+  .min(1, 'Agregue al menos un ítem con el botón +')
+  .superRefine((items, ctx) => {
+    const seen = new Set<string>();
+    items.forEach((item, index) => {
+      const codigo = item.codigoInterno.trim();
+      if (seen.has(codigo)) {
+        ctx.addIssue({
+          code: 'custom',
+          message: `El código ${codigo} está duplicado en los ítems`,
+          path: [index, 'codigoInterno'],
+        });
+      }
+      seen.add(codigo);
+    });
+  });

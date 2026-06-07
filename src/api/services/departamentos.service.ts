@@ -9,6 +9,7 @@ import type {
 } from '../types';
 import { mapApiBienToBienMueble } from '../mappers/bien.mapper';
 import { mapApiVehiculoToVehiculo } from '../mappers/vehiculo.mapper';
+import { fetchAllPages, listParams } from '../pagination';
 
 export type DepartamentosQuery = {
   page?: number;
@@ -31,16 +32,20 @@ function mapDepartamentosList(res: ApiListResponse<ApiDepartamento>) {
 }
 
 export async function fetchDepartamentos(query: DepartamentosQuery = {}) {
+  const paging = listParams(query.page, query.limit, 10);
   const res = await apiRequest<ApiListResponse<ApiDepartamento>>('/departamentos', {
     params: {
-      page: query.page ?? 1,
-      limit: query.limit ?? 10,
+      ...paging,
       search: query.search,
       id_sede: query.id_sede,
     },
   });
 
   return mapDepartamentosList(res);
+}
+
+export async function fetchAllDepartamentos(query: Omit<DepartamentosQuery, 'page' | 'limit'> = {}) {
+  return fetchAllPages(async (page, limit) => fetchDepartamentos({ ...query, page, limit }));
 }
 
 export async function fetchDepartamentoById(id: number) {

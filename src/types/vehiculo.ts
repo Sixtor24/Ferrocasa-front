@@ -1,5 +1,7 @@
 // Vehículos — basado en data real (5 registros, serial carrocería vacío en todos)
 
+import type { FormaAdquisicion } from './bien';
+
 export type CondicionVehiculo = 'Bueno' | 'Regular' | 'Dañado';
 export type EstadoUsoVehiculo = 'En uso' | 'En obsolescencia' | 'Obsoleto';
 export type EstatusCargaVehiculo = 'Completo' | 'Parcial' | 'Pendiente' | 'Error';
@@ -18,6 +20,7 @@ export interface Vehiculo {
   ciResponsable: string;
   proveedor: string;
   moneda: 'Bs' | 'USD' | 'EUR';
+  fechaIngreso: string;
   fechaAdquisicion: string;
   numeroDocumento: string;
   anioFabricacion: number | null;
@@ -31,6 +34,9 @@ export interface Vehiculo {
   estadoUso: EstadoUsoVehiculo;
   categoriaGeneral: string;
   subcategoria: string;
+  categoriaEspecifica: string;
+  codigoCategoria: string;
+  formaAdquisicion: FormaAdquisicion;
   documentoAdquisicion: string;
   valorAdquisicion: number | null;
   estatusCarga: EstatusCargaVehiculo;

@@ -119,9 +119,13 @@ export const propiedadSchema: z.ZodTypeAny = z.lazy(() => z.object({
 
 export const documentoPropiedadSchema: z.ZodTypeAny = z.lazy(() => z.object({
   id_documento_propiedad: z.number(),
+  numero_documento: z.string().nullable().optional(),
   numero_propiedad: z.number(),
   forma_adquisicion: z.string(),
   area_total_m2: numeric,
+  fecha_adquisicion: dateLike,
+  valor_adquisicion: numeric.nullable().optional(),
+  moneda: z.string().nullable().optional(),
   propiedad: propiedadSchema.optional(),
   parcelas: z.array(parcelaSchema).optional(),
 }).passthrough());
@@ -163,6 +167,7 @@ export const parcelaSchema: z.ZodTypeAny = z.lazy(() => z.object({
   observaciones: z.string().nullable().optional(),
   acreditacion_ambiental: z.string(),
   levantamiento_topografico: z.string(),
+  valor_adquisicion: numeric.nullable().optional(),
   ubicacion_adicional: z.string().nullable().optional(),
   documento: documentoPropiedadSchema.optional(),
   responsable: responsableSchema.nullable().optional(),
@@ -171,7 +176,7 @@ export const parcelaSchema: z.ZodTypeAny = z.lazy(() => z.object({
 }).passthrough());
 
 export const bienSchema = z.object({
-  codigo_bien: z.number(),
+  codigo_bien: z.union([z.number(), z.string()]),
   descripcion: z.string().nullable().optional(),
   id_doc: z.number().nullable().optional(),
   fecha_ingreso: dateLike,
@@ -197,7 +202,7 @@ export const bienSchema = z.object({
 }).passthrough();
 
 export const vehiculoSchema = z.object({
-  codigo: z.number(),
+  codigo: z.union([z.number(), z.string()]),
   descripcion: z.string().nullable().optional(),
   id_doc: z.number().nullable().optional(),
   fecha_egreso: dateLike,
@@ -218,6 +223,7 @@ export const vehiculoSchema = z.object({
   id_almacen: z.number(),
   fecha_ingreso: dateLike,
   usuario_carga: z.string().nullable().optional(),
+  observaciones: z.string().nullable().optional(),
   documento: documentoSchema.nullable().optional(),
   categoria: categoriaEspecificaSchema.optional(),
   responsable: responsableSchema.nullable().optional(),
@@ -312,8 +318,9 @@ export const payloadSchemas = {
     ci_responsable: z.string().min(1),
     zonificacion: z.string().min(1),
     observaciones: z.string().nullable().optional(),
-    acreditacion_ambiental: z.string().min(1),
-    levantamiento_topografico: z.string().min(1),
+    acreditacion_ambiental: z.enum(['Si_posee', 'No_posee']),
+    levantamiento_topografico: z.enum(['Si', 'Solicitar']),
+    valor_adquisicion: z.number().nonnegative().nullable().optional(),
     ubicacion_adicional: z.string().nullable().optional(),
   }),
   propiedad: z.object({
@@ -326,13 +333,9 @@ export const payloadSchemas = {
     ubicacion: z.string().min(1),
   }),
   documentoPropiedad: z.object({
-    numero_documento: z.string().optional(),
     numero_propiedad: z.number().int(),
     forma_adquisicion: z.enum(['Compra', 'Donacion', 'Confiscacion']),
     area_total_m2: z.number().positive(),
-    fecha_adquisicion: z.string().optional(),
-    valor_adquisicion: z.number().nullable().optional(),
-    moneda: z.string().optional(),
   }),
   protocolo: z.object({
     motivo: z.enum(['Venta', 'Ejecucion_de_obras', 'Afectado_por_bienhechurias_de_FMO']),
@@ -374,6 +377,7 @@ export const payloadSchemas = {
     id_departamento: z.number().int(),
   }),
   bien: z.object({
+    codigo_bien: z.string().trim().min(1),
     descripcion: z.string().min(1),
     id_doc: z.number().int(),
     fecha_ingreso: z.string().min(1),
@@ -394,32 +398,32 @@ export const payloadSchemas = {
     observaciones: z.string().nullable().optional(),
   }),
   vehiculo: z.object({
-    descripcion: z.string().min(1),
-    id_doc: z.number().int(),
+    descripcion: z.string().optional(),
+    id_doc: z.number().int().nullable().optional(),
     fecha_egreso: z.string().nullable().optional(),
-    valor_adquisicion: z.number().nonnegative(),
+    valor_adquisicion: z.number().nonnegative().optional(),
     marca: z.string().nullable().optional(),
     placa: z.string().min(1),
-    anio_fabricacion: z.number().int().min(1900).max(2100),
+    anio_fabricacion: z.number().int().min(1900).max(2100).optional(),
     modelo: z.string().nullable().optional(),
     color: z.string().nullable().optional(),
     serial_motor: z.string().nullable().optional(),
     serial_carroceria: z.string().nullable().optional(),
-    estado_uso: z.enum(['En_Uso', 'En_Reparacion', 'Dado_de_Baja', 'Almacenado']),
-    condicion_fisica: z.enum(['Bueno', 'Regular', 'Dañado', 'Averiado', 'Inservible']),
+    estado_uso: z.enum(['En_Uso', 'En_Reparacion', 'Dado_de_Baja', 'Almacenado']).optional(),
+    condicion_fisica: z.enum(['Bueno', 'Regular', 'Dañado']).optional(),
     id_categoria_especifica: z.number().int(),
-    estado_vehiculo: z.enum(['Carga_Parcial', 'Carga_Total', 'Disponible', 'Asignado', 'En_Mantenimiento']),
+    estado_vehiculo: z.enum(['Carga_Parcial', 'Carga_Completa', 'Disponible', 'Asignado', 'En_Mantenimiento']).optional(),
     ci_responsable: z.string().nullable().optional(),
-    unidad_administrativa: z.string().nullable().optional(),
     id_almacen: z.number().int(),
-    fecha_ingreso: z.string().min(1),
+    fecha_ingreso: z.string().nullable().optional(),
     usuario_carga: z.string().nullable().optional(),
+    observaciones: z.string().nullable().optional(),
   }),
   asignarVehiculo: z.object({
     ci_responsable: z.string().min(1),
   }),
   cambiarEstadoVehiculo: z.object({
-    estado_vehiculo: z.enum(['Carga_Parcial', 'Carga_Total', 'Disponible', 'Asignado', 'En_Mantenimiento']),
+    estado_vehiculo: z.enum(['Carga_Parcial', 'Carga_Completa', 'Disponible', 'Asignado', 'En_Mantenimiento']),
     estado_uso: z.enum(['En_Uso', 'En_Reparacion', 'Dado_de_Baja', 'Almacenado']),
   }),
   cambiarEstadoBien: z.object({

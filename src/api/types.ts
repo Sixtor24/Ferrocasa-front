@@ -95,7 +95,7 @@ export interface ApiDocumentosTotalesPorMes {
 }
 
 export interface ApiBien {
-  codigo_bien: number;
+  codigo_bien: number | string;
   descripcion?: string | null;
   id_doc?: number | null;
   fecha_ingreso?: string | null;
@@ -121,7 +121,7 @@ export interface ApiBien {
 }
 
 export interface ApiVehiculo {
-  codigo: number;
+  codigo: number | string;
   descripcion?: string | null;
   id_doc?: number | null;
   fecha_egreso?: string | null;
@@ -142,6 +142,7 @@ export interface ApiVehiculo {
   id_almacen: number;
   fecha_ingreso?: string | null;
   usuario_carga?: string | null;
+  observaciones?: string | null;
   documento?: ApiDocumento | null;
   categoria?: ApiCategoriaEspecifica;
   responsable?: ApiResponsable | null;
@@ -157,6 +158,7 @@ export interface ApiPropiedad {
 
 export interface ApiDocumentoPropiedad {
   id_documento_propiedad: number;
+  numero_documento?: string | null;
   numero_propiedad: number;
   forma_adquisicion: string;
   area_total_m2?: string | number | null;
@@ -204,6 +206,7 @@ export interface ApiParcela {
   observaciones?: string | null;
   acreditacion_ambiental: string;
   levantamiento_topografico: string;
+  valor_adquisicion?: string | number | null;
   ubicacion_adicional?: string | null;
   documento?: ApiDocumentoPropiedad & { propiedad?: ApiPropiedad };
   responsable?: ApiResponsable | null;

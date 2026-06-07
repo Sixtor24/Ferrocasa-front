@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import {
   fetchParcelas,
   fetchParcelaById,
-  fetchParcelasEstadisticas,
+  fetchParcelasAll,
   updateParcela,
   type ParcelaPayload,
 } from '../api/services/parcelas.service';
@@ -12,12 +12,21 @@ import type { ApiParcela } from '../api/types';
 import { useApiQuery } from '../hooks/useApiQuery';
 import ModuleMetricCard, { formatAreaM2 } from '../components/module/ModuleMetricCard';
 import SearchableSelect from '../components/forms/SearchableSelect';
-import { ESTADOS_TRAMITE } from '../types/terreno';
+import {
+  ESTADOS_TRAMITE,
+  LEVANTAMIENTO_TOPOGRAFICO_OPCIONES,
+} from '../types/terreno';
+import {
+  levantamientoTopograficoToApi,
+  mapLevantamientoTopografico,
+} from '../api/mappers/enums';
 import type { ProtocolizacionTerreno, Terreno } from '../types/terreno';
 import {
   NuevaProtocolizacionModal,
   RegistroParcelasModal,
 } from '../components/modals';
+import UnsavedChangesModal from '../components/modals/UnsavedChangesModal';
+import { useUnsavedChangesGuard } from '../hooks/useUnsavedChangesGuard';
 import type { TipoProtocolizacionParcela } from '../components/modals/NuevaProtocolizacionModal';
 import ModulePageHeader from '../components/module/ModulePageHeader';
 import ModuleFilterBar from '../components/module/ModuleFilterBar';
@@ -27,6 +36,7 @@ import ModulePagination from '../components/module/ModulePagination';
 import AssetDetailView from '../components/module/AssetDetailView';
 import ApiState from '../components/ApiState';
 import { formatFecha, formatMoneda } from '../utils/formatters';
+import { aggregateTerrenoMetricas } from '../utils/parcelasStats';
 import { useModuleUiState } from '../stores/moduleUiStore';
 import type { Column } from '../components/DataTable';
 import { AlertTriangle, ArrowLeft, Map, MapPin, Layers, MinusCircle } from 'lucide-react';
@@ -43,12 +53,6 @@ function acreditacionEstadoToApi(value: Terreno['acreditacionTecnicaAmbiental'])
   return 'No_posee';
 }
 
-function levantamientoEstadoToApi(value: Terreno['levantamientoTopografico']) {
-  if (value === 'Sí') return 'Si';
-  if (value === 'En trámite') return 'Solicitar';
-  return 'No';
-}
-
 function parcelaPayloadFromApi(
   raw: ApiParcela,
   overrides: Partial<Pick<ParcelaPayload, 'id_comprometida' | 'id_desincorporada'>> = {},
@@ -63,7 +67,15 @@ function parcelaPayloadFromApi(
     zonificacion: raw.zonificacion ?? 'Sin zonificar',
     observaciones: raw.observaciones ?? null,
     acreditacion_ambiental: raw.acreditacion_ambiental,
-    levantamiento_topografico: raw.levantamiento_topografico,
+    levantamiento_topografico: levantamientoTopograficoToApi(
+      mapLevantamientoTopografico(raw.levantamiento_topografico),
+    ),
+    valor_adquisicion:
+      raw.valor_adquisicion != null
+        ? Number(raw.valor_adquisicion)
+        : raw.documento?.valor_adquisicion != null
+          ? Number(raw.documento.valor_adquisicion)
+          : null,
     ubicacion_adicional: raw.ubicacion_adicional ?? null,
   };
 }
@@ -81,6 +93,7 @@ function TerrenoParcelaDetail({
   onVolver: () => void;
   onUpdated: () => void;
 }) {
+  const navigate = useNavigate();
   const [acreditacion, setAcreditacion] = useState(terreno.acreditacionTecnicaAmbiental);
   const [levantamiento, setLevantamiento] = useState(terreno.levantamientoTopografico);
   const [protocolModalOpen, setProtocolModalOpen] = useState(false);
@@ -88,11 +101,16 @@ function TerrenoParcelaDetail({
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (terreno.areaDisponible !== 0) return;
-    toast.warning('No hay área disponible', {
-      description: `${terreno.identificacion} tiene 0 m² disponibles.`,
-    });
-  }, [terreno.areaDisponible, terreno.identificacion]);
+    setAcreditacion(terreno.acreditacionTecnicaAmbiental);
+    setLevantamiento(terreno.levantamientoTopografico);
+  }, [terreno.acreditacionTecnicaAmbiental, terreno.levantamientoTopografico]);
+
+  const isDirty =
+    acreditacion !== terreno.acreditacionTecnicaAmbiental
+    || levantamiento !== terreno.levantamientoTopografico;
+  const unsaved = useUnsavedChangesGuard(isDirty);
+  const areaRetirable = terreno.areaDisponible + terreno.areaComprometida;
+  const yaDesincorporada = Boolean(raw.id_desincorporada);
 
   const guardarCambio = async () => {
     setSaving(true);
@@ -100,7 +118,7 @@ function TerrenoParcelaDetail({
       await updateParcela(terreno.id, {
         ...parcelaPayloadFromApi(raw),
         acreditacion_ambiental: acreditacionEstadoToApi(acreditacion),
-        levantamiento_topografico: levantamientoEstadoToApi(levantamiento),
+        levantamiento_topografico: levantamientoTopograficoToApi(levantamiento),
       });
       toast.success('Cambio guardado', {
         description: `${terreno.codigo}: acreditación ${acreditacion}, levantamiento ${levantamiento}.`,
@@ -132,6 +150,9 @@ function TerrenoParcelaDetail({
     <>
       <AssetDetailView
         title="Terrenos: Control de Parcelas"
+        onNavigateTo={(to) =>
+          unsaved.requestLeave(() => (to === '/terrenos' ? onVolver() : navigate(to)))
+        }
         breadcrumb={[
           { label: 'Dashboard', to: '/dashboard' },
           { label: 'Terrenos', to: '/terrenos' },
@@ -162,7 +183,7 @@ function TerrenoParcelaDetail({
                   <SearchableSelect
                     value={levantamiento}
                     onChange={(value) => setLevantamiento(value as Terreno['levantamientoTopografico'])}
-                    options={ESTADOS_TRAMITE}
+                    options={LEVANTAMIENTO_TOPOGRAFICO_OPCIONES}
                     className="max-w-xs"
                   />
                 ),
@@ -204,7 +225,7 @@ function TerrenoParcelaDetail({
           <>
             <button
               type="button"
-              onClick={onVolver}
+              onClick={() => unsaved.requestLeave(onVolver)}
               className="inline-flex items-center gap-2 px-4 py-2.5 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50"
             >
               <ArrowLeft size={16} />
@@ -216,7 +237,8 @@ function TerrenoParcelaDetail({
                 setProtocolTipo('Compromiso');
                 setProtocolModalOpen(true);
               }}
-              className="px-5 py-2.5 bg-navy-900 text-white rounded-lg text-sm font-semibold hover:bg-navy-800"
+              disabled={terreno.areaDisponible === 0}
+              className="px-5 py-2.5 bg-navy-900 text-white rounded-lg text-sm font-semibold hover:bg-navy-800 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Agregar Protocolización
             </button>
@@ -234,7 +256,15 @@ function TerrenoParcelaDetail({
                 setProtocolTipo('Desincorporación');
                 setProtocolModalOpen(true);
               }}
-              className="px-5 py-2.5 border border-red-200 text-red-700 rounded-lg text-sm font-semibold hover:bg-red-50"
+              disabled={yaDesincorporada || areaRetirable === 0}
+              title={
+                yaDesincorporada
+                  ? 'Esta parcela ya fue retirada del inventario'
+                  : areaRetirable === 0
+                    ? 'No hay área para retirar'
+                    : undefined
+              }
+              className="px-5 py-2.5 border border-red-200 text-red-700 rounded-lg text-sm font-semibold hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Retirar de Inventario
             </button>
@@ -242,13 +272,17 @@ function TerrenoParcelaDetail({
         }
       />
 
-      {terreno.areaDisponible === 0 && (
+      {terreno.areaDisponible === 0 && !yaDesincorporada && (
         <div className="px-4 md:px-6 max-w-7xl">
           <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-900">
             <AlertTriangle size={18} className="mt-0.5 shrink-0" />
             <div>
-              <p className="text-sm font-semibold">No hay área disponible</p>
-              <p className="text-sm">Esta parcela tiene 0 m² disponibles para nuevas operaciones.</p>
+              <p className="text-sm font-semibold">No hay área disponible para nuevos compromisos</p>
+              <p className="text-sm">
+                {terreno.areaComprometida > 0
+                  ? `Tiene ${formatAreaM2Detail(terreno.areaComprometida)} comprometidos. Puede retirarlos del inventario con el botón «Retirar de Inventario».`
+                  : 'Esta parcela tiene 0 m² disponibles para nuevas operaciones.'}
+              </p>
             </div>
           </div>
         </div>
@@ -295,8 +329,16 @@ function TerrenoParcelaDetail({
         open={protocolModalOpen}
         onClose={() => setProtocolModalOpen(false)}
         tipo={protocolTipo}
+        areaDisponible={terreno.areaDisponible}
+        areaComprometida={terreno.areaComprometida}
         onCreated={vincularProtocolizacion}
         onError={(message) => toast.error('No se pudo crear la protocolización', { description: message })}
+      />
+      <UnsavedChangesModal
+        open={unsaved.modalOpen}
+        onClose={unsaved.cancelLeave}
+        onConfirm={unsaved.confirmLeave}
+        subject="de la parcela"
       />
     </>
   );
@@ -341,20 +383,15 @@ export default function Terrenos() {
     [page, apiSearch, filtros.estado],
   );
 
-  const statsQuery = useApiQuery(() => fetchParcelasEstadisticas(), []);
-  const allParcelasQuery = useApiQuery(() => fetchParcelas({ page: 1, limit: 5000 }), []);
+  const metricsQuery = useApiQuery(() => fetchParcelasAll(), []);
 
   const terrenos = listQuery.data?.terrenos ?? [];
-  const todasLasParcelas = allParcelasQuery.data?.terrenos ?? terrenos;
+  const totalPages = listQuery.data?.meta.totalPages ?? 1;
 
-  const metricas = useMemo(() => {
-    const totalParcelas = statsQuery.data?.total ?? listQuery.data?.meta.total ?? todasLasParcelas.length;
-    const areaDisponible = todasLasParcelas.reduce((s, t) => s + (t.areaDisponible ?? 0), 0);
-    const areaDesincorporada = todasLasParcelas.reduce((s, t) => s + (t.areaDesincorporada ?? 0), 0);
-    const areaComprometida = todasLasParcelas.reduce((s, t) => s + (t.areaComprometida ?? 0), 0);
-    const areaDocumento = todasLasParcelas.reduce((s, t) => s + (t.areaDocumento ?? 0), 0);
-    return { totalParcelas, areaDisponible, areaDesincorporada, areaComprometida, areaDocumento };
-  }, [todasLasParcelas, statsQuery.data?.total, listQuery.data?.meta.total]);
+  const metricas = useMemo(
+    () => aggregateTerrenoMetricas(metricsQuery.data?.terrenos ?? []),
+    [metricsQuery.data?.terrenos],
+  );
 
   const filtered = useMemo(() => {
     return terrenos.filter((t) => {
@@ -373,17 +410,16 @@ export default function Terrenos() {
     });
   }, [terrenos, filtros]);
 
-  const totalPages = Math.max(1, listQuery.data?.meta.totalPages ?? 1);
   const paginated = filtered;
 
   const setFiltro = (key: keyof typeof filtros, value: string) => {
     setModuleFilter(key, value);
+    setPage(1);
   };
 
   const refreshParcelas = () => {
     listQuery.refetch();
-    statsQuery.refetch();
-    allParcelasQuery.refetch();
+    metricsQuery.refetch();
     detailQuery.refetch();
   };
 
@@ -500,7 +536,7 @@ export default function Terrenos() {
           { key: 'zonificacion', label: 'Zonificación', type: 'text', value: filtros.zonificacion, onChange: (v) => setFiltro('zonificacion', v) },
           { key: 'nroPropiedad', label: 'Nro de Propiedad', type: 'text', value: filtros.nroPropiedad, onChange: (v) => setFiltro('nroPropiedad', v) },
           { key: 'fecha', label: 'Fecha', type: 'date', value: filtros.fecha, onChange: (v) => setFiltro('fecha', v) },
-          { key: 'levantamiento', label: 'Levantamiento Topográfico', type: 'select', value: filtros.levantamiento, onChange: (v) => setFiltro('levantamiento', v), options: ['Todos', ...ESTADOS_TRAMITE] },
+          { key: 'levantamiento', label: 'Levantamiento Topográfico', type: 'select', value: filtros.levantamiento, onChange: (v) => setFiltro('levantamiento', v), options: ['Todos', ...LEVANTAMIENTO_TOPOGRAFICO_OPCIONES] },
           { key: 'acreditacion', label: 'Acreditación Técnica Ambiental', type: 'select', value: filtros.acreditacion, onChange: (v) => setFiltro('acreditacion', v), options: ['Todos', ...ESTADOS_TRAMITE] },
           { key: 'buscar', label: 'Buscar', type: 'search', value: filtros.buscar, onChange: (v) => setFiltro('buscar', v), placeholder: 'Buscar en registros...', className: 'sm:col-span-2 lg:col-span-1' },
         ]}
@@ -511,7 +547,7 @@ export default function Terrenos() {
         error={listQuery.error}
         onRetry={listQuery.refetch}
         empty={!listQuery.loading && filtered.length === 0}
-        emptyMessage="No hay parcelas registradas. Crea una propiedad y documento en el backend, luego registra parcelas."
+        emptyMessage="No hay parcelas registradas. Use «Crear Registro» para cargar propiedad, documento y parcelas."
       >
         <ModuleDataTable
           data={paginated}

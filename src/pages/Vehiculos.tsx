@@ -2,15 +2,20 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
-  cambiarEstadoVehiculo,
-  fetchVehiculos,
+  fetchApiVehiculoById,
   fetchVehiculoById,
+  fetchVehiculos,
+  fetchVehiculosEstadisticas,
+  updateVehiculo,
 } from '../api/services/vehiculos.service';
 import { fetchAlmacenes } from '../api/services/almacenes.service';
+import { API_MAX_LIMIT } from '../api/pagination';
 import { useApiQuery } from '../hooks/useApiQuery';
 import { RegistroVehiculosModal } from '../components/modals';
 import RetirarInventarioModal from '../components/modals/RetirarInventarioModal';
 import TransferirAlmacenModal from '../components/modals/TransferirAlmacenModal';
+import UnsavedChangesModal from '../components/modals/UnsavedChangesModal';
+import { useUnsavedChangesGuard } from '../hooks/useUnsavedChangesGuard';
 import {
   useVehiculoInventarioActions,
   type InventarioVehiculoActionResult,
@@ -20,6 +25,7 @@ import { CONDICIONES_VEHICULO, ESTADOS_USO_VEHICULO } from '../types/vehiculo';
 import type { Vehiculo } from '../types/vehiculo';
 import ModulePageHeader from '../components/module/ModulePageHeader';
 import ModuleFilterBar from '../components/module/ModuleFilterBar';
+import ModuleMetricCard from '../components/module/ModuleMetricCard';
 import SearchableSelect from '../components/forms/SearchableSelect';
 import { FILTROS_INVENTARIO_VACIOS } from '../constants/moduleFilters';
 import ModuleDataTable from '../components/module/ModuleDataTable';
@@ -29,18 +35,17 @@ import ApiState from '../components/ApiState';
 import StatusBadge from '../components/StatusBadge';
 import { formatFecha, formatMoneda } from '../utils/formatters';
 import { notifyVehiculoActualizado } from '../utils/assetNotify';
-import { estadoUsoVehiculoToApi } from '../utils/registroVehiculoMappers';
+import { apiVehiculoToUpdatePayload } from '../utils/assetUpdateMappers';
+import {
+  condicionVehiculoToApi,
+  estadoUsoVehiculoToApi,
+} from '../utils/registroVehiculoMappers';
+import { parseVehiculosEstadisticas } from '../utils/vehiculosStats';
 import { useModuleUiState } from '../stores/moduleUiStore';
 import type { Column } from '../components/DataTable';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Car, Truck, Wrench, Users } from 'lucide-react';
 
 const PER_PAGE = 5;
-
-function formaAdquisicionVehiculo(v: Vehiculo) {
-  if (v.numeroDocumento.startsWith('TR-')) return 'Transferencia';
-  if (v.numeroDocumento.startsWith('OC-')) return 'Compra';
-  return 'Compra';
-}
 
 function catalogOptions(values: string[], allLabel: string) {
   const unique = Array.from(
@@ -53,13 +58,16 @@ function VehiculoDetail({
   vehiculo,
   almacenes,
   onVolver,
+  onSaved,
   onInventarioAction,
 }: {
   vehiculo: Vehiculo;
   almacenes: ApiAlmacen[];
   onVolver: () => void;
+  onSaved?: () => void | Promise<void>;
   onInventarioAction?: (result: InventarioVehiculoActionResult) => void;
 }) {
+  const navigate = useNavigate();
   const [estadoUso, setEstadoUso] = useState(vehiculo.estadoUso);
   const [condicionFisica, setCondicionFisica] = useState(vehiculo.condicionFisica);
   const [saving, setSaving] = useState(false);
@@ -70,14 +78,21 @@ function VehiculoDetail({
     setCondicionFisica(vehiculo.condicionFisica);
   }, [vehiculo.estadoUso, vehiculo.condicionFisica]);
 
+  const isDirty =
+    estadoUso !== vehiculo.estadoUso || condicionFisica !== vehiculo.condicionFisica;
+  const unsaved = useUnsavedChangesGuard(isDirty);
+
   const guardarCambio = async () => {
     setSaving(true);
     try {
-      await cambiarEstadoVehiculo(vehiculo.id, {
-        estado_vehiculo: 'Carga_Total',
+      const apiVehiculo = await fetchApiVehiculoById(vehiculo.id);
+      const payload = apiVehiculoToUpdatePayload(apiVehiculo, {
         estado_uso: estadoUsoVehiculoToApi(estadoUso),
+        condicion_fisica: condicionVehiculoToApi(condicionFisica),
       });
+      await updateVehiculo(vehiculo.id, payload);
       notifyVehiculoActualizado(vehiculo, estadoUso);
+      await onSaved?.();
     } catch (err) {
       toast.error('No se pudo guardar el cambio', {
         description: err instanceof Error ? err.message : 'Intente nuevamente.',
@@ -95,144 +110,153 @@ function VehiculoDetail({
 
   return (
     <>
-    <AssetDetailView
-      title="Vehículos y Maquinaria"
-      breadcrumb={[
-        { label: 'Dashboard', to: '/dashboard' },
-        { label: 'Vehículos', to: '/vehiculos' },
-        { label: vehiculo.codigoInterno },
-      ]}
-      categoryFields={[
-        { label: 'Categoría', value: vehiculo.categoriaGeneral },
-        { label: 'Sub Categoría', value: vehiculo.subcategoria },
-        { label: 'Categoría Específica', value: vehiculo.subcategoria },
-      ]}
-      sections={[
-        {
-          title: 'Detalles',
-          fields: [
-            { label: 'Descripción', value: vehiculo.descripcion },
-            { label: 'Código', value: vehiculo.codigoInterno },
-            {
-              label: 'Estado de uso',
-              value: (
-                <SearchableSelect
-                  value={estadoUso}
-                  onChange={(value) => setEstadoUso(value as Vehiculo['estadoUso'])}
-                  options={ESTADOS_USO_VEHICULO}
-                  className="max-w-xs"
-                  disabled={inventario.retirado}
-                  disableSearch
-                />
-              ),
-            },
-            { label: 'Fecha de Ingreso', value: formatFecha(vehiculo.fechaAdquisicion) },
-            { label: 'Placa', value: placaDisplay },
-            {
-              label: 'Condición Física',
-              value: (
-                <SearchableSelect
-                  value={condicionFisica}
-                  onChange={(value) => setCondicionFisica(value as Vehiculo['condicionFisica'])}
-                  options={CONDICIONES_VEHICULO}
-                  className="max-w-xs"
-                  disabled={inventario.retirado}
-                  disableSearch
-                />
-              ),
-            },
-            { label: 'Color', value: vehiculo.color },
-            { label: 'Serial del motor', value: serialMotorDisplay },
-            { label: 'Almacén', value: vehiculo.almacen },
-            { label: 'Marca', value: vehiculo.marca },
-            { label: 'Serial de carrocería', value: serialCarroceriaDisplay },
-            { label: 'Unidad Administrativa', value: vehiculo.unidadAdministrativa },
-            { label: 'Modelo', value: vehiculo.modelo },
-            {
-              label: 'Responsable',
-              value: vehiculo.responsable !== '—'
-                ? vehiculo.responsable
-                : vehiculo.ciResponsable
-                  ? `CI ${vehiculo.ciResponsable}`
-                  : '—',
-            },
-            { label: 'Sede', value: vehiculo.sede },
-            { label: 'Año de fabricación', value: vehiculo.anioFabricacion?.toString() ?? '—' },
-            { label: 'Estado', value: <StatusBadge status={estadoUso} size="sm" /> },
-            {
-              label: 'Valor de Adquisición',
-              value: formatMoneda(vehiculo.valorAdquisicion, vehiculo.moneda),
-            },
-          ],
-        },
-        {
-          title: 'Detalles del documento de Ingreso',
-          fields: [
-            { label: 'Nro de Documento', value: vehiculo.numeroDocumento || '—' },
-            { label: 'Forma de Adquisición', value: formaAdquisicionVehiculo(vehiculo) },
-            {
-              label: 'Valor Total de Documento',
-              value: formatMoneda(vehiculo.valorAdquisicion, vehiculo.moneda),
-            },
-            { label: 'Fecha Adquisición', value: formatFecha(vehiculo.fechaAdquisicion) },
-            { label: 'Nombre de Proveedor', value: vehiculo.proveedor || '—' },
-          ],
-        },
-      ]}
-      actions={
-        <>
-          <button
-            type="button"
-            onClick={onVolver}
-            className="inline-flex items-center gap-2 px-4 py-2.5 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50"
-          >
-            <ArrowLeft size={16} />
-            Volver al listado
-          </button>
-          <button
-            type="button"
-            onClick={guardarCambio}
-            disabled={saving}
-            className="px-5 py-2.5 bg-navy-900 text-white rounded-lg text-sm font-semibold hover:bg-navy-800 disabled:opacity-60"
-          >
-            {saving ? 'Guardando...' : 'Guardar cambio'}
-          </button>
-          <button
-            type="button"
-            onClick={() => inventario.setTransferOpen(true)}
-            disabled={inventario.retirado || inventario.transferLoading || inventario.retireLoading}
-            className="px-5 py-2.5 border border-navy-200 text-navy-800 rounded-lg text-sm font-semibold hover:bg-navy-50 disabled:opacity-50"
-          >
-            Transferir a otro almacén
-          </button>
-          <button
-            type="button"
-            onClick={() => inventario.setRetireOpen(true)}
-            disabled={inventario.retirado || inventario.transferLoading || inventario.retireLoading}
-            className="px-5 py-2.5 border border-red-200 text-red-700 rounded-lg text-sm font-semibold hover:bg-red-50 disabled:opacity-50"
-          >
-            Retirar de Inventario
-          </button>
-        </>
-      }
-    />
-    <TransferirAlmacenModal
-      open={inventario.transferOpen}
-      onClose={() => inventario.setTransferOpen(false)}
-      assetLabel={inventario.assetLabel}
-      sedeActual={inventario.sedeActual}
-      almacenActual={inventario.almacenActual}
-      almacenes={inventario.almacenes}
-      onConfirm={inventario.handleTransfer}
-      loading={inventario.transferLoading}
-    />
-    <RetirarInventarioModal
-      open={inventario.retireOpen}
-      onClose={() => inventario.setRetireOpen(false)}
-      assetLabel={inventario.assetLabel}
-      onConfirm={inventario.handleRetire}
-      loading={inventario.retireLoading}
-    />
+      <AssetDetailView
+        title="Vehículos y Maquinaria"
+        onNavigateTo={(to) =>
+          unsaved.requestLeave(() => (to === '/vehiculos' ? onVolver() : navigate(to)))
+        }
+        breadcrumb={[
+          { label: 'Dashboard', to: '/dashboard' },
+          { label: 'Vehículos', to: '/vehiculos' },
+          { label: vehiculo.codigoInterno },
+        ]}
+        categoryFields={[
+          { label: 'Categoría', value: vehiculo.categoriaGeneral },
+          { label: 'Sub Categoría', value: vehiculo.subcategoria },
+          { label: 'Categoría Específica', value: vehiculo.categoriaEspecifica },
+        ]}
+        sections={[
+          {
+            title: 'Detalles',
+            fields: [
+              { label: 'Descripción', value: vehiculo.descripcion },
+              { label: 'Código', value: vehiculo.codigoInterno },
+              {
+                label: 'Estado de uso',
+                value: (
+                  <SearchableSelect
+                    value={estadoUso}
+                    onChange={(value) => setEstadoUso(value as Vehiculo['estadoUso'])}
+                    options={ESTADOS_USO_VEHICULO}
+                    className="max-w-xs"
+                    disabled={inventario.retirado}
+                    disableSearch
+                  />
+                ),
+              },
+              { label: 'Fecha de Ingreso', value: formatFecha(vehiculo.fechaIngreso) },
+              { label: 'Placa', value: placaDisplay },
+              {
+                label: 'Condición Física',
+                value: (
+                  <SearchableSelect
+                    value={condicionFisica}
+                    onChange={(value) => setCondicionFisica(value as Vehiculo['condicionFisica'])}
+                    options={CONDICIONES_VEHICULO}
+                    className="max-w-xs"
+                    disabled={inventario.retirado}
+                    disableSearch
+                  />
+                ),
+              },
+              { label: 'Color', value: vehiculo.color },
+              { label: 'Serial del motor', value: serialMotorDisplay },
+              { label: 'Almacén', value: vehiculo.almacen },
+              { label: 'Marca', value: vehiculo.marca },
+              { label: 'Serial de carrocería', value: serialCarroceriaDisplay },
+              { label: 'Unidad Administrativa', value: vehiculo.unidadAdministrativa },
+              { label: 'Modelo', value: vehiculo.modelo },
+              {
+                label: 'Responsable',
+                value: vehiculo.responsable !== '—'
+                  ? vehiculo.responsable
+                  : vehiculo.ciResponsable
+                    ? `CI ${vehiculo.ciResponsable}`
+                    : '—',
+              },
+              { label: 'Sede', value: vehiculo.sede },
+              { label: 'Año de fabricación', value: vehiculo.anioFabricacion?.toString() ?? '—' },
+              { label: 'Estado', value: <StatusBadge status={estadoUso} size="sm" /> },
+              {
+                label: 'Valor de Adquisición',
+                value: formatMoneda(vehiculo.valorAdquisicion, vehiculo.moneda),
+              },
+            ],
+          },
+          {
+            title: 'Detalles del documento de Ingreso',
+            fields: [
+              { label: 'Nro de Documento', value: vehiculo.numeroDocumento || '—' },
+              { label: 'Forma de Adquisición', value: vehiculo.formaAdquisicion },
+              {
+                label: 'Valor Total de Documento',
+                value: formatMoneda(vehiculo.valorAdquisicion, vehiculo.moneda),
+              },
+              { label: 'Fecha Adquisición', value: formatFecha(vehiculo.fechaAdquisicion) },
+              { label: 'Nombre de Proveedor', value: vehiculo.proveedor || '—' },
+            ],
+          },
+        ]}
+        actions={
+          <>
+            <button
+              type="button"
+              onClick={() => unsaved.requestLeave(onVolver)}
+              className="inline-flex items-center gap-2 px-4 py-2.5 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50"
+            >
+              <ArrowLeft size={16} />
+              Volver al listado
+            </button>
+            <button
+              type="button"
+              onClick={guardarCambio}
+              disabled={saving || inventario.retirado}
+              className="px-5 py-2.5 bg-navy-900 text-white rounded-lg text-sm font-semibold hover:bg-navy-800 disabled:opacity-60"
+            >
+              {saving ? 'Guardando...' : 'Guardar cambio'}
+            </button>
+            <button
+              type="button"
+              onClick={() => inventario.setTransferOpen(true)}
+              disabled={inventario.retirado || inventario.transferLoading || inventario.retireLoading}
+              className="px-5 py-2.5 border border-navy-200 text-navy-800 rounded-lg text-sm font-semibold hover:bg-navy-50 disabled:opacity-50"
+            >
+              Transferir a otro almacén
+            </button>
+            <button
+              type="button"
+              onClick={() => inventario.setRetireOpen(true)}
+              disabled={inventario.retirado || inventario.transferLoading || inventario.retireLoading}
+              className="px-5 py-2.5 border border-red-200 text-red-700 rounded-lg text-sm font-semibold hover:bg-red-50 disabled:opacity-50"
+            >
+              Retirar de Inventario
+            </button>
+          </>
+        }
+      />
+      <TransferirAlmacenModal
+        open={inventario.transferOpen}
+        onClose={() => inventario.setTransferOpen(false)}
+        assetLabel={inventario.assetLabel}
+        sedeActual={inventario.sedeActual}
+        almacenActual={inventario.almacenActual}
+        almacenes={inventario.almacenes}
+        onConfirm={inventario.handleTransfer}
+        loading={inventario.transferLoading}
+      />
+      <RetirarInventarioModal
+        open={inventario.retireOpen}
+        onClose={() => inventario.setRetireOpen(false)}
+        assetLabel={inventario.assetLabel}
+        onConfirm={inventario.handleRetire}
+        loading={inventario.retireLoading}
+      />
+      <UnsavedChangesModal
+        open={unsaved.modalOpen}
+        onClose={unsaved.cancelLeave}
+        onConfirm={unsaved.confirmLeave}
+        subject="del vehículo"
+      />
     </>
   );
 }
@@ -254,9 +278,19 @@ export default function Vehiculos() {
     setError: setErrorMsg,
   } = useModuleUiState('vehiculos', FILTROS_INVENTARIO_VACIOS);
 
-  const listQuery = useApiQuery(() => fetchVehiculos({ page: 1, limit: 5000 }), []);
-  const almacenesQuery = useApiQuery(() => fetchAlmacenes({ page: 1, limit: 5000 }), []);
   const showRegistro = modals.registro ?? false;
+  const apiSearch = useMemo(() => filtros.buscar.trim() || undefined, [filtros.buscar]);
+
+  const listQuery = useApiQuery(
+    () => fetchVehiculos({ page, limit: PER_PAGE, search: apiSearch }),
+    [page, apiSearch],
+  );
+  const statsQuery = useApiQuery(() => fetchVehiculosEstadisticas(), []);
+  const almacenesQuery = useApiQuery(
+    () => fetchAlmacenes({ page: 1, limit: API_MAX_LIMIT }),
+    [],
+    showRegistro || Boolean(id),
+  );
 
   const detailQuery = useApiQuery(
     () => fetchVehiculoById(Number(id)),
@@ -266,6 +300,7 @@ export default function Vehiculos() {
 
   const lista = listQuery.data?.data ?? [];
   const vehiculo = id ? detailQuery.data : null;
+  const metricas = useMemo(() => parseVehiculosEstadisticas(statsQuery.data), [statsQuery.data]);
 
   const almacenOptions = useMemo(
     () => catalogOptions(lista.map((v) => v.almacen), 'Todos'),
@@ -304,11 +339,18 @@ export default function Vehiculos() {
     });
   }, [lista, filtros]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
-  const paginated = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
+  const totalPages = listQuery.data?.meta.totalPages ?? 1;
+  const paginated = filtered;
 
   const setFiltro = (key: keyof typeof filtros, value: string) => {
     setModuleFilter(key, value);
+    setPage(1);
+  };
+
+  const refreshVehiculos = () => {
+    listQuery.refetch();
+    statsQuery.refetch();
+    detailQuery.refetch();
   };
 
   const columns: Column<Vehiculo>[] = [
@@ -332,16 +374,16 @@ export default function Vehiculos() {
           <VehiculoDetail
             vehiculo={vehiculo}
             almacenes={almacenesQuery.data?.data ?? []}
-            onVolver={() => navigate('/vehiculos')}
+            onVolver={() => {
+              refreshVehiculos();
+              navigate('/vehiculos');
+            }}
+            onSaved={refreshVehiculos}
             onInventarioAction={async (result) => {
               if (result.type === 'transfer') {
-                void vehiculosQuery.refetch();
                 setModuleFilter('almacen', result.almacenDestino);
-                await detailQuery.refetch();
-                return;
               }
-              void vehiculosQuery.refetch();
-              await detailQuery.refetch();
+              refreshVehiculos();
             }}
           />
         )}
@@ -366,6 +408,42 @@ export default function Vehiculos() {
           </>
         }
       />
+
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+        <ModuleMetricCard
+          label="Total vehículos"
+          value={(metricas.total ?? 0).toLocaleString('es-VE')}
+          icon={<Car size={22} className="text-navy-600" />}
+          iconWrapClassName="bg-navy-100"
+        />
+        <ModuleMetricCard
+          label="Disponibles"
+          value={(metricas.disponibles ?? 0).toLocaleString('es-VE')}
+          icon={<Truck size={22} className="text-green-600" />}
+          iconWrapClassName="bg-green-100"
+          valueClassName="text-green-700"
+        />
+        <ModuleMetricCard
+          label="Asignados"
+          value={(metricas.asignados ?? 0).toLocaleString('es-VE')}
+          icon={<Users size={22} className="text-blue-600" />}
+          iconWrapClassName="bg-blue-100"
+          valueClassName="text-blue-700"
+        />
+        <ModuleMetricCard
+          label="En mantenimiento"
+          value={(metricas.enMantenimiento ?? 0).toLocaleString('es-VE')}
+          icon={<Wrench size={22} className="text-amber-500" />}
+          iconWrapClassName="bg-amber-100"
+          valueClassName="text-amber-700"
+        />
+        <ModuleMetricCard
+          label="Valor total"
+          value={formatMoneda(metricas.valorTotal, 'Bs')}
+          icon={<Car size={22} className="text-navy-600" />}
+          iconWrapClassName="bg-navy-50"
+        />
+      </div>
 
       <ModuleFilterBar
         onClearFilters={() => {
@@ -405,12 +483,12 @@ export default function Vehiculos() {
         open={showRegistro}
         onClose={() => setModal('registro', false)}
         almacenes={almacenesQuery.data?.data ?? []}
-        onSuccess={() => {
-          listQuery.refetch();
+        onSuccess={(message) => {
+          setSuccessMsg(message);
+          refreshVehiculos();
         }}
-        onError={() => {}}
+        onError={(message) => setErrorMsg(message)}
       />
-
     </div>
   );
 }

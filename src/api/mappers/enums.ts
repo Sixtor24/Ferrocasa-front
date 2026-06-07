@@ -30,10 +30,29 @@ export function mapCondicionVehiculo(api: string): CondicionVehiculo {
   return mapCondicionFisica(api) as CondicionVehiculo;
 }
 
-export function mapLevantamientoTopografico(api: string): 'Sí' | 'No' | 'En trámite' {
+export type EstadoVehiculoApi =
+  | 'Carga_Parcial'
+  | 'Carga_Completa'
+  | 'En_Mantenimiento'
+  | 'Disponible'
+  | 'Asignado';
+
+export function normalizeEstadoVehiculoApi(value?: string | null): EstadoVehiculoApi {
+  if (value === 'Carga_Total' || value === 'Carga_Completa') return 'Carga_Completa';
+  if (value === 'Carga_Parcial') return 'Carga_Parcial';
+  if (value === 'En_Mantenimiento') return 'En_Mantenimiento';
+  if (value === 'Disponible') return 'Disponible';
+  if (value === 'Asignado') return 'Asignado';
+  return 'Carga_Completa';
+}
+
+export function mapLevantamientoTopografico(api: string): 'Sí' | 'En trámite' {
   if (api === 'Si') return 'Sí';
-  if (api === 'Solicitar') return 'En trámite';
-  return 'No';
+  return 'En trámite';
+}
+
+export function levantamientoTopograficoToApi(value: 'Sí' | 'En trámite'): 'Si' | 'Solicitar' {
+  return value === 'Sí' ? 'Si' : 'Solicitar';
 }
 
 export function mapAcreditacionAmbiental(api: string): 'Sí' | 'No' | 'En trámite' {
@@ -61,10 +80,7 @@ export function isSinCodigoBien(codigo: string): boolean {
   );
 }
 
-export function isSinSerialBien(serial?: string | null): boolean {
-  const normalizado = (serial ?? '').trim().toUpperCase();
-  return normalizado.length === 0 || normalizado === 'S/S';
-}
+export { isSinSerialBien } from '../../utils/serialBien';
 
 export function mapMoneda(api?: string | null): 'Bs' | 'USD' | 'EUR' {
   if (api === 'USD') return 'USD';
@@ -80,9 +96,25 @@ export function toNumber(value: string | number | null | undefined): number | nu
 
 export function toIsoDate(value?: string | null): string {
   if (!value || value === '—') return '';
-  const iso = value.split('T')[0];
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return '';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  return iso;
+  const trimmed = String(value).trim();
+
+  const head = trimmed.includes('T') ? trimmed.split('T')[0] : trimmed.split(' ')[0];
+  if (/^\d{4}-\d{2}-\d{2}$/.test(head) && !Number.isNaN(new Date(head).getTime())) {
+    return head;
+  }
+
+  const dmy = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (dmy) {
+    const iso = `${dmy[3]}-${dmy[2].padStart(2, '0')}-${dmy[1].padStart(2, '0')}`;
+    if (!Number.isNaN(new Date(iso).getTime())) return iso;
+  }
+
+  return '';
+}
+
+/** Fecha de formulario (YYYY-MM-DD) → ISO datetime para POST/PUT del API. */
+export function toApiDateTime(value?: string | null): string | undefined {
+  const iso = toIsoDate(value);
+  if (!iso) return undefined;
+  return `${iso}T12:00:00.000Z`;
 }

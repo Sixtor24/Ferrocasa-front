@@ -10,6 +10,7 @@ import { createDocumento, type FormaAdquisicionDocumento } from '../../api/servi
 import { buildRegistroBienesSuccessMessage } from '../../utils/assetNotify';
 import { rollbackRegistroBienes } from '../../utils/registroRollback';
 import { fetchSedes } from '../../api/services/sedes.service';
+import { API_MAX_LIMIT } from '../../api/pagination';
 import type { ApiAlmacen, ApiSede } from '../../api/types';
 import type { ItemRegistroDraft, RegistroBienesModulo } from '../../types/registroBienItem';
 import { MONEDAS_REGISTRO } from '../../types/registroBienItem';
@@ -35,6 +36,7 @@ import {
   almacenesPorSede,
   departamentosPorSede,
 } from '../../data/bienesCatalogos';
+import { nombresAlmacenesCementerio } from '../../utils/cementerioAlmacenes';
 
 export type RegistroBienesModalConfig = {
   modulo: RegistroBienesModulo;
@@ -49,6 +51,7 @@ type RegistroBienesModalProps = RegistroBienesModalConfig & {
   open: boolean;
   onClose: () => void;
   almacenes: ApiAlmacen[];
+  sedesReferencia?: ApiSede[];
   onSuccess: (message: string) => void;
   onError: (message: string) => void;
 };
@@ -110,6 +113,7 @@ export default function RegistroBienesModal({
   sedeReadOnly = false,
   departamentos,
   almacenesCatalog,
+  sedesReferencia = [],
 }: RegistroBienesModalProps) {
   const sedeInicial = sedes[0] ?? '';
   const [items, setItems] = useState<ItemRegistroDraft[]>([]);
@@ -135,15 +139,18 @@ export default function RegistroBienesModal({
   const moneda = watch('moneda');
   const prevSedeRef = useRef(sede);
 
-  const almacenOptions = useMemo(
-    () => filterAlmacenesByCatalog(almacenes, almacenesPorSede(sede) ?? almacenesCatalog),
-    [almacenes, almacenesCatalog, sede],
-  );
+  const almacenOptions = useMemo(() => {
+    if (modulo === 'cementerio') {
+      const sedesCementerio = sedesReferencia.length > 0 ? sedesReferencia : sedesApi;
+      return nombresAlmacenesCementerio(almacenes, sedesCementerio);
+    }
+    return filterAlmacenesByCatalog(almacenes, almacenesPorSede(sede) ?? almacenesCatalog);
+  }, [almacenes, almacenesCatalog, modulo, sede, sedesApi, sedesReferencia]);
 
-  const departamentoOptions = useMemo(
-    () => departamentosPorSede(sede) ?? departamentos,
-    [departamentos, sede],
-  );
+  const departamentoOptions = useMemo(() => {
+    if (modulo === 'cementerio') return departamentos;
+    return departamentosPorSede(sede) ?? departamentos;
+  }, [departamentos, modulo, sede]);
 
   const sedeSelectOptions = useMemo(() => {
     const catalogNormalized = new Set(sedes.map(normalizeCatalogValue));
@@ -173,7 +180,7 @@ export default function RegistroBienesModal({
     setItemsError(null);
     prevSedeRef.current = sedeInicial;
 
-    fetchSedes({ page: 1, limit: 500 }).then((res) => {
+    fetchSedes({ page: 1, limit: API_MAX_LIMIT }).then((res) => {
       setSedesApi(res.data ?? []);
     });
   }, [open, sedeInicial, reset]);
@@ -400,6 +407,7 @@ export default function RegistroBienesModal({
             <table className="w-full min-w-[1100px] text-sm">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-200">
+                  <Th>Código</Th>
                   <Th>Descripción</Th>
                   <Th>Marca</Th>
                   <Th>Modelo</Th>
@@ -426,7 +434,7 @@ export default function RegistroBienesModal({
               <tbody>
                 {items.length === 0 ? (
                   <tr>
-                    <td colSpan={11} className="px-4 py-10 text-center text-sm text-gray-400">
+                    <td colSpan={12} className="px-4 py-10 text-center text-sm text-gray-400">
                       No hay ítems agregados. Use el botón + para registrar cada bien.
                     </td>
                   </tr>
@@ -436,6 +444,9 @@ export default function RegistroBienesModal({
                       key={item.key}
                       className={`border-b border-gray-100 ${index % 2 === 1 ? 'bg-gray-50/80' : 'bg-white'}`}
                     >
+                      <Td>
+                        <span className="font-mono text-xs">{item.codigoInterno || '—'}</span>
+                      </Td>
                       <Td>
                         <span className="block max-w-[180px] truncate">{item.descripcion}</span>
                       </Td>

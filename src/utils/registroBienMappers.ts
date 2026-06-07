@@ -5,6 +5,8 @@ import type { ApiAlmacen, ApiSede } from '../api/types';
 import type { ItemRegistroDraft } from '../types/registroBienItem';
 import type { CondicionFisica, EstadoUso } from '../types/bien';
 import type { MonedaRegistro } from '../types/registroBienItem';
+import { isSinSerialBien, serialBienToApi } from './serialBien';
+import { ciResponsableForApi } from './vehiculoApiFields';
 
 export function monedaBienToDocumento(moneda: MonedaRegistro): MonedaDocumento {
   if (moneda === 'USD') return 'USD';
@@ -29,11 +31,13 @@ export function itemRegistroToBienPayload(
   item: ItemRegistroDraft,
   params: { idDoc: number; fechaIngreso: string; idAlmacen: number },
 ): BienPayload {
-  const sinSerial = item.sinSerial || !item.serial.trim() || item.serial.trim().toUpperCase() === 'S/S';
+  const sinSerial = item.sinSerial || isSinSerialBien(item.serial);
+  const codigoBien = item.codigoInterno.trim();
 
   const observaciones = item.observaciones.trim();
 
   return {
+    codigo_bien: codigoBien,
     descripcion: item.descripcion.trim(),
     id_doc: params.idDoc,
     fecha_ingreso: params.fechaIngreso,
@@ -41,7 +45,7 @@ export function itemRegistroToBienPayload(
     marca: item.marca.trim(),
     modelo: item.modelo.trim() || undefined,
     color: item.color.trim() || undefined,
-    serial: sinSerial ? 'S/S' : item.serial.trim(),
+    serial: serialBienToApi(item.serial, codigoBien, { sinSerial }),
     estado_uso: estadoUsoToApi(item.estadoUso),
     condicion_fisica: condicionFisicaToApi(item.condicionFisica),
     id_almacen: params.idAlmacen,
@@ -85,19 +89,22 @@ export async function resolveResponsableForAlmacen(
   if (!match) return { responsable: '—', ciResponsable: '' };
 
   if (match.responsable?.nombre) {
-    return {
-      responsable: match.responsable.nombre,
-      ciResponsable: match.responsable.ci_responsable ?? match.ci_responsable ?? '',
-    };
+    const ci = ciResponsableForApi(match.responsable.ci_responsable ?? match.ci_responsable);
+    if (ci) {
+      return {
+        responsable: match.responsable.nombre,
+        ciResponsable: ci,
+      };
+    }
   }
 
-  const ci = match.ci_responsable?.trim();
+  const ci = ciResponsableForApi(match.ci_responsable);
   if (!ci) return { responsable: '—', ciResponsable: '' };
 
   try {
     const responsable = await fetchResponsableByCi(ci);
     return { responsable: responsable.nombre, ciResponsable: responsable.ci_responsable };
   } catch {
-    return { responsable: '—', ciResponsable: ci };
+    return { responsable: '—', ciResponsable: '' };
   }
 }

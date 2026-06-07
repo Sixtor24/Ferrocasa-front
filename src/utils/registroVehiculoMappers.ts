@@ -1,8 +1,9 @@
 import type {
   CondicionFisicaVehiculoApi,
   EstadoUsoVehiculoApi,
-  VehiculoPayload,
+  VehiculoBody,
 } from '../api/services/vehiculos.service';
+import { toApiDateTime } from '../api/mappers/enums';
 import type { ItemVehiculoRegistroDraft } from '../types/registroVehiculoItem';
 import type { CondicionVehiculo, EstadoUsoVehiculo } from '../types/vehiculo';
 import {
@@ -10,20 +11,20 @@ import {
   estadoUsoToApi,
   normalizeCatalogValue,
 } from './registroBienMappers';
+import {
+  apiStringField,
+  ciResponsableForApi,
+  usuarioCargaForApi,
+} from './vehiculoApiFields';
 
 export function estadoUsoVehiculoToApi(estado: EstadoUsoVehiculo): EstadoUsoVehiculoApi {
   return estadoUsoToApi(estado);
 }
 
 export function condicionVehiculoToApi(condicion: CondicionVehiculo): CondicionFisicaVehiculoApi {
-  return condicionFisicaToApi(condicion);
-}
-
-function descripcionConObservaciones(item: ItemVehiculoRegistroDraft) {
-  const base = item.descripcion.trim();
-  const obs = item.observaciones.trim();
-  if (!obs) return base;
-  return `${base}\n[Observaciones]: ${obs}`;
+  if (condicion === 'Regular') return 'Regular';
+  if (condicion === 'Dañado') return 'Dañado';
+  return 'Bueno';
 }
 
 export function itemVehiculoToPayload(
@@ -33,28 +34,33 @@ export function itemVehiculoToPayload(
     fechaIngreso: string;
     idAlmacen: number;
   },
-): VehiculoPayload {
+): VehiculoBody {
+  const observaciones = item.observaciones.trim();
+  const unidad = item.unidadAdministrativa.trim();
+  const notas = [observaciones, unidad ? `[unidad:${unidad}]` : ''].filter(Boolean).join(' ').trim();
+  const ci = ciResponsableForApi(item.ciResponsable);
+
   return {
-    descripcion: descripcionConObservaciones(item),
+    descripcion: item.descripcion.trim(),
     id_doc: params.idDoc,
     fecha_egreso: null,
     valor_adquisicion: item.valorAdquisicion,
-    marca: item.marca.trim() || null,
+    marca: apiStringField(item.marca),
     placa: item.placa.trim(),
     anio_fabricacion: item.anioFabricacion,
-    modelo: item.modelo.trim() || null,
-    color: item.color.trim() || null,
-    serial_motor: item.serialMotor.trim() || null,
-    serial_carroceria: item.serialCarroceria.trim() || null,
+    modelo: apiStringField(item.modelo),
+    color: apiStringField(item.color),
+    serial_motor: apiStringField(item.serialMotor) || 'S/S',
+    serial_carroceria: apiStringField(item.serialCarroceria),
     estado_uso: estadoUsoVehiculoToApi(item.estadoUso),
     condicion_fisica: condicionVehiculoToApi(item.condicionFisica),
     id_categoria_especifica: item.idCategoriaEspecifica,
-    estado_vehiculo: 'Carga_Total',
-    ci_responsable: item.ciResponsable || null,
-    unidad_administrativa: item.unidadAdministrativa,
+    estado_vehiculo: 'Carga_Completa',
     id_almacen: params.idAlmacen,
-    fecha_ingreso: params.fechaIngreso,
-    usuario_carga: null,
+    fecha_ingreso: toApiDateTime(params.fechaIngreso),
+    usuario_carga: usuarioCargaForApi(),
+    ...(ci ? { ci_responsable: ci } : {}),
+    ...(notas ? { observaciones: notas } : {}),
   };
 }
 

@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { fetchBienesAdministrativos, fetchBienesCementerio } from '../api/services/bienes-sedes.service';
+import { fetchBienesEstadisticas } from '../api/services/bienes.service';
 import { fetchVehiculosEstadisticas } from '../api/services/vehiculos.service';
 import { fetchParcelasEstadisticas } from '../api/services/parcelas.service';
+import { parseBienesEstadisticas } from '../utils/bienesStats';
 import { useApiQuery } from '../hooks/useApiQuery';
 import SearchableSelect from '../components/forms/SearchableSelect';
 import {
@@ -114,15 +115,13 @@ export default function Dashboard() {
 
   const statsQuery = useApiQuery(
     async () => {
-      const [bienesResult, cementerioResult, vehiculosResult, parcelasResult] = await Promise.allSettled([
-        fetchBienesAdministrativos({ page: 1, limit: 5000 }),
-        fetchBienesCementerio({ page: 1, limit: 5000 }),
+      const [bienesResult, vehiculosResult, parcelasResult] = await Promise.allSettled([
+        fetchBienesEstadisticas(),
         fetchVehiculosEstadisticas(),
         fetchParcelasEstadisticas(),
       ]);
       return {
         bienes: bienesResult.status === 'fulfilled' ? bienesResult.value : null,
-        cementerio: cementerioResult.status === 'fulfilled' ? cementerioResult.value : null,
         vehiculos: vehiculosResult.status === 'fulfilled' ? vehiculosResult.value : null,
         parcelas: parcelasResult.status === 'fulfilled' ? parcelasResult.value : null,
       };
@@ -131,18 +130,17 @@ export default function Dashboard() {
   );
 
   const liveStats = statsQuery.data;
-  const bienesAdministrativos = liveStats?.bienes?.all ?? [];
-  const bienesCementerio = liveStats?.cementerio?.all ?? [];
-  const totalBienes = liveStats?.bienes?.meta.total ?? bienesAdministrativos.length;
+  const bienesResumen = parseBienesEstadisticas(liveStats?.bienes);
+  const totalBienes = bienesResumen.total;
   const totalVehiculos = liveStats?.vehiculos?.total ?? 0;
   const totalParcelas = liveStats?.parcelas?.total ?? 0;
-  const totalCementerio = liveStats?.cementerio?.meta.total ?? bienesCementerio.length;
+  const totalCementerio = 0;
   const parcelasDisponibles = liveStats?.parcelas?.disponibles ?? 0;
   const parcelasComprometidas = liveStats?.parcelas?.comprometidas ?? 0;
   const parcelasDesincorporadas = liveStats?.parcelas?.desincorporadas ?? 0;
-  const bienesEnUso = bienesAdministrativos.filter((bien) => bien.estadoUso === 'En uso').length;
-  const bienesEnObsolescencia = bienesAdministrativos.filter((bien) => bien.estadoUso === 'En obsolescencia').length;
-  const bienesObsoletos = bienesAdministrativos.filter((bien) => bien.estadoUso === 'Obsoleto').length;
+  const bienesEnUso = bienesResumen.enUso;
+  const bienesEnObsolescencia = bienesResumen.enObsolescencia;
+  const bienesObsoletos = bienesResumen.obsoletos;
 
   const now = new Date().toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit', hour12: true });
 

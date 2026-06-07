@@ -14,6 +14,7 @@ export function esSinCodigo(codigo: string): boolean {
  */
 export function esSinSerial(serial: string): boolean {
   const norm = serial.trim().toUpperCase().replace(/\s+/g, '');
+  if (norm.startsWith('S/S:')) return true;
   return ['S/S', 'SS', 'SIN SERIAL', 'SINSERIAL', 'N/A', ''].includes(norm);
 }
 

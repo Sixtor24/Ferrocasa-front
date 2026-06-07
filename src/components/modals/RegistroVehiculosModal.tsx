@@ -7,6 +7,8 @@ import NuevoItemVehiculoRegistroModal from './NuevoItemVehiculoRegistroModal';
 import SearchableSelect from '../forms/SearchableSelect';
 import { createDocumento, type FormaAdquisicionDocumento } from '../../api/services/documentos.service';
 import { fetchSedes } from '../../api/services/sedes.service';
+import { API_MAX_LIMIT } from '../../api/pagination';
+import { fetchResponsableByCi } from '../../api/services/responsables.service';
 import { createVehiculo } from '../../api/services/vehiculos.service';
 import type { ApiAlmacen, ApiSede } from '../../api/types';
 import {
@@ -23,10 +25,12 @@ import {
 } from '../../schemas/registroVehiculo.schema';
 import { formatMoneda } from '../../utils/formatters';
 import { validarConZod } from '../../utils/validators';
+import { toApiDateTime } from '../../api/mappers/enums';
 import { monedaBienToDocumento, normalizeCatalogValue } from '../../utils/registroBienMappers';
 import { buildRegistroVehiculosSuccessMessage } from '../../utils/assetNotify';
 import { rollbackRegistroVehiculos } from '../../utils/registroRollback';
 import { itemVehiculoToPayload, resolveAlmacenIdVehiculo } from '../../utils/registroVehiculoMappers';
+import { ciResponsableForApi } from '../../utils/vehiculoApiFields';
 import {
   extractRegistroError,
   notifyRegistroError,
@@ -142,7 +146,7 @@ export default function RegistroVehiculosModal({
     setItemsError(null);
     prevSedeRef.current = SEDES_VEHICULOS[0];
 
-    fetchSedes({ page: 1, limit: 500 }).then((res) => {
+    fetchSedes({ page: 1, limit: API_MAX_LIMIT }).then((res) => {
       setSedesApi(res.data ?? []);
     });
   }, [open, reset]);
@@ -177,6 +181,25 @@ export default function RegistroVehiculosModal({
   const eliminarItem = (key: string) => {
     setItems((prev) => prev.filter((i) => i.key !== key));
   };
+
+  async function ensureResponsablesVehiculos(itemsToCheck: ItemVehiculoRegistroDraft[]) {
+    for (const [index, item] of itemsToCheck.entries()) {
+      const ci = ciResponsableForApi(item.ciResponsable);
+      if (!ci) {
+        throw new Error(
+          `El ítem ${index + 1} (${item.placa || 'sin placa'}): seleccione un responsable registrado en el sistema.`,
+        );
+      }
+
+      try {
+        await fetchResponsableByCi(ci);
+      } catch {
+        throw new Error(
+          `El ítem ${index + 1} (${item.placa}): la CI ${ci} no está registrada como responsable. Créela en Configuración antes de cargar.`,
+        );
+      }
+    }
+  }
 
   const validarItems = (): string | null => {
     const itemsResult = validarConZod(
@@ -214,11 +237,13 @@ export default function RegistroVehiculosModal({
     const codigosVehiculo: number[] = [];
 
     try {
+      await ensureResponsablesVehiculos(items);
+
       const documentoCreado = await createDocumento({
         numero_documento: documento.numeroDocumento?.trim() || undefined,
         nombre_proveedor: documento.nombreProveedor.trim(),
         forma_adquisicion: documento.formaAdquisicion,
-        fecha_adquisicion: documento.fechaAdquisicion,
+        fecha_adquisicion: toApiDateTime(documento.fechaAdquisicion),
         moneda: monedaBienToDocumento(documento.moneda),
       });
 
@@ -356,6 +381,7 @@ export default function RegistroVehiculosModal({
             <table className="w-full min-w-[1100px] text-sm">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-200">
+                  <Th>Código</Th>
                   <Th>Descripción</Th>
                   <Th>Marca</Th>
                   <Th>Modelo</Th>
@@ -382,7 +408,7 @@ export default function RegistroVehiculosModal({
               <tbody>
                 {items.length === 0 ? (
                   <tr>
-                    <td colSpan={11} className="px-4 py-10 text-center text-sm text-gray-400">
+                    <td colSpan={12} className="px-4 py-10 text-center text-sm text-gray-400">
                       No hay ítems agregados. Use el botón + para registrar cada vehículo.
                     </td>
                   </tr>
@@ -392,6 +418,9 @@ export default function RegistroVehiculosModal({
                       key={item.key}
                       className={`border-b border-gray-100 ${index % 2 === 1 ? 'bg-gray-50/80' : 'bg-white'}`}
                     >
+                      <Td>
+                        <span className="font-mono text-xs">{item.codigoInterno || '—'}</span>
+                      </Td>
                       <Td>
                         <span className="block max-w-[180px] truncate">{item.descripcion}</span>
                       </Td>

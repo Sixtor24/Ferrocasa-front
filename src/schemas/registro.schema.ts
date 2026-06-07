@@ -21,6 +21,11 @@ export type DocumentoRegistroForm = z.infer<typeof documentoRegistroFormSchema>;
 
 export const itemRegistroFormSchema = z
   .object({
+    codigoInterno: z
+      .string()
+      .trim()
+      .min(1, 'El código es obligatorio')
+      .regex(/^\d+$/, 'Indique un código numérico válido'),
     descripcion: z.string().trim().min(1, 'La descripción es obligatoria'),
     color: z.string().optional().default(''),
     cantidad: z.coerce
@@ -56,6 +61,7 @@ export type ItemRegistroForm = z.infer<typeof itemRegistroFormSchema>;
 
 export function itemDraftToFormInput(item: ItemRegistroDraft): ItemRegistroForm {
   return {
+    codigoInterno: item.codigoInterno,
     descripcion: item.descripcion,
     color: item.color,
     cantidad: item.cantidad,
@@ -78,4 +84,18 @@ export function itemDraftToFormInput(item: ItemRegistroDraft): ItemRegistroForm 
 
 export const registroItemsListSchema = z
   .array(itemRegistroFormSchema)
-  .min(1, 'Agregue al menos un ítem con el botón +');
+  .min(1, 'Agregue al menos un ítem con el botón +')
+  .superRefine((items, ctx) => {
+    const seen = new Set<string>();
+    items.forEach((item, index) => {
+      const codigo = item.codigoInterno.trim();
+      if (seen.has(codigo)) {
+        ctx.addIssue({
+          code: 'custom',
+          message: `El código ${codigo} está duplicado en los ítems`,
+          path: [index, 'codigoInterno'],
+        });
+      }
+      seen.add(codigo);
+    });
+  });

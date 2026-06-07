@@ -8,6 +8,7 @@ import type {
 } from '../types';
 import { mapApiBienToBienMueble } from '../mappers/bien.mapper';
 import { mapApiVehiculoToVehiculo } from '../mappers/vehiculo.mapper';
+import { API_MAX_LIMIT, fetchAllPages, listParams, metaForAll } from '../pagination';
 import { buildAlmacenNombreMap } from '../utils/almacenLookup';
 
 export type AlmacenesQuery = {
@@ -34,15 +35,15 @@ function mapAlmacenesList(res: ApiListResponse<ApiAlmacen>) {
 }
 
 export async function fetchAlmacenesCatalog() {
-  const res = await fetchAlmacenes({ page: 1, limit: 5000 });
+  const res = await fetchAlmacenes({ page: 1, limit: API_MAX_LIMIT });
   return buildAlmacenNombreMap(res.data);
 }
 
 export async function fetchAlmacenes(query: AlmacenesQuery = {}) {
+  const paging = listParams(query.page, query.limit, 10);
   const res = await apiRequest<ApiListResponse<ApiAlmacen>>('/almacenes', {
     params: {
-      page: query.page ?? 1,
-      limit: query.limit ?? 10,
+      ...paging,
       search: query.search,
       id_sede: query.id_sede,
       id_departamento: query.id_departamento,
@@ -50,6 +51,18 @@ export async function fetchAlmacenes(query: AlmacenesQuery = {}) {
   });
 
   return mapAlmacenesList(res);
+}
+
+export async function fetchAllAlmacenes(query: Omit<AlmacenesQuery, 'page' | 'limit'> = {}) {
+  return fetchAllPages(async (page, limit) => {
+    const res = await fetchAlmacenes({ ...query, page, limit });
+    return res;
+  });
+}
+
+export async function fetchAlmacenesAll(query: Omit<AlmacenesQuery, 'page' | 'limit'> = {}) {
+  const data = await fetchAllAlmacenes(query);
+  return { data, meta: metaForAll(data) };
 }
 
 export async function fetchAlmacenById(id: number) {

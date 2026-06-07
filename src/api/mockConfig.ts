@@ -9,7 +9,9 @@ export function allowMockFallback(): boolean {
   return import.meta.env.VITE_ALLOW_MOCK_FALLBACK === 'true';
 }
 
-export function listMeta(total: number, page = 1, limit = 100) {
+import { API_MAX_LIMIT } from './pagination';
+
+export function listMeta(total: number, page = 1, limit = API_MAX_LIMIT) {
   return {
     page,
     limit,

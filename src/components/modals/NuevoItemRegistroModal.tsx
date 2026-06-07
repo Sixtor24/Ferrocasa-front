@@ -12,6 +12,7 @@ import {
   fetchSubcategoriasByGeneral,
 } from '../../api/services/categorias.service';
 import { fetchDepartamentos } from '../../api/services/departamentos.service';
+import { API_MAX_LIMIT } from '../../api/pagination';
 import type { ApiAlmacen } from '../../api/types';
 import type { ConsumibilidadBienApi } from '../../api/services/bienes.service';
 import type { ItemRegistroDraft, MonedaRegistro, RegistroBienesModulo } from '../../types/registroBienItem';
@@ -85,8 +86,8 @@ export default function NuevoItemRegistroModal({
   onSave,
   onDelete,
 }: NuevoItemRegistroModalProps) {
-  const unidadDefault = departamentoOptions[0] ?? '';
   const almacenDefault = almacenOptions[0] ?? '';
+  const unidadDefault = modulo === 'cementerio' ? almacenDefault : (departamentoOptions[0] ?? '');
 
   const [itemKey, setItemKey] = useState('');
   const [responsable, setResponsable] = useState('');
@@ -127,7 +128,7 @@ export default function NuevoItemRegistroModal({
     setCiResponsable(draft.ciResponsable);
     reset(itemDraftToFormInput(draft));
 
-    fetchCategoriasGenerales({ page: 1, limit: 500 }).then((res) => {
+    fetchCategoriasGenerales({ page: 1, limit: API_MAX_LIMIT }).then((res) => {
       setCategoriasGenerales(
         (res.data ?? []).map((c) => ({
           id: c.id_categoria_general,
@@ -136,7 +137,7 @@ export default function NuevoItemRegistroModal({
       );
     });
 
-    fetchDepartamentos({ page: 1, limit: 500 }).then((res) => {
+    fetchDepartamentos({ page: 1, limit: API_MAX_LIMIT }).then((res) => {
       setDepartamentosApi(
         (res.data ?? []).map((d) => ({
           id: d.id_departamento,
@@ -193,7 +194,7 @@ export default function NuevoItemRegistroModal({
   const onSubmit = (parsed: ItemRegistroForm) => {
     onSave({
       key: itemKey,
-      codigoInterno: '',
+      codigoInterno: parsed.codigoInterno.trim(),
       descripcion: parsed.descripcion,
       color: parsed.color,
       cantidad: parsed.cantidad,
@@ -223,11 +224,11 @@ export default function NuevoItemRegistroModal({
   };
 
   const departamentosSelect = useMemo(() => {
-    if (modulo === 'cementerio') return [...departamentoOptions];
+    if (modulo === 'cementerio') return [...almacenOptions];
     const fromCatalog = [...departamentoOptions];
     if (fromCatalog.length > 0) return fromCatalog;
     return departamentosApi.map((d) => d.nombre);
-  }, [modulo, departamentoOptions, departamentosApi]);
+  }, [modulo, almacenOptions, departamentoOptions, departamentosApi]);
 
   const totalCalculado = (cantidad || 0) * (valorAdquisicion || 0);
 
@@ -273,6 +274,14 @@ export default function NuevoItemRegistroModal({
     >
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="space-y-4">
+          <ModalField label="Código *" error={errors.codigoInterno?.message}>
+            <input
+              {...register('codigoInterno')}
+              className="input-field font-mono"
+              inputMode="numeric"
+              autoComplete="off"
+            />
+          </ModalField>
           <ModalField label="Descripción *" error={errors.descripcion?.message}>
             <input {...register('descripcion')} className="input-field" />
           </ModalField>

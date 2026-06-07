@@ -6,6 +6,7 @@ import type {
   ApiListResponse,
 } from '../types';
 import { mapApiBienToBienMueble } from '../mappers/bien.mapper';
+import { listParams } from '../pagination';
 import { fetchAlmacenesCatalog } from './almacenes.service';
 import { fetchResponsableByCi } from './responsables.service';
 import type { BienMueble } from '../../types/bien';
@@ -21,6 +22,7 @@ export type CondicionFisicaBienApi = 'Bueno' | 'Regular' | 'Dañado' | 'Averiado
 export type ConsumibilidadBienApi = 'Perecederos' | 'No_perecedero';
 
 export type BienPayload = {
+  codigo_bien: string;
   descripcion: string;
   id_doc: number;
   fecha_ingreso: string;
@@ -54,10 +56,10 @@ function mapBienesArray(rows: ApiBien[]) {
 }
 
 export async function fetchBienes(query: BienesQuery = {}) {
+  const paging = listParams(query.page, query.limit, 10);
   const res = await apiRequest<ApiListResponse<ApiBien>>('/bienes', {
     params: {
-      page: query.page ?? 1,
-      limit: query.limit ?? 10,
+      ...paging,
       search: query.search,
     },
   });
@@ -83,13 +85,13 @@ async function enrichBienConResponsable(apiBien: ApiBien, bien: BienMueble): Pro
   }
 }
 
-export async function fetchApiBienByCodigo(codigo: number): Promise<ApiBien> {
+export async function fetchApiBienByCodigo(codigo: number | string): Promise<ApiBien> {
   const res = await apiRequest<ApiItemResponse<ApiBien>>(`/bienes/${codigo}`);
   if (!res.data) throw new Error('Respuesta vacía del API');
   return res.data;
 }
 
-export async function fetchBienByCodigo(codigo: number): Promise<BienMueble> {
+export async function fetchBienByCodigo(codigo: number | string): Promise<BienMueble> {
   const apiBien = await fetchApiBienByCodigo(codigo);
   const almacenesById = await fetchAlmacenesCatalog();
   const bien = mapApiBienToBienMueble(apiBien, almacenesById);
@@ -149,7 +151,7 @@ export async function createBien(body: BienPayload) {
   return mapApiBienToBienMueble(res.data);
 }
 
-export async function updateBien(codigo: number, body: BienPayload) {
+export async function updateBien(codigo: number | string, body: BienPayload) {
   const res = await apiRequest<ApiItemResponse<ApiBien>>(`/bienes/${codigo}`, {
     method: 'PUT',
     body,
@@ -159,7 +161,7 @@ export async function updateBien(codigo: number, body: BienPayload) {
   return mapApiBienToBienMueble(res.data);
 }
 
-export async function cambiarEstadoBien(codigo: number, estado_uso: EstadoUsoBienApi) {
+export async function cambiarEstadoBien(codigo: number | string, estado_uso: EstadoUsoBienApi) {
   const res = await apiRequest<ApiItemResponse<ApiBien>>(`/bienes/${codigo}/cambiar-estado`, {
     method: 'PATCH',
     body: { estado_uso },
@@ -169,6 +171,6 @@ export async function cambiarEstadoBien(codigo: number, estado_uso: EstadoUsoBie
   return mapApiBienToBienMueble(res.data);
 }
 
-export async function deleteBien(codigo: number) {
+export async function deleteBien(codigo: number | string) {
   await apiRequest(`/bienes/${codigo}`, { method: 'DELETE' });
 }

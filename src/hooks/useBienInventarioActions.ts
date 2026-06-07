@@ -15,6 +15,7 @@ import {
   notifyBienRetirado,
   notifyBienTransferido,
 } from '../utils/assetNotify';
+import { bienCodigoPk } from '../utils/bienCodigo';
 
 export type InventarioBienActionResult =
   | { type: 'transfer'; almacenDestino: string }
@@ -37,13 +38,14 @@ export function useBienInventarioActions({
   const [retireLoading, setRetireLoading] = useState(false);
 
   const retirado = bien.estadoUso === 'Obsoleto';
+  const codigo = bienCodigoPk(bien);
 
   const handleTransfer = async (idAlmacen: number, nombreAlmacen: string) => {
     setTransferLoading(true);
     try {
-      const apiBien = await fetchApiBienByCodigo(bien.id);
+      const apiBien = await fetchApiBienByCodigo(codigo);
       const payload = apiBienToUpdatePayload(apiBien, { id_almacen: idAlmacen });
-      await updateBien(bien.id, payload);
+      await updateBien(codigo, payload);
       notifyBienTransferido(bien, nombreAlmacen);
       setTransferOpen(false);
       onActionSuccess?.({ type: 'transfer', almacenDestino: nombreAlmacen });
@@ -59,12 +61,12 @@ export function useBienInventarioActions({
   const handleRetire = async () => {
     setRetireLoading(true);
     try {
-      const apiBien = await fetchApiBienByCodigo(bien.id);
+      const apiBien = await fetchApiBienByCodigo(codigo);
       const payload = apiBienToUpdatePayload(apiBien, {
         estado_uso: 'Dado_de_Baja',
         fecha_egreso: todayIsoDate(),
       });
-      await updateBien(bien.id, payload);
+      await updateBien(codigo, payload);
       notifyBienRetirado(bien);
       setRetireOpen(false);
       onActionSuccess?.({ type: 'retire' });

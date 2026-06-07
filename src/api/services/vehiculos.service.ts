@@ -5,7 +5,9 @@ import type {
   ApiVehiculo,
   ApiVehiculosEstadisticas,
 } from '../types';
+import type { EstadoVehiculoApi } from '../mappers/enums';
 import { mapApiVehiculoToVehiculo } from '../mappers/vehiculo.mapper';
+import { fetchAllPages, listParams, metaForAll } from '../pagination';
 import { fetchAlmacenesCatalog } from './almacenes.service';
 import { fetchResponsableByCi } from './responsables.service';
 import type { Vehiculo } from '../../types/vehiculo';
@@ -17,30 +19,31 @@ export type VehiculosQuery = {
 };
 
 export type EstadoUsoVehiculoApi = 'En_Uso' | 'En_Reparacion' | 'Dado_de_Baja' | 'Almacenado';
-export type CondicionFisicaVehiculoApi = 'Bueno' | 'Regular' | 'Dañado' | 'Averiado' | 'Inservible';
-export type EstadoVehiculoApi = 'Carga_Parcial' | 'Carga_Total' | 'Disponible' | 'Asignado' | 'En_Mantenimiento';
+export type CondicionFisicaVehiculoApi = 'Bueno' | 'Regular' | 'Dañado';
+export type { EstadoVehiculoApi } from '../mappers/enums';
 
-export type VehiculoPayload = {
-  descripcion: string;
-  id_doc: number;
+/** Cuerpo POST/PUT /vehiculos según OpenAPI (sin `codigo`; va en la URL en PUT). */
+export type VehiculoBody = {
+  descripcion?: string;
+  id_doc?: number | null;
   fecha_egreso?: string | null;
-  valor_adquisicion: number;
+  valor_adquisicion?: number;
   marca?: string | null;
   placa: string;
-  anio_fabricacion: number;
+  anio_fabricacion?: number;
   modelo?: string | null;
   color?: string | null;
   serial_motor?: string | null;
   serial_carroceria?: string | null;
-  estado_uso: EstadoUsoVehiculoApi;
-  condicion_fisica: CondicionFisicaVehiculoApi;
+  estado_uso?: EstadoUsoVehiculoApi;
+  condicion_fisica?: CondicionFisicaVehiculoApi;
   id_categoria_especifica: number;
-  estado_vehiculo: EstadoVehiculoApi;
+  estado_vehiculo?: EstadoVehiculoApi;
   ci_responsable?: string | null;
-  unidad_administrativa?: string | null;
   id_almacen: number;
-  fecha_ingreso: string;
+  fecha_ingreso?: string | null;
   usuario_carga?: string | null;
+  observaciones?: string | null;
 };
 
 function mapVehiculosList(res: ApiListResponse<ApiVehiculo>, almacenesById: Map<number, string>) {
@@ -56,11 +59,11 @@ function mapVehiculosArray(rows: ApiVehiculo[], almacenesById: Map<number, strin
 }
 
 export async function fetchVehiculos(query: VehiculosQuery = {}) {
+  const paging = listParams(query.page, query.limit, 10);
   const [res, almacenesById] = await Promise.all([
     apiRequest<ApiListResponse<ApiVehiculo>>('/vehiculos', {
       params: {
-        page: query.page ?? 1,
-        limit: query.limit ?? 10,
+        ...paging,
         search: query.search,
       },
     }),
@@ -68,6 +71,17 @@ export async function fetchVehiculos(query: VehiculosQuery = {}) {
   ]);
 
   return mapVehiculosList(res, almacenesById);
+}
+
+export async function fetchVehiculosAll(query: Omit<VehiculosQuery, 'page' | 'limit'> = {}) {
+  const almacenesById = await fetchAlmacenesCatalog();
+  const data = await fetchAllPages(async (page, limit) => {
+    const res = await apiRequest<ApiListResponse<ApiVehiculo>>('/vehiculos', {
+      params: { page, limit, search: query.search },
+    });
+    return mapVehiculosList(res, almacenesById);
+  });
+  return { data, meta: metaForAll(data) };
 }
 
 async function enrichVehiculoConResponsable(apiVehiculo: ApiVehiculo, vehiculo: Vehiculo): Promise<Vehiculo> {
@@ -139,7 +153,7 @@ export async function fetchVehiculosByAlmacen(idAlmacen: number) {
   return mapVehiculosArray(res.data ?? []);
 }
 
-export async function createVehiculo(body: VehiculoPayload) {
+export async function createVehiculo(body: VehiculoBody) {
   const res = await apiRequest<ApiItemResponse<ApiVehiculo>>('/vehiculos', {
     method: 'POST',
     body,
@@ -149,7 +163,7 @@ export async function createVehiculo(body: VehiculoPayload) {
   return mapApiVehiculoToVehiculo(res.data);
 }
 
-export async function updateVehiculo(codigo: number, body: VehiculoPayload) {
+export async function updateVehiculo(codigo: number, body: VehiculoBody) {
   const res = await apiRequest<ApiItemResponse<ApiVehiculo>>(`/vehiculos/${codigo}`, {
     method: 'PUT',
     body,
@@ -175,7 +189,7 @@ export async function asignarVehiculo(codigo: number, ci_responsable: string) {
 
 export async function cambiarEstadoVehiculo(
   codigo: number,
-  body: { estado_vehiculo: EstadoVehiculoApi; estado_uso: EstadoUsoVehiculoApi }
+  body: { estado_vehiculo: EstadoVehiculoApi; estado_uso: EstadoUsoVehiculoApi },
 ) {
   const res = await apiRequest<ApiItemResponse<ApiVehiculo>>(`/vehiculos/${codigo}/cambiar-estado`, {
     method: 'PATCH',

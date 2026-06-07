@@ -16,6 +16,8 @@ export interface DetailSection {
 interface AssetDetailViewProps {
   title: string;
   breadcrumb?: { label: string; to?: string }[];
+  /** Si se define, intercepta clics en migas con `to` (p. ej. confirmar cambios sin guardar). */
+  onNavigateTo?: (to: string) => void;
   categoryFields?: { label: string; value: string; onChange?: (v: string) => void; options?: string[] }[];
   sections: DetailSection[];
   actions?: ReactNode;
@@ -24,6 +26,7 @@ interface AssetDetailViewProps {
 export default function AssetDetailView({
   title,
   breadcrumb = [{ label: 'Dashboard', to: '/dashboard' }],
+  onNavigateTo,
   categoryFields,
   sections,
   actions,
@@ -37,7 +40,17 @@ export default function AssetDetailView({
               <span key={i} className="flex items-center gap-1.5">
                 {i > 0 && <ChevronRight size={14} className="text-gray-300" />}
                 {item.to ? (
-                  <Link to={item.to} className="hover:text-navy-700">{item.label}</Link>
+                  onNavigateTo ? (
+                    <button
+                      type="button"
+                      onClick={() => onNavigateTo(item.to!)}
+                      className="hover:text-navy-700 text-left"
+                    >
+                      {item.label}
+                    </button>
+                  ) : (
+                    <Link to={item.to} className="hover:text-navy-700">{item.label}</Link>
+                  )
                 ) : (
                   <span className="font-medium text-navy-800">{item.label}</span>
                 )}

@@ -12,6 +12,8 @@ import {
   fetchSubcategoriasByGeneral,
 } from '../../api/services/categorias.service';
 import { fetchDepartamentos } from '../../api/services/departamentos.service';
+import { fetchResponsables } from '../../api/services/responsables.service';
+import { API_MAX_LIMIT } from '../../api/pagination';
 import type { ApiAlmacen } from '../../api/types';
 import type { ItemVehiculoRegistroDraft } from '../../types/registroVehiculoItem';
 import { CONDICIONES_VEHICULO, ESTADOS_USO_VEHICULO, type CondicionVehiculo, type EstadoUsoVehiculo } from '../../types/vehiculo';
@@ -83,8 +85,8 @@ export default function NuevoItemVehiculoRegistroModal({
   const almacenDefault = almacenOptions[0] ?? '';
 
   const [itemKey, setItemKey] = useState('');
-  const [responsable, setResponsable] = useState('');
-  const [ciResponsable, setCiResponsable] = useState('');
+  const [responsables, setResponsables] = useState<{ ci: string; nombre: string }[]>([]);
+  const [loadingResponsables, setLoadingResponsables] = useState(false);
   const [departamentosApi, setDepartamentosApi] = useState<{ id: number; nombre: string }[]>([]);
   const [categoriasGenerales, setCategoriasGenerales] = useState<SelectOption[]>([]);
   const [subcategorias, setSubcategorias] = useState<SelectOption[]>([]);
@@ -116,11 +118,9 @@ export default function NuevoItemVehiculoRegistroModal({
 
     const draft = item ?? createEmptyItem(almacenDefault, unidadDefault);
     setItemKey(draft.key);
-    setResponsable(draft.responsable);
-    setCiResponsable(draft.ciResponsable);
     reset(itemVehiculoDraftToFormInput(draft));
 
-    fetchDepartamentos({ page: 1, limit: 500 }).then((res) => {
+    fetchDepartamentos({ page: 1, limit: API_MAX_LIMIT }).then((res) => {
       setDepartamentosApi(
         (res.data ?? []).map((d) => ({
           id: d.id_departamento,
@@ -129,7 +129,7 @@ export default function NuevoItemVehiculoRegistroModal({
       );
     });
 
-    fetchCategoriasGenerales({ page: 1, limit: 500 }).then((res) => {
+    fetchCategoriasGenerales({ page: 1, limit: API_MAX_LIMIT }).then((res) => {
       setCategoriasGenerales(
         (res.data ?? []).map((c) => ({
           id: c.id_categoria_general,
@@ -137,6 +137,19 @@ export default function NuevoItemVehiculoRegistroModal({
         })),
       );
     });
+
+    setLoadingResponsables(true);
+    fetchResponsables({ page: 1, limit: API_MAX_LIMIT })
+      .then((res) => {
+        setResponsables(
+          (res.data ?? []).map((row) => ({
+            ci: row.ci_responsable,
+            nombre: row.nombre,
+          })),
+        );
+      })
+      .catch(() => setResponsables([]))
+      .finally(() => setLoadingResponsables(false));
   }, [open, item, almacenDefault, unidadDefault, reset]);
 
   useEffect(() => {
@@ -171,6 +184,15 @@ export default function NuevoItemVehiculoRegistroModal({
     });
   }, [open, idSubcategoria]);
 
+  const responsableOptions = useMemo(
+    () =>
+      responsables.map((row) => ({
+        label: `${row.ci} — ${row.nombre}`,
+        value: row.ci,
+      })),
+    [responsables],
+  );
+
   const departamentosSelect = useMemo(() => {
     const fromCatalog = [...departamentoOptions];
     if (fromCatalog.length > 0) return fromCatalog;
@@ -181,20 +203,24 @@ export default function NuevoItemVehiculoRegistroModal({
 
   const loadResponsableForAlmacen = async (nombreAlmacen: string) => {
     const result = await resolveResponsableForAlmacen(nombreAlmacen, almacenes);
-    setResponsable(result.responsable);
-    setCiResponsable(result.ciResponsable);
+    if (!result.ciResponsable) return;
+    const exists = responsables.some((row) => row.ci === result.ciResponsable);
+    if (exists) {
+      setValue('ciResponsable', result.ciResponsable, { shouldValidate: true });
+    }
   };
 
   useEffect(() => {
-    if (!open || !almacen) return;
+    if (!open || !almacen || responsables.length === 0) return;
     void loadResponsableForAlmacen(almacen);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, almacen, almacenes]);
+  }, [open, almacen, almacenes, responsables]);
 
   const onSubmit = (parsed: ItemVehiculoRegistroForm) => {
+    const responsableRow = responsables.find((row) => row.ci === parsed.ciResponsable);
     onSave({
       key: itemKey,
-      codigoInterno: '',
+      codigoInterno: parsed.codigoInterno.trim(),
       placa: parsed.placa.trim(),
       descripcion: parsed.descripcion,
       marca: parsed.marca,
@@ -206,8 +232,8 @@ export default function NuevoItemVehiculoRegistroModal({
       cantidad: parsed.cantidad,
       valorAdquisicion: parsed.valorAdquisicion,
       unidadAdministrativa: parsed.unidadAdministrativa,
-      responsable,
-      ciResponsable,
+      responsable: responsableRow?.nombre ?? '',
+      ciResponsable: parsed.ciResponsable.trim(),
       almacen: parsed.almacen,
       idCategoriaGeneral: parsed.idCategoriaGeneral,
       idSubcategoria: parsed.idSubcategoria,
@@ -270,6 +296,14 @@ export default function NuevoItemVehiculoRegistroModal({
             Datos del vehículo
           </h4>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+            <ModalField label="Código *" error={errors.codigoInterno?.message}>
+              <input
+                {...register('codigoInterno')}
+                className="input-field w-full font-mono"
+                inputMode="numeric"
+                autoComplete="off"
+              />
+            </ModalField>
             <ModalField label="Placa / Serial *" error={errors.placa?.message}>
               <Controller
                 name="placa"
@@ -363,13 +397,32 @@ export default function NuevoItemVehiculoRegistroModal({
                 )}
               />
             </ModalField>
-            <ModalField label="Responsable" className="md:col-span-2">
-              <input
-                value={responsable || '—'}
-                readOnly
-                className="input-field w-full bg-gray-50 text-gray-700"
-                title="Se asigna al elegir el almacén"
+            <ModalField label="Responsable *" error={errors.ciResponsable?.message} className="md:col-span-2">
+              <Controller
+                name="ciResponsable"
+                control={control}
+                render={({ field }) => (
+                  <SearchableSelect
+                    value={field.value}
+                    onChange={field.onChange}
+                    options={responsableOptions}
+                    placeholder={loadingResponsables ? 'Cargando responsables...' : 'Seleccionar responsable'}
+                    searchPlaceholder="Buscar por CI o nombre..."
+                    disabled={loadingResponsables || responsableOptions.length === 0}
+                    minSearchLength={1}
+                  />
+                )}
               />
+              {!loadingResponsables && responsableOptions.length === 0 && (
+                <p className="text-xs text-amber-700 mt-1.5">
+                  No hay responsables registrados. Créelos en Configuración antes de cargar vehículos.
+                </p>
+              )}
+              {!loadingResponsables && responsableOptions.length > 0 && (
+                <p className="text-xs text-gray-500 mt-1.5">
+                  Al cambiar el almacén se sugiere su responsable, si está registrado en el sistema.
+                </p>
+              )}
             </ModalField>
           </div>
         </section>

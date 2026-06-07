@@ -2,7 +2,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { fetchAlmacenes } from '../api/services/almacenes.service';
-import { cambiarEstadoBien } from '../api/services/bienes.service';
+import { fetchBienesEstadisticas } from '../api/services/bienes.service';
+import { API_MAX_LIMIT } from '../api/pagination';
+import { parseBienesEstadisticas } from '../utils/bienesStats';
+import { fetchApiBienByCodigo, updateBien } from '../api/services/bienes.service';
 import {
   fetchBienAdministrativoByCodigo,
   fetchBienesAdministrativos,
@@ -25,7 +28,11 @@ import {
 } from '../data/bienesCatalogos';
 import { formatFecha, formatMoneda } from '../utils/formatters';
 import { notifyBienActualizado } from '../utils/assetNotify';
-import { estadoUsoToApi } from '../utils/registroBienMappers';
+import { apiBienToUpdatePayload } from '../utils/assetUpdateMappers';
+import { bienCodigoPk } from '../utils/bienCodigo';
+import { condicionFisicaToApi, estadoUsoToApi } from '../utils/registroBienMappers';
+import { useUnsavedChangesGuard } from '../hooks/useUnsavedChangesGuard';
+import UnsavedChangesModal from '../components/modals/UnsavedChangesModal';
 import { useModuleUiState } from '../stores/moduleUiStore';
 import type { Column } from '../components/DataTable';
 import StatusBadge from '../components/StatusBadge';
@@ -54,13 +61,16 @@ function AlmacenBienDetail({
   bien,
   almacenes,
   onVolver,
+  onSaved,
   onInventarioAction,
 }: {
   bien: BienMueble;
   almacenes: ApiAlmacen[];
   onVolver: () => void;
+  onSaved?: () => void | Promise<void>;
   onInventarioAction?: (result: InventarioBienActionResult) => void;
 }) {
+  const navigate = useNavigate();
   const [estadoUso, setEstadoUso] = useState(bien.estadoUso);
   const [condicionFisica, setCondicionFisica] = useState(bien.condicionFisica);
   const [saving, setSaving] = useState(false);
@@ -71,11 +81,22 @@ function AlmacenBienDetail({
     setCondicionFisica(bien.condicionFisica);
   }, [bien.estadoUso, bien.condicionFisica]);
 
+  const isDirty =
+    estadoUso !== bien.estadoUso || condicionFisica !== bien.condicionFisica;
+  const unsaved = useUnsavedChangesGuard(isDirty);
+
   const guardarCambio = async () => {
     setSaving(true);
     try {
-      await cambiarEstadoBien(bien.id, estadoUsoToApi(estadoUso));
-      notifyBienActualizado(bien, { estadoUso });
+      const codigo = bienCodigoPk(bien);
+      const apiBien = await fetchApiBienByCodigo(codigo);
+      const payload = apiBienToUpdatePayload(apiBien, {
+        estado_uso: estadoUsoToApi(estadoUso),
+        condicion_fisica: condicionFisicaToApi(condicionFisica),
+      });
+      await updateBien(codigo, payload);
+      notifyBienActualizado(bien, { estadoUso, condicionFisica });
+      await onSaved?.();
     } catch (err) {
       toast.error('No se pudo guardar el cambio', {
         description: err instanceof Error ? err.message : 'Intente nuevamente.',
@@ -89,6 +110,9 @@ function AlmacenBienDetail({
     <>
     <AssetDetailView
       title="Bienes e Inmuebles: Edificio Administrativo"
+      onNavigateTo={(to) =>
+        unsaved.requestLeave(() => (to === '/almacen' ? onVolver() : navigate(to)))
+      }
       breadcrumb={[
         { label: 'Dashboard', to: '/dashboard' },
         { label: 'Bienes en Edificio Administrativo', to: '/almacen' },
@@ -165,7 +189,7 @@ function AlmacenBienDetail({
         <>
           <button
             type="button"
-            onClick={onVolver}
+            onClick={() => unsaved.requestLeave(onVolver)}
             className="inline-flex items-center gap-2 px-4 py-2.5 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50"
           >
             <ArrowLeft size={16} />
@@ -215,6 +239,12 @@ function AlmacenBienDetail({
       onConfirm={inventario.handleRetire}
       loading={inventario.retireLoading}
     />
+    <UnsavedChangesModal
+      open={unsaved.modalOpen}
+      onClose={unsaved.cancelLeave}
+      onConfirm={unsaved.confirmLeave}
+      subject="del bien"
+    />
     </>
   );
 }
@@ -236,28 +266,36 @@ export default function Almacen() {
     setSuccess: setSuccessMsg,
     setError: setErrorMsg,
   } = useModuleUiState('almacen', FILTROS_INVENTARIO_VACIOS);
+  const showModal = modals.registro ?? false;
 
-  const bienesQuery = useApiQuery(() => fetchBienesAdministrativos({ page: 1, limit: 5000 }), []);
-  const almacenesQuery = useApiQuery(() => fetchAlmacenes({ page: 1, limit: 5000 }), []);
+  const apiSearch = useMemo(() => filtros.buscar.trim() || undefined, [filtros.buscar]);
+
+  const bienesQuery = useApiQuery(
+    () => fetchBienesAdministrativos({ page, limit: PER_PAGE, search: apiSearch }),
+    [page, apiSearch],
+  );
+  const statsQuery = useApiQuery(() => fetchBienesEstadisticas(), []);
+  const almacenesQuery = useApiQuery(
+    () => fetchAlmacenes({ page: 1, limit: API_MAX_LIMIT }),
+    [],
+    showModal || Boolean(id),
+  );
   const detailQuery = useApiQuery(
-    () => fetchBienAdministrativoByCodigo(Number(id)),
+    () => fetchBienAdministrativoByCodigo(id as string),
     [id],
     Boolean(id),
   );
-  const lista = bienesQuery.data?.all ?? bienesQuery.data?.data ?? [];
-  const displayList = lista;
-  const showModal = modals.registro ?? false;
-  const bienesStats = useMemo(() => ({
-    total: displayList.length,
-    enUso: displayList.filter((b) => b.estadoUso === 'En uso').length,
-    enObsolescencia: displayList.filter((b) => b.estadoUso === 'En obsolescencia').length,
-    obsoletos: displayList.filter((b) => b.estadoUso === 'Obsoleto').length,
-  }), [displayList]);
+  const lista = bienesQuery.data?.data ?? [];
+  const bienesStats = useMemo(
+    () => parseBienesEstadisticas(statsQuery.data),
+    [statsQuery.data],
+  );
+  const totalPages = bienesQuery.data?.meta.totalPages ?? 1;
 
   const almacenOptions = useMemo(() => ['Todas', ...ALMACENES_BIENES_ADMINISTRATIVOS], []);
 
   const filtered = useMemo(() => {
-    return displayList.filter((b) => {
+    return lista.filter((b) => {
       if (filtros.codigo && !b.codigoInterno.toLowerCase().includes(filtros.codigo.toLowerCase())) return false;
       if (filtros.descripcion && !b.descripcion.toLowerCase().includes(filtros.descripcion.toLowerCase())) return false;
       if (filtros.almacen && filtros.almacen !== 'Todas' && b.ubicacion !== filtros.almacen) return false;
@@ -278,13 +316,13 @@ export default function Almacen() {
       }
       return true;
     });
-  }, [displayList, filtros]);
+  }, [lista, filtros]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
-  const paginated = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
+  const paginated = filtered;
 
   const setFiltro = (key: keyof typeof filtros, value: string) => {
     setModuleFilter(key, value);
+    setPage(1);
   };
 
   const simularExportPdf = () => {
@@ -335,10 +373,9 @@ export default function Almacen() {
   ];
 
   if (id) {
-    const bienId = Number(id);
     const bien =
       detailQuery.data ??
-      displayList.find((b) => b.id === bienId) ??
+      lista.find((b) => b.codigoInterno === id || String(b.id) === id) ??
       null;
 
     return (
@@ -347,13 +384,21 @@ export default function Almacen() {
           <AlmacenBienDetail
             bien={bien}
             almacenes={almacenesQuery.data?.data ?? []}
-            onVolver={() => navigate('/almacen')}
+            onVolver={() => {
+              void bienesQuery.refetch();
+              void statsQuery.refetch();
+              navigate('/almacen');
+            }}
+            onSaved={async () => {
+              await Promise.all([bienesQuery.refetch(), detailQuery.refetch(), statsQuery.refetch()]);
+            }}
             onInventarioAction={async (result) => {
               if (result.type === 'transfer') {
                 void bienesQuery.refetch();
+                void statsQuery.refetch();
                 setModuleFilter('almacen', result.almacenDestino);
                 try {
-                  await fetchBienAdministrativoByCodigo(bienId);
+                  await fetchBienAdministrativoByCodigo(id);
                   await detailQuery.refetch();
                 } catch {
                   navigate('/almacen');
@@ -467,7 +512,7 @@ export default function Almacen() {
             type: 'select',
             value: filtros.estadoUso,
             onChange: (v) => setFiltro('estadoUso', v),
-            options: ['Todos', ...ESTADOS_USO],
+            options: [...ESTADOS_USO],
           },
           {
             key: 'buscar',
@@ -504,7 +549,7 @@ export default function Almacen() {
           data={paginated}
           columns={columns}
           loading={bienesQuery.loading && Boolean(bienesQuery.data)}
-          onDetails={(b) => navigate(`/almacen/${b.id}`)}
+          onDetails={(b) => navigate(`/almacen/${encodeURIComponent(b.codigoInterno)}`)}
         />
         <ModulePagination page={page} totalPages={totalPages} onPageChange={setPage} />
       </ApiState>
@@ -515,6 +560,7 @@ export default function Almacen() {
         almacenes={almacenesQuery.data?.data ?? []}
         onSuccess={() => {
           bienesQuery.refetch();
+          statsQuery.refetch();
         }}
         onError={() => {}}
       />

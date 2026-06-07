@@ -19,14 +19,11 @@ export type DocumentosPropiedadQuery = {
   forma_adquisicion?: FormaAdquisicionPropiedad;
 };
 
+/** Campos aceptados por POST/PUT /documentos-propiedad según OpenAPI (additionalProperties: false). */
 export type DocumentoPropiedadPayload = {
-  numero_documento?: string;
   numero_propiedad: number;
   forma_adquisicion: FormaAdquisicionPropiedad;
   area_total_m2: number;
-  fecha_adquisicion?: string;
-  valor_adquisicion?: number | null;
-  moneda?: 'Bs' | 'USD' | 'EUR' | string;
 };
 
 function mapDocumentosPropiedadList(res: ApiListResponse<ApiDocumentoPropiedad>) {

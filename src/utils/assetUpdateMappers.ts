@@ -11,10 +11,20 @@ import type {
 import type {
   CondicionFisicaVehiculoApi,
   EstadoUsoVehiculoApi,
-  EstadoVehiculoApi,
-  VehiculoPayload,
+  VehiculoBody,
 } from '../api/services/vehiculos.service';
-import { toIsoDate, toNumber } from '../api/mappers/enums';
+import {
+  normalizeEstadoVehiculoApi,
+  toApiDateTime,
+  toIsoDate,
+  toNumber,
+} from '../api/mappers/enums';
+import { isSinSerialBien, serialBienToApi } from './serialBien';
+import {
+  apiStringField,
+  ciResponsableForApi,
+  usuarioCargaForApi,
+} from './vehiculoApiFields';
 
 /** El API exige string en campos opcionales; null provoca 400 en PUT. */
 function stringOrEmpty(value?: string | null) {
@@ -33,21 +43,15 @@ function normalizeCondicionFisicaApi(value?: string | null): CondicionFisicaBien
   return 'Bueno';
 }
 
+function normalizeCondicionVehiculoApi(value?: string | null): CondicionFisicaVehiculoApi {
+  if (value === 'Regular') return 'Regular';
+  if (value === 'Dañado' || value === 'Averiado' || value === 'Inservible') return 'Dañado';
+  return 'Bueno';
+}
+
 function normalizeConsumibilidad(value?: string | null): ConsumibilidadBienApi {
   if (value === 'Perecederos') return 'Perecederos';
   return 'No_perecedero';
-}
-
-function normalizeEstadoVehiculoApi(value?: string | null): EstadoVehiculoApi {
-  const valid: EstadoVehiculoApi[] = [
-    'Carga_Parcial',
-    'Carga_Total',
-    'Disponible',
-    'Asignado',
-    'En_Mantenimiento',
-  ];
-  if (value && valid.includes(value as EstadoVehiculoApi)) return value as EstadoVehiculoApi;
-  return 'Carga_Total';
 }
 
 export function apiBienToUpdatePayload(
@@ -55,10 +59,12 @@ export function apiBienToUpdatePayload(
   overrides: Partial<BienPayload> = {},
 ): BienPayload {
   const serial = b.serial?.trim() ?? '';
-  const sinSerial = !serial || serial.toUpperCase() === 'S/S';
+  const codigoBien = String(b.codigo_bien);
+  const sinSerial = isSinSerialBien(serial);
   const fechaIngreso = toIsoDate(b.fecha_ingreso) || new Date().toISOString().split('T')[0];
 
   const base: BienPayload = {
+    codigo_bien: codigoBien,
     descripcion: b.descripcion?.trim() ?? '',
     id_doc: b.id_doc ?? 0,
     fecha_ingreso: fechaIngreso,
@@ -68,7 +74,7 @@ export function apiBienToUpdatePayload(
     modelo: stringOrEmpty(b.modelo),
     color: stringOrEmpty(b.color),
     material: stringOrEmpty(b.material),
-    serial: sinSerial ? 'S/S' : serial,
+    serial: serialBienToApi(serial, codigoBien, { sinSerial }),
     estado_uso: normalizeEstadoUsoApi(b.estado_uso),
     condicion_fisica: normalizeCondicionFisicaApi(b.condicion_fisica),
     id_almacen: b.id_almacen,
@@ -84,36 +90,45 @@ export function apiBienToUpdatePayload(
 
 export function apiVehiculoToUpdatePayload(
   v: ApiVehiculo,
-  overrides: Partial<VehiculoPayload> = {},
-): VehiculoPayload {
-  const fechaIngreso = toIsoDate(v.fecha_ingreso) || new Date().toISOString().split('T')[0];
+  overrides: Partial<VehiculoBody> = {},
+): VehiculoBody {
+  const fechaIngreso = toApiDateTime(v.fecha_ingreso) ?? toApiDateTime(new Date().toISOString());
 
-  const base: VehiculoPayload = {
+  const ci = ciResponsableForApi(v.ci_responsable);
+
+  const base: VehiculoBody = {
     descripcion: v.descripcion?.trim() ?? '',
-    id_doc: v.id_doc ?? 0,
-    fecha_egreso: v.fecha_egreso ? toIsoDate(v.fecha_egreso) || null : null,
+    id_doc: v.id_doc ?? null,
+    fecha_egreso: v.fecha_egreso ? toApiDateTime(v.fecha_egreso) ?? null : null,
     valor_adquisicion: toNumber(v.valor_adquisicion) ?? 0,
-    marca: stringOrEmpty(v.marca),
+    marca: apiStringField(v.marca),
     placa: v.placa?.trim() || 'S/P',
     anio_fabricacion: v.anio_fabricacion ?? new Date().getFullYear(),
-    modelo: stringOrEmpty(v.modelo),
-    color: stringOrEmpty(v.color),
-    serial_motor: stringOrEmpty(v.serial_motor),
-    serial_carroceria: stringOrEmpty(v.serial_carroceria),
+    modelo: apiStringField(v.modelo),
+    color: apiStringField(v.color),
+    serial_motor: apiStringField(v.serial_motor) || 'S/S',
+    serial_carroceria: apiStringField(v.serial_carroceria),
     estado_uso: normalizeEstadoUsoApi(v.estado_uso) as EstadoUsoVehiculoApi,
-    condicion_fisica: normalizeCondicionFisicaApi(v.condicion_fisica) as CondicionFisicaVehiculoApi,
+    condicion_fisica: normalizeCondicionVehiculoApi(v.condicion_fisica),
     id_categoria_especifica: v.id_categoria_especifica,
     estado_vehiculo: normalizeEstadoVehiculoApi(v.estado_vehiculo),
-    ci_responsable: stringOrEmpty(v.ci_responsable),
-    unidad_administrativa: stringOrEmpty(v.unidad_administrativa),
     id_almacen: v.id_almacen,
     fecha_ingreso: fechaIngreso,
-    usuario_carga: stringOrEmpty(v.usuario_carga),
+    usuario_carga: apiStringField(v.usuario_carga) || usuarioCargaForApi(),
+    observaciones: apiStringField(v.observaciones),
+    ...(ci ? { ci_responsable: ci } : {}),
   };
 
-  return { ...base, ...overrides };
+  const merged = { ...base, ...overrides };
+  if ('ci_responsable' in overrides) {
+    const overrideCi = ciResponsableForApi(overrides.ci_responsable);
+    if (overrideCi) merged.ci_responsable = overrideCi;
+    else delete merged.ci_responsable;
+  }
+
+  return merged;
 }
 
 export function todayIsoDate() {
-  return new Date().toISOString().split('T')[0];
+  return toApiDateTime(new Date().toISOString()) ?? new Date().toISOString();
 }

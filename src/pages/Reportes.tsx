@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { fetchBienesAdministrativos, fetchBienesCementerio } from '../api/services/bienes-sedes.service';
 import { fetchVehiculos } from '../api/services/vehiculos.service';
 import { fetchParcelas, fetchParcelasEstadisticas } from '../api/services/parcelas.service';
+import { MODULE_PAGE_SIZE } from '../api/pagination';
 import {
   CATEGORIAS_REPORTE,
   TIPOS_MOVIMIENTO_REPORTE,
@@ -55,15 +56,27 @@ function estadoUsoTerreno(comprometida: number, desincorporada: number): string 
 }
 
 export default function Reportes() {
-  const bienesAdminQuery = useApiQuery(() => fetchBienesAdministrativos({ page: 1, limit: 5000 }), []);
-  const bienesCementerioQuery = useApiQuery(() => fetchBienesCementerio({ page: 1, limit: 5000 }), []);
-  const parcelasQuery = useApiQuery(() => fetchParcelas({ page: 1, limit: 5000 }), []);
+  const bienesAdminQuery = useApiQuery(
+    () => fetchBienesAdministrativos({ page: 1, limit: MODULE_PAGE_SIZE }),
+    [],
+  );
+  const bienesCementerioQuery = useApiQuery(
+    () => fetchBienesCementerio({ page: 1, limit: MODULE_PAGE_SIZE }),
+    [],
+  );
+  const parcelasQuery = useApiQuery(
+    () => fetchParcelas({ page: 1, limit: MODULE_PAGE_SIZE }),
+    [],
+  );
   const parcelasStatsQuery = useApiQuery(() => fetchParcelasEstadisticas(), []);
-  const vehiculosQuery = useApiQuery(() => fetchVehiculos({ page: 1, limit: 5000 }), []);
+  const vehiculosQuery = useApiQuery(
+    () => fetchVehiculos({ page: 1, limit: MODULE_PAGE_SIZE }),
+    [],
+  );
 
   const metricas = useMemo(() => {
-    const listaAdmin = bienesAdminQuery.data?.all ?? bienesAdminQuery.data?.data ?? [];
-    const listaCementerio = bienesCementerioQuery.data?.all ?? bienesCementerioQuery.data?.data ?? [];
+    const listaAdmin = bienesAdminQuery.data?.data ?? [];
+    const listaCementerio = bienesCementerioQuery.data?.data ?? [];
     const listaVehiculos = vehiculosQuery.data?.data ?? [];
     const listaParcelas = parcelasQuery.data?.terrenos ?? [];
 
@@ -90,7 +103,7 @@ export default function Reportes() {
   const [busqueda, setBusqueda] = useState('');
 
   const reporteActivos = useMemo((): FilaReporte[] => {
-    const bienesAdmin = (bienesAdminQuery.data?.all ?? bienesAdminQuery.data?.data ?? []).map((bien) => {
+    const bienesAdmin = (bienesAdminQuery.data?.data ?? []).map((bien) => {
       const id = `bien-admin-${bien.id}`;
       return {
         id,
@@ -105,7 +118,7 @@ export default function Reportes() {
       };
     });
 
-    const bienesCementerio = (bienesCementerioQuery.data?.all ?? bienesCementerioQuery.data?.data ?? []).map((bien) => {
+    const bienesCementerio = (bienesCementerioQuery.data?.data ?? []).map((bien) => {
       const id = `bien-cementerio-${bien.id}`;
       return {
         id,
@@ -152,9 +165,7 @@ export default function Reportes() {
 
     return [...bienesAdmin, ...bienesCementerio, ...terrenos, ...vehiculos];
   }, [
-    bienesAdminQuery.data?.all,
     bienesAdminQuery.data?.data,
-    bienesCementerioQuery.data?.all,
     bienesCementerioQuery.data?.data,
     parcelasQuery.data?.terrenos,
     vehiculosQuery.data?.data,

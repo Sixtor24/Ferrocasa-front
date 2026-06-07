@@ -124,9 +124,11 @@ export async function apiRequest<T>(
       emitAuthExpired();
     }
     const fallback =
-      res.status === 502
-        ? 'No se pudo conectar con el API (502). En local: ejecuta el backend en el puerto 4000 y Docker/Postgres.'
-        : `Error HTTP ${res.status}`;
+      res.status === 429
+        ? 'Demasiadas solicitudes. Espere un momento e intente de nuevo.'
+        : res.status === 502
+          ? 'No se pudo conectar con el API (502). En local: ejecuta el backend en el puerto 4000 y Docker/Postgres.'
+          : `Error HTTP ${res.status}`;
     throw new ApiError(formatApiErrorMessage(json, fallback), res.status, json);
   }
 

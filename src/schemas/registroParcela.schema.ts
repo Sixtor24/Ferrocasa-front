@@ -19,10 +19,10 @@ export const parcelaRegistroFormSchema = z.object({
   ubicacionAdicional: z.string().trim().min(1, 'Indique la ubicación adicional'),
   areaTotalM2: z.coerce.number().positive('Indique el área total'),
   valorAdquisicion: z.coerce.number().min(0, 'El valor no puede ser negativo'),
-  ciResponsable: z.string().trim().min(1, 'Indique la CI del responsable'),
+  ciResponsable: z.string().trim().min(1, 'Seleccione el responsable'),
   observaciones: z.string().optional().default(''),
   acreditacionTecnicaAmbiental: z.enum(['Sí', 'No', 'En trámite']),
-  levantamientoTopografico: z.enum(['Sí', 'No', 'En trámite']),
+  levantamientoTopografico: z.enum(['Sí', 'En trámite']),
 });
 
 export type ParcelaRegistroForm = z.infer<typeof parcelaRegistroFormSchema>;
@@ -41,7 +41,7 @@ export function parcelaDraftToFormInput(item: {
   ciResponsable: string;
   observaciones: string;
   acreditacionTecnicaAmbiental: 'Sí' | 'No' | 'En trámite';
-  levantamientoTopografico: 'Sí' | 'No' | 'En trámite';
+  levantamientoTopografico: 'Sí' | 'En trámite';
 }): ParcelaRegistroForm {
   return {
     identificacion: item.identificacion,

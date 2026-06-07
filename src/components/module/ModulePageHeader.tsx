@@ -7,7 +7,8 @@ import {
   MODULE_EXCEL_FORMATS,
   type ModuleFormatKey,
 } from '../../constants/excelFormats';
-import { downloadExcelFormat } from '../../utils/downloadExcelFormat';
+import { exportInternoForModule } from '../../utils/exportInternoExcel';
+import { exportSudebipForModule } from '../../utils/exportSudebipExcel';
 
 interface ModulePageHeaderProps {
   title: string;
@@ -41,10 +42,15 @@ export default function ModulePageHeader({
 
     setDownloading(type);
     try {
-      await downloadExcelFormat(moduleFormats[type]);
-      toast.success('Plantilla descargada correctamente');
+      if (type === 'sudebip' && formatModule) {
+        await exportSudebipForModule(formatModule);
+        toast.success('Inventario SUDEBIP exportado correctamente');
+      } else if (formatModule) {
+        await exportInternoForModule(formatModule);
+        toast.success('Inventario interno exportado correctamente');
+      }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'No se pudo descargar la plantilla');
+      toast.error(err instanceof Error ? err.message : 'No se pudo completar la descarga');
     } finally {
       setDownloading(null);
     }
@@ -92,20 +98,20 @@ export default function ModulePageHeader({
               onClick={() => void handleDownload('sudebip')}
               disabled={downloading !== null}
               className="inline-flex items-center gap-2 px-4 py-2.5 border border-navy-200 bg-white text-navy-800 rounded-lg text-sm font-medium hover:bg-navy-50 transition-colors disabled:opacity-60"
-              title="Descargar plantilla oficial SUDEBIP"
+              title="Exportar inventario en formato oficial SUDEBIP"
             >
               <FileSpreadsheet size={16} />
-              {downloading === 'sudebip' ? 'Descargando...' : 'Formato Sudebip'}
+              {downloading === 'sudebip' ? 'Exportando...' : 'Exportar SUDEBIP'}
             </button>
             <button
               type="button"
               onClick={() => void handleDownload('interno')}
               disabled={downloading !== null}
               className="inline-flex items-center gap-2 px-4 py-2.5 border border-gray-200 bg-white text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-60"
-              title={`Descargar ${internoLabel}`}
+              title={`Exportar ${internoLabel} con datos del sistema`}
             >
               <FileText size={16} />
-              {downloading === 'interno' ? 'Descargando...' : internoLabel}
+              {downloading === 'interno' ? 'Exportando...' : internoLabel}
             </button>
           </>
         )}

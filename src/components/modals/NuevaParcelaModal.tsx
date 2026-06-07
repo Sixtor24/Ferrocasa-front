@@ -1,11 +1,17 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { API_MAX_LIMIT } from '../../api/pagination';
+import { fetchResponsables } from '../../api/services/responsables.service';
 import CurrencyAmountInput from '../forms/CurrencyAmountInput';
 import SearchableSelect from '../forms/SearchableSelect';
 import Modal from './Modal';
 import ModalField from './ModalField';
-import { ESTADOS_TRAMITE, ZONIFICACIONES } from '../../types/terreno';
+import {
+  ESTADOS_TRAMITE,
+  LEVANTAMIENTO_TOPOGRAFICO_OPCIONES,
+  ZONIFICACIONES,
+} from '../../types/terreno';
 import { parseMontoInput, sanitizeMontoDraft } from '../../utils/formatters';
 import {
   parcelaRegistroFormSchema,
@@ -34,7 +40,7 @@ function emptyParcela(): ParcelaRegistroDraft {
     ciResponsable: '',
     observaciones: '',
     acreditacionTecnicaAmbiental: 'No',
-    levantamientoTopografico: 'No',
+    levantamientoTopografico: 'En trámite',
   };
 }
 
@@ -52,6 +58,8 @@ export default function NuevaParcelaModal({
 }: NuevaParcelaModalProps) {
   const [itemKey, setItemKey] = useState('');
   const [areaDraft, setAreaDraft] = useState('');
+  const [responsables, setResponsables] = useState<{ ci: string; nombre: string }[]>([]);
+  const [loadingResponsables, setLoadingResponsables] = useState(false);
   const isEditing = Boolean(item);
 
   const {
@@ -72,6 +80,31 @@ export default function NuevaParcelaModal({
     reset(parcelaToFormValues(next));
     setAreaDraft(next.areaTotalM2 > 0 ? String(next.areaTotalM2).replace('.', ',') : '');
   }, [open, item, reset]);
+
+  useEffect(() => {
+    if (!open) return;
+    setLoadingResponsables(true);
+    fetchResponsables({ page: 1, limit: API_MAX_LIMIT })
+      .then((res) => {
+        setResponsables(
+          (res.data ?? []).map((row) => ({
+            ci: row.ci_responsable,
+            nombre: row.nombre,
+          })),
+        );
+      })
+      .catch(() => setResponsables([]))
+      .finally(() => setLoadingResponsables(false));
+  }, [open]);
+
+  const responsableOptions = useMemo(
+    () =>
+      responsables.map((row) => ({
+        label: `${row.ci} — ${row.nombre}`,
+        value: row.ci,
+      })),
+    [responsables],
+  );
 
   const onSubmit = (parsed: ParcelaRegistroForm) => {
     onSave({
@@ -137,7 +170,26 @@ export default function NuevaParcelaModal({
             />
           </ModalField>
           <ModalField label="CI Responsable *" error={errors.ciResponsable?.message}>
-            <input {...register('ciResponsable')} className="input-field" />
+            <Controller
+              name="ciResponsable"
+              control={control}
+              render={({ field }) => (
+                <SearchableSelect
+                  value={field.value}
+                  onChange={field.onChange}
+                  options={responsableOptions}
+                  placeholder={loadingResponsables ? 'Cargando responsables...' : 'Seleccionar responsable'}
+                  searchPlaceholder="Buscar por CI o nombre..."
+                  disabled={loadingResponsables || responsableOptions.length === 0}
+                  minSearchLength={1}
+                />
+              )}
+            />
+            {!loadingResponsables && responsableOptions.length === 0 && (
+              <p className="text-xs text-amber-700 mt-1.5">
+                No hay responsables en el sistema. Créelos en el API (`POST /responsables`) antes de registrar parcelas.
+              </p>
+            )}
           </ModalField>
           <ModalField label="Ubicación Adicional *" error={errors.ubicacionAdicional?.message} className="md:col-span-2">
             <input
@@ -195,7 +247,7 @@ export default function NuevaParcelaModal({
                 <SearchableSelect
                   value={field.value}
                   onChange={field.onChange}
-                  options={ESTADOS_TRAMITE}
+                  options={LEVANTAMIENTO_TOPOGRAFICO_OPCIONES}
                 />
               )}
             />

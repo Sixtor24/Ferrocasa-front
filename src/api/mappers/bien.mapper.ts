@@ -17,11 +17,12 @@ export function mapApiBienToBienMueble(
   almacenesById: Map<number, string> = new Map(),
 ): BienMueble {
   const codigo = String(b.codigo_bien);
+  const numericId = Number(codigo);
   const serial = b.serial?.trim() ?? '';
   const sinSerial = isSinSerialBien(serial);
 
   return {
-    id: b.codigo_bien,
+    id: Number.isFinite(numericId) ? numericId : 0,
     sede: b.almacen?.sede?.nombre ?? '—',
     unidadAdministrativa: b.unidad_administrativa ?? b.almacen?.departamento?.nombre ?? '—',
     responsable: b.almacen?.responsable?.nombre ?? '—',

@@ -1,9 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Controller, useForm, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { API_MAX_LIMIT } from '../../api/pagination';
 import { createCompromiso } from '../../api/services/compromisos.service';
 import { createDesincorporacion } from '../../api/services/desincorporaciones.service';
 import { createProtocolo, type MotivoProtocolo } from '../../api/services/protocolos.service';
+import { fetchUsuarios } from '../../api/services/usuarios.service';
 import {
   protocolizacionFormSchema,
   type ProtocolizacionForm,
@@ -19,9 +21,24 @@ type NuevaProtocolizacionModalProps = {
   open: boolean;
   onClose: () => void;
   tipo: TipoProtocolizacionParcela;
+  areaDisponible?: number;
+  areaComprometida?: number;
   onCreated: (tipo: TipoProtocolizacionParcela, idMovimiento: number) => Promise<void> | void;
   onError: (message: string) => void;
 };
+
+function areaMaximaPorTipo(
+  tipo: TipoProtocolizacionParcela,
+  areaDisponible = 0,
+  areaComprometida = 0,
+) {
+  if (tipo === 'Compromiso') return areaDisponible;
+  return areaDisponible + areaComprometida;
+}
+
+function formatAreaHint(value: number) {
+  return value.toLocaleString('es-VE');
+}
 
 const MOTIVOS: { label: string; value: MotivoProtocolo }[] = [
   { label: 'Venta', value: 'Venta' },
@@ -43,11 +60,15 @@ export default function NuevaProtocolizacionModal({
   open,
   onClose,
   tipo,
+  areaDisponible = 0,
+  areaComprometida = 0,
   onCreated,
   onError,
 }: NuevaProtocolizacionModalProps) {
   const [cantidadDraft, setCantidadDraft] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [usuarios, setUsuarios] = useState<{ id: number; nombre: string }[]>([]);
+  const [loadingUsuarios, setLoadingUsuarios] = useState(false);
 
   const {
     register,
@@ -60,13 +81,55 @@ export default function NuevaProtocolizacionModal({
     defaultValues: defaultValues(tipo),
   });
 
+  const areaMaxima = areaMaximaPorTipo(tipo, areaDisponible, areaComprometida);
+  const esDesincorporacion = tipo === 'Desincorporación';
+
   useEffect(() => {
     if (!open) return;
-    reset(defaultValues(tipo));
+    const defaults = defaultValues(tipo);
+    if (esDesincorporacion && areaMaxima > 0) {
+      const draft = String(areaMaxima).replace('.', ',');
+      setCantidadDraft(draft);
+      reset({ ...defaults, cantidadM2: areaMaxima });
+      return;
+    }
+    reset(defaults);
     setCantidadDraft('');
-  }, [open, tipo, reset]);
+  }, [open, tipo, reset, esDesincorporacion, areaMaxima]);
+
+  useEffect(() => {
+    if (!open) return;
+    setLoadingUsuarios(true);
+    fetchUsuarios({ page: 1, limit: API_MAX_LIMIT, activo: true })
+      .then((res) => {
+        setUsuarios(
+          (res.data ?? []).map((row) => ({
+            id: row.id_usuario,
+            nombre: row.nombre_usuario,
+          })),
+        );
+      })
+      .catch(() => setUsuarios([]))
+      .finally(() => setLoadingUsuarios(false));
+  }, [open]);
+
+  const usuarioOptions = useMemo(
+    () =>
+      usuarios.map((row) => ({
+        label: row.nombre,
+        value: String(row.id),
+      })),
+    [usuarios],
+  );
 
   const onSubmit = async (form: ProtocolizacionForm) => {
+    const maxPermitido = areaMaximaPorTipo(form.tipo, areaDisponible, areaComprometida);
+    if (form.cantidadM2 > maxPermitido) {
+      const etiqueta = form.tipo === 'Compromiso' ? 'área disponible' : 'área retirable';
+      onError(`La cantidad no puede superar el ${etiqueta} (${formatAreaHint(maxPermitido)} m²).`);
+      return;
+    }
+
     setSubmitting(true);
     try {
       const protocolo = await createProtocolo({
@@ -103,7 +166,7 @@ export default function NuevaProtocolizacionModal({
     <Modal
       open={open}
       onClose={onClose}
-      title="Nueva Protocolización"
+      title={esDesincorporacion ? 'Retirar de Inventario' : 'Nueva Protocolización'}
       maxWidth="2xl"
       footer={
         <div className="flex justify-end pt-4 border-t border-gray-100">
@@ -128,6 +191,8 @@ export default function NuevaProtocolizacionModal({
                 value={field.value}
                 onChange={field.onChange}
                 options={['Compromiso', 'Desincorporación']}
+                disabled
+                disableSearch
               />
             )}
           />
@@ -148,23 +213,30 @@ export default function NuevaProtocolizacionModal({
             )}
           />
         </ModalField>
-        <ModalField label="Beneficiario *" error={errors.idBeneficiado?.message}>
+        <ModalField label="Beneficiario (usuario) *" error={errors.idBeneficiado?.message}>
           <Controller
             name="idBeneficiado"
             control={control}
             render={({ field }) => (
-              <input
-                type="text"
-                inputMode="numeric"
+              <SearchableSelect
                 value={field.value > 0 ? String(field.value) : ''}
-                onChange={(e) => field.onChange(Number(e.target.value.replace(/\D/g, '')) || 0)}
-                className="input-field"
+                onChange={(value) => field.onChange(value ? Number(value) : 0)}
+                options={usuarioOptions}
+                placeholder={loadingUsuarios ? 'Cargando usuarios...' : 'Seleccionar usuario'}
+                searchPlaceholder="Buscar por nombre..."
+                disabled={loadingUsuarios || usuarioOptions.length === 0}
+                disableSearch={usuarioOptions.length <= 6}
+                aria-label="Beneficiario"
               />
             )}
           />
         </ModalField>
         <ModalField
-          label="Cantidad de Área Comprometida o desincorporada M² *"
+          label={
+            esDesincorporacion
+              ? 'Cantidad de Área a desincorporar M² *'
+              : 'Cantidad de Área Comprometida M² *'
+          }
           error={errors.cantidadM2?.message}
           className="md:col-span-2"
         >
@@ -172,17 +244,26 @@ export default function NuevaProtocolizacionModal({
             name="cantidadM2"
             control={control}
             render={({ field }) => (
-              <input
-                type="text"
-                inputMode="decimal"
-                value={cantidadDraft}
-                onChange={(e) => {
-                  const next = sanitizeMontoDraft(e.target.value);
-                  setCantidadDraft(next);
-                  field.onChange(parseMontoInput(next));
-                }}
-                className="input-field"
-              />
+              <>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={cantidadDraft}
+                  onChange={(e) => {
+                    const next = sanitizeMontoDraft(e.target.value);
+                    setCantidadDraft(next);
+                    field.onChange(parseMontoInput(next));
+                  }}
+                  className="input-field"
+                />
+                {areaMaxima > 0 && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    {esDesincorporacion
+                      ? `Máximo retirable: ${formatAreaHint(areaMaxima)} m² (disponible + comprometida).`
+                      : `Máximo disponible: ${formatAreaHint(areaMaxima)} m².`}
+                  </p>
+                )}
+              </>
             )}
           />
         </ModalField>

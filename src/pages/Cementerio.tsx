@@ -5,13 +5,21 @@ import {
   fetchBienCementerioByCodigo,
   fetchBienesCementerio,
 } from '../api/services/bienes-sedes.service';
-import { cambiarEstadoBien } from '../api/services/bienes.service';
+import { fetchApiBienByCodigo, updateBien } from '../api/services/bienes.service';
 import { fetchAlmacenes } from '../api/services/almacenes.service';
+import { fetchSedes } from '../api/services/sedes.service';
+import { fetchBienesEstadisticas } from '../api/services/bienes.service';
+import { API_MAX_LIMIT } from '../api/pagination';
+import { parseBienesEstadisticas } from '../utils/bienesStats';
 import { useApiQuery } from '../hooks/useApiQuery';
 import { toIsoDate } from '../api/mappers/enums';
 import { formatFecha, formatMoneda } from '../utils/formatters';
 import { notifyBienActualizado } from '../utils/assetNotify';
+import { apiBienToUpdatePayload } from '../utils/assetUpdateMappers';
+import { bienCodigoPk } from '../utils/bienCodigo';
 import { estadoUsoToApi } from '../utils/registroBienMappers';
+import { useUnsavedChangesGuard } from '../hooks/useUnsavedChangesGuard';
+import UnsavedChangesModal from '../components/modals/UnsavedChangesModal';
 import type { Column } from '../components/DataTable';
 import StatusBadge from '../components/StatusBadge';
 import ApiState from '../components/ApiState';
@@ -33,10 +41,7 @@ import AssetDetailView from '../components/module/AssetDetailView';
 import { useModuleUiState } from '../stores/moduleUiStore';
 import type { BienMueble } from '../types/bien';
 import { ESTADOS_USO } from '../types/bien';
-import {
-  ALMACENES_CEMENTERIO,
-  DEPARTAMENTOS_CEMENTERIO,
-} from '../data/bienesCatalogos';
+import { nombresAlmacenesCementerio } from '../utils/cementerioAlmacenes';
 import {
   ArrowLeft,
   FileText,
@@ -52,13 +57,16 @@ function CementerioBienDetail({
   bien,
   almacenes,
   onVolver,
+  onSaved,
   onInventarioAction,
 }: {
   bien: BienMueble;
   almacenes: ApiAlmacen[];
   onVolver: () => void;
+  onSaved?: () => void | Promise<void>;
   onInventarioAction?: (result: InventarioBienActionResult) => void;
 }) {
+  const navigate = useNavigate();
   const [estadoUso, setEstadoUso] = useState(bien.estadoUso);
   const [saving, setSaving] = useState(false);
   const inventario = useBienInventarioActions({ bien, almacenes, onActionSuccess: onInventarioAction });
@@ -67,11 +75,20 @@ function CementerioBienDetail({
     setEstadoUso(bien.estadoUso);
   }, [bien.estadoUso]);
 
+  const isDirty = estadoUso !== bien.estadoUso;
+  const unsaved = useUnsavedChangesGuard(isDirty);
+
   const guardarCambio = async () => {
     setSaving(true);
     try {
-      await cambiarEstadoBien(bien.id, estadoUsoToApi(estadoUso));
+      const codigo = bienCodigoPk(bien);
+      const apiBien = await fetchApiBienByCodigo(codigo);
+      const payload = apiBienToUpdatePayload(apiBien, {
+        estado_uso: estadoUsoToApi(estadoUso),
+      });
+      await updateBien(codigo, payload);
       notifyBienActualizado(bien, { estadoUso });
+      await onSaved?.();
     } catch (err) {
       toast.error('No se pudo guardar el cambio', {
         description: err instanceof Error ? err.message : 'Intente nuevamente.',
@@ -85,6 +102,9 @@ function CementerioBienDetail({
     <>
     <AssetDetailView
       title="Bienes e Inmuebles: Cementerio"
+      onNavigateTo={(to) =>
+        unsaved.requestLeave(() => (to === '/cementerio' ? onVolver() : navigate(to)))
+      }
       breadcrumb={[
         { label: 'Dashboard', to: '/dashboard' },
         { label: 'Cementerio', to: '/cementerio' },
@@ -148,7 +168,7 @@ function CementerioBienDetail({
         <>
           <button
             type="button"
-            onClick={onVolver}
+            onClick={() => unsaved.requestLeave(onVolver)}
             className="inline-flex items-center gap-2 px-4 py-2.5 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50"
           >
             <ArrowLeft size={16} />
@@ -198,6 +218,12 @@ function CementerioBienDetail({
       onConfirm={inventario.handleRetire}
       loading={inventario.retireLoading}
     />
+    <UnsavedChangesModal
+      open={unsaved.modalOpen}
+      onClose={unsaved.cancelLeave}
+      onConfirm={unsaved.confirmLeave}
+      subject="del bien"
+    />
     </>
   );
 }
@@ -219,39 +245,50 @@ export default function Cementerio() {
     setSuccess: setSuccessMsg,
     setError: setErrorMsg,
   } = useModuleUiState('cementerio', FILTROS_INVENTARIO_VACIOS);
-  const itemId = id ? Number(id) : null;
-  const bienesQuery = useApiQuery(() => fetchBienesCementerio({ page: 1, limit: 5000 }), []);
-  const almacenesQuery = useApiQuery(() => fetchAlmacenes({ page: 1, limit: 5000 }), []);
-  const detailQuery = useApiQuery(
-    () => fetchBienCementerioByCodigo(itemId as number),
-    [itemId],
-    Boolean(itemId)
-  );
   const showRegistro = modals.registro ?? false;
+  const apiSearch = useMemo(() => filtros.buscar.trim() || undefined, [filtros.buscar]);
 
-  const bienes = bienesQuery.data?.all ?? bienesQuery.data?.data ?? [];
+  const bienesQuery = useApiQuery(
+    () => fetchBienesCementerio({ page, limit: PER_PAGE, search: apiSearch }),
+    [page, apiSearch],
+  );
+  const statsQuery = useApiQuery(() => fetchBienesEstadisticas(), []);
+  const almacenesQuery = useApiQuery(
+    () => fetchAlmacenes({ page: 1, limit: API_MAX_LIMIT }),
+    [],
+  );
+  const sedesQuery = useApiQuery(
+    () => fetchSedes({ page: 1, limit: API_MAX_LIMIT }),
+    [],
+  );
+  const detailQuery = useApiQuery(
+    () => fetchBienCementerioByCodigo(id as string),
+    [id],
+    Boolean(id),
+  );
+  const bienes = bienesQuery.data?.data ?? [];
+  const totalPages = bienesQuery.data?.meta.totalPages ?? 1;
 
-  const metricas = useMemo(() => {
-    const fuente = bienes;
-    const total = bienesQuery.data?.meta?.total ?? fuente.length;
-    return {
-      total,
-      enUso: fuente.filter((b) => b.estadoUso === 'En uso').length,
-      enObsolescencia: fuente.filter((b) => b.estadoUso === 'En obsolescencia').length,
-      obsoletos: fuente.filter((b) => b.estadoUso === 'Obsoleto').length,
-    };
-  }, [bienes, bienesQuery.data?.meta?.total]);
+  const metricas = useMemo(
+    () => parseBienesEstadisticas(statsQuery.data),
+    [statsQuery.data],
+  );
 
-  const almacenOptions = useMemo(() => ['Todas', ...ALMACENES_CEMENTERIO], []);
-  const departamentoOptions = useMemo(() => ['Todos', ...DEPARTAMENTOS_CEMENTERIO], []);
+  const almacenes = almacenesQuery.data?.data ?? [];
+  const sedes = sedesQuery.data?.data ?? [];
+  const almacenOptions = useMemo(
+    () => nombresAlmacenesCementerio(almacenes, sedes),
+    [almacenes, sedes],
+  );
+  const departamentoOptions = almacenOptions;
 
   const filteredBienes = useMemo(() => {
     const q = filtros.buscar.toLowerCase();
     return bienes.filter((b) => {
       if (filtros.codigo && !b.codigoInterno.toLowerCase().includes(filtros.codigo.toLowerCase())) return false;
       if (filtros.descripcion && !b.descripcion.toLowerCase().includes(filtros.descripcion.toLowerCase())) return false;
-      if (filtros.almacen && filtros.almacen !== 'Todas' && b.ubicacion !== filtros.almacen) return false;
-      if (filtros.departamento && filtros.departamento !== 'Todos' && b.unidadAdministrativa !== filtros.departamento) return false;
+      if (filtros.almacen && b.ubicacion !== filtros.almacen) return false;
+      if (filtros.departamento && b.unidadAdministrativa !== filtros.departamento) return false;
       if (filtros.numeroDocumento && !b.numeroDocumento.includes(filtros.numeroDocumento)) return false;
       if (filtros.fecha && toIsoDate(b.fechaAdquisicion) !== filtros.fecha) return false;
       if (filtros.estadoUso && filtros.estadoUso !== 'Todos' && b.estadoUso !== filtros.estadoUso) return false;
@@ -268,11 +305,11 @@ export default function Cementerio() {
     });
   }, [bienes, filtros]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredBienes.length / PER_PAGE));
-  const paginatedBienes = filteredBienes.slice((page - 1) * PER_PAGE, page * PER_PAGE);
+  const paginatedBienes = filteredBienes;
 
   const setFiltro = (key: keyof typeof filtros, value: string) => {
     setModuleFilter(key, value);
+    setPage(1);
   };
 
   const simularExportPdf = () => {
@@ -312,14 +349,20 @@ export default function Cementerio() {
         {detailQuery.data && (
           <CementerioBienDetail
             bien={detailQuery.data}
-            almacenes={almacenesQuery.data?.data ?? []}
-            onVolver={() => navigate('/cementerio')}
+            almacenes={almacenes}
+            onVolver={() => {
+              void bienesQuery.refetch();
+              navigate('/cementerio');
+            }}
+            onSaved={async () => {
+              await Promise.all([bienesQuery.refetch(), detailQuery.refetch()]);
+            }}
             onInventarioAction={async (result) => {
               if (result.type === 'transfer') {
                 void bienesQuery.refetch();
                 setModuleFilter('almacen', result.almacenDestino);
                 try {
-                  await fetchBienCementerioByCodigo(Number(id));
+                  await fetchBienCementerioByCodigo(id);
                   await detailQuery.refetch();
                 } catch {
                   navigate('/cementerio');
@@ -500,7 +543,7 @@ export default function Cementerio() {
           data={paginatedBienes}
           columns={columns}
           loading={bienesQuery.loading && Boolean(bienesQuery.data)}
-          onDetails={(b) => navigate(`/cementerio/${b.id}`)}
+          onDetails={(b) => navigate(`/cementerio/${encodeURIComponent(b.codigoInterno)}`)}
           emptyMessage="No hay registros del cementerio."
         />
         <ModulePagination page={page} totalPages={totalPages} onPageChange={setPage} />
@@ -509,7 +552,8 @@ export default function Cementerio() {
       <RegistroBienesCementerioModal
         open={showRegistro}
         onClose={() => setModal('registro', false)}
-        almacenes={almacenesQuery.data?.data ?? []}
+        almacenes={almacenes}
+        sedes={sedes}
         onSuccess={() => {
           bienesQuery.refetch();
         }}

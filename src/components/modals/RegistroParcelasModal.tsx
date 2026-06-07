@@ -5,6 +5,9 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { createDocumentoPropiedad, type FormaAdquisicionPropiedad } from '../../api/services/documentos-propiedad.service';
 import { createParcela } from '../../api/services/parcelas.service';
 import { createPropiedad } from '../../api/services/propiedades.service';
+import { fetchResponsableByCi } from '../../api/services/responsables.service';
+import { levantamientoTopograficoToApi } from '../../api/mappers/enums';
+import { buildParcelaObservacionesMeta } from '../../utils/parcelaFechaMeta';
 import { MONEDAS_REGISTRO } from '../../types/registroBienItem';
 import { formatMoneda } from '../../utils/formatters';
 import {
@@ -59,12 +62,6 @@ function acreditacionToApi(value: ParcelaRegistroDraft['acreditacionTecnicaAmbie
   return 'No_posee';
 }
 
-function levantamientoToApi(value: ParcelaRegistroDraft['levantamientoTopografico']) {
-  if (value === 'Sí') return 'Si';
-  if (value === 'En trámite') return 'Solicitar';
-  return 'No';
-}
-
 async function ensurePropiedad(documento: DocumentoParcelaForm) {
   try {
     await createPropiedad({
@@ -76,6 +73,20 @@ async function ensurePropiedad(documento: DocumentoParcelaForm) {
     const message = err instanceof Error ? err.message.toLowerCase() : '';
     const alreadyExists = message.includes('existe') || message.includes('duplicate') || message.includes('409');
     if (!alreadyExists) throw err;
+  }
+}
+
+async function ensureResponsablesParcelas(items: ParcelaRegistroDraft[]) {
+  const cedulas = [...new Set(items.map((item) => item.ciResponsable.trim()).filter(Boolean))];
+
+  for (const ci of cedulas) {
+    try {
+      await fetchResponsableByCi(ci);
+    } catch {
+      throw new Error(
+        `La CI ${ci} no está registrada como responsable. Seleccione un responsable del listado o créelo en el API (POST /responsables).`,
+      );
+    }
   }
 }
 
@@ -154,17 +165,19 @@ export default function RegistroParcelasModal({
     setSubmitting(true);
     try {
       await ensurePropiedad(documento);
+      await ensureResponsablesParcelas(items);
 
       const createdIds: number[] = [];
       for (const item of items) {
         const doc = await createDocumentoPropiedad({
-          numero_documento: documento.numeroDocumento?.trim() || undefined,
           numero_propiedad: documento.numeroPropiedad,
           forma_adquisicion: documento.formaAdquisicion,
           area_total_m2: item.areaTotalM2,
-          fecha_adquisicion: documento.fechaAdquisicion,
-          valor_adquisicion: item.valorAdquisicion || null,
-          moneda: documento.moneda,
+        });
+
+        const observaciones = buildParcelaObservacionesMeta(item.observaciones ?? '', {
+          fechaAdquisicion: documento.fechaAdquisicion,
+          numeroDocumento: documento.numeroDocumento,
         });
 
         const parcela = await createParcela({
@@ -173,9 +186,10 @@ export default function RegistroParcelasModal({
           id_documento_propiedad: doc.id_documento_propiedad,
           ci_responsable: item.ciResponsable,
           zonificacion: item.zonificacion,
-          observaciones: item.observaciones || null,
+          observaciones,
           acreditacion_ambiental: acreditacionToApi(item.acreditacionTecnicaAmbiental),
-          levantamiento_topografico: levantamientoToApi(item.levantamientoTopografico),
+          levantamiento_topografico: levantamientoTopograficoToApi(item.levantamientoTopografico),
+          valor_adquisicion: item.valorAdquisicion || null,
           ubicacion_adicional: item.ubicacionAdicional,
           id_comprometida: null,
           id_desincorporada: null,
@@ -281,6 +295,9 @@ export default function RegistroParcelasModal({
                   className={`input-field ${errors.fechaAdquisicion ? 'border-red-400' : ''}`}
                 />
                 {errors.fechaAdquisicion && <p className="text-xs text-red-600 mt-1">{errors.fechaAdquisicion.message}</p>}
+                <p className="text-xs text-gray-500 mt-1">
+                  Se asocia a la parcela al registrar (el documento de propiedad del API aún no persiste fechas).
+                </p>
               </Field>
               <Field label="Forma de Adquisición">
                 <Controller
