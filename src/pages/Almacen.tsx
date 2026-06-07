@@ -257,14 +257,10 @@ export default function Almacen() {
     page,
     filters: filtros,
     modals,
-    successMsg,
-    errorMsg,
     setPage,
     setFilter: setModuleFilter,
     resetFilters,
     setModal,
-    setSuccess: setSuccessMsg,
-    setError: setErrorMsg,
   } = useModuleUiState('almacen', FILTROS_INVENTARIO_VACIOS);
   const showModal = modals.registro ?? false;
 
@@ -421,12 +417,6 @@ export default function Almacen() {
         breadcrumb={[{ label: 'Dashboard', to: '/dashboard' }, { label: 'Bienes en Edificio Administrativo' }]}
         formatModule="almacen"
         onCreate={() => setModal('registro', true)}
-        extraActions={
-          <>
-            {successMsg && <span className="text-sm text-green-600 font-medium animate-pulse self-center">{successMsg}</span>}
-            {errorMsg && <span className="text-sm text-red-600 font-medium self-center">{errorMsg}</span>}
-          </>
-        }
       />
 
       {/* Stats */}

@@ -236,14 +236,10 @@ export default function Cementerio() {
     page,
     filters: filtros,
     modals,
-    successMsg,
-    errorMsg,
     setPage,
     setFilter: setModuleFilter,
     resetFilters,
     setModal,
-    setSuccess: setSuccessMsg,
-    setError: setErrorMsg,
   } = useModuleUiState('cementerio', FILTROS_INVENTARIO_VACIOS);
   const showRegistro = modals.registro ?? false;
   const apiSearch = useMemo(() => filtros.buscar.trim() || undefined, [filtros.buscar]);
@@ -386,14 +382,6 @@ export default function Cementerio() {
         formatModule="cementerio"
         onCreate={() => setModal('registro', true)}
         createLabel="Crear Registro"
-        extraActions={
-          <>
-            {successMsg && (
-              <span className="text-sm text-green-600 font-medium animate-pulse self-center">{successMsg}</span>
-            )}
-            {errorMsg && <span className="text-sm text-red-600 font-medium self-center">{errorMsg}</span>}
-          </>
-        }
       />
 
       <section

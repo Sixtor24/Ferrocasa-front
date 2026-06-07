@@ -16,6 +16,7 @@ import {
   ciResponsableForApi,
   usuarioCargaForApi,
 } from './vehiculoApiFields';
+import { buildVehiculoObservacionesMeta } from './vehiculoObservacionesMeta';
 
 export function estadoUsoVehiculoToApi(estado: EstadoUsoVehiculo): EstadoUsoVehiculoApi {
   return estadoUsoToApi(estado);
@@ -33,11 +34,13 @@ export function itemVehiculoToPayload(
     idDoc: number;
     fechaIngreso: string;
     idAlmacen: number;
+    numeroDocumento?: string;
   },
 ): VehiculoBody {
-  const observaciones = item.observaciones.trim();
-  const unidad = item.unidadAdministrativa.trim();
-  const notas = [observaciones, unidad ? `[unidad:${unidad}]` : ''].filter(Boolean).join(' ').trim();
+  const notas = buildVehiculoObservacionesMeta(item.observaciones, {
+    unidadAdministrativa: item.unidadAdministrativa,
+    numeroDocumento: params.numeroDocumento,
+  });
   const ci = ciResponsableForApi(item.ciResponsable);
 
   return {

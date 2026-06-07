@@ -9,6 +9,7 @@ import type { EstadoVehiculoApi } from '../mappers/enums';
 import { mapApiVehiculoToVehiculo } from '../mappers/vehiculo.mapper';
 import { fetchAllPages, listParams, metaForAll } from '../pagination';
 import { fetchAlmacenesCatalog } from './almacenes.service';
+import { fetchDocumentoById } from './documentos.service';
 import { fetchResponsableByCi } from './responsables.service';
 import type { Vehiculo } from '../../types/vehiculo';
 
@@ -46,8 +47,45 @@ export type VehiculoBody = {
   observaciones?: string | null;
 };
 
-function mapVehiculosList(res: ApiListResponse<ApiVehiculo>, almacenesById: Map<number, string>) {
-  const rows = res.data ?? [];
+async function enrichVehiculosDocumento(rows: ApiVehiculo[]): Promise<ApiVehiculo[]> {
+  const ids = [
+    ...new Set(
+      rows
+        .filter((row) => row.id_doc && !row.documento?.numero_documento?.trim())
+        .map((row) => row.id_doc as number),
+    ),
+  ];
+
+  if (ids.length === 0) return rows;
+
+  const documentos = await Promise.all(
+    ids.map(async (id) => {
+      try {
+        return { id, doc: await fetchDocumentoById(id) };
+      } catch {
+        return null;
+      }
+    }),
+  );
+
+  const byId = new Map(
+    documentos.filter((entry): entry is { id: number; doc: Awaited<ReturnType<typeof fetchDocumentoById>> } => Boolean(entry))
+      .map((entry) => [entry.id, entry.doc]),
+  );
+
+  return rows.map((row) => {
+    if (!row.id_doc) return row;
+    const doc = byId.get(row.id_doc);
+    if (!doc) return row;
+    return {
+      ...row,
+      documento: { ...doc, ...row.documento },
+    };
+  });
+}
+
+async function mapVehiculosList(res: ApiListResponse<ApiVehiculo>, almacenesById: Map<number, string>) {
+  const rows = await enrichVehiculosDocumento(res.data ?? []);
   return {
     data: rows.map((vehiculo) => mapApiVehiculoToVehiculo(vehiculo, almacenesById)),
     meta: res.meta ?? { page: 1, limit: rows.length, total: rows.length, totalPages: 1 },
@@ -70,7 +108,7 @@ export async function fetchVehiculos(query: VehiculosQuery = {}) {
     fetchAlmacenesCatalog(),
   ]);
 
-  return mapVehiculosList(res, almacenesById);
+  return await mapVehiculosList(res, almacenesById);
 }
 
 export async function fetchVehiculosAll(query: Omit<VehiculosQuery, 'page' | 'limit'> = {}) {
@@ -114,8 +152,9 @@ export async function fetchVehiculoById(id: number): Promise<Vehiculo> {
     fetchAlmacenesCatalog(),
   ]);
 
-  const vehiculo = mapApiVehiculoToVehiculo(apiVehiculo, almacenesById);
-  return enrichVehiculoConResponsable(apiVehiculo, vehiculo);
+  const [enriched] = await enrichVehiculosDocumento([apiVehiculo]);
+  const vehiculo = mapApiVehiculoToVehiculo(enriched, almacenesById);
+  return enrichVehiculoConResponsable(enriched, vehiculo);
 }
 
 export async function fetchVehiculosEstadisticas(): Promise<ApiVehiculosEstadisticas> {

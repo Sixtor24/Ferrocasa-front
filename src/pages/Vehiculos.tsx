@@ -186,7 +186,6 @@ function VehiculoDetail({
           {
             title: 'Detalles del documento de Ingreso',
             fields: [
-              { label: 'Nro de Documento', value: vehiculo.numeroDocumento || '—' },
               { label: 'Forma de Adquisición', value: vehiculo.formaAdquisicion },
               {
                 label: 'Valor Total de Documento',
@@ -268,14 +267,10 @@ export default function Vehiculos() {
     page,
     filters: filtros,
     modals,
-    successMsg,
-    errorMsg,
     setPage,
     setFilter: setModuleFilter,
     resetFilters,
     setModal,
-    setSuccess: setSuccessMsg,
-    setError: setErrorMsg,
   } = useModuleUiState('vehiculos', FILTROS_INVENTARIO_VACIOS);
 
   const showRegistro = modals.registro ?? false;
@@ -320,7 +315,6 @@ export default function Vehiculos() {
       if (filtros.almacen && filtros.almacen !== 'Todos' && v.almacen !== filtros.almacen) return false;
       if (filtros.condicionFisica && filtros.condicionFisica !== 'Todas' && v.condicionFisica !== filtros.condicionFisica) return false;
       if (filtros.departamento && filtros.departamento !== 'Todos' && v.unidadAdministrativa !== filtros.departamento) return false;
-      if (filtros.numeroDocumento && !v.numeroDocumento.includes(filtros.numeroDocumento)) return false;
       if (filtros.fecha && v.fechaAdquisicion !== filtros.fecha) return false;
       if (filtros.estadoUso && filtros.estadoUso !== 'Todos' && v.estadoUso !== filtros.estadoUso) return false;
       if (q) {
@@ -399,14 +393,6 @@ export default function Vehiculos() {
         formatModule="vehiculos"
         onCreate={() => setModal('registro', true)}
         createLabel="Crear Registro"
-        extraActions={
-          <>
-            {successMsg && (
-              <span className="text-sm text-green-600 font-medium animate-pulse self-center">{successMsg}</span>
-            )}
-            {errorMsg && <span className="text-sm text-red-600 font-medium self-center">{errorMsg}</span>}
-          </>
-        }
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
@@ -455,7 +441,6 @@ export default function Vehiculos() {
           { key: 'almacen', label: 'Almacén', type: 'select', value: filtros.almacen, onChange: (v) => setFiltro('almacen', v), options: almacenOptions },
           { key: 'condicion', label: 'Condición Física', type: 'select', value: filtros.condicionFisica, onChange: (v) => setFiltro('condicionFisica', v), options: ['Todas', ...CONDICIONES_VEHICULO] },
           { key: 'departamento', label: 'Unidad Administrativa', type: 'select', value: filtros.departamento, onChange: (v) => setFiltro('departamento', v), options: unidadAdministrativaOptions },
-          { key: 'documento', label: 'Número de documento', type: 'text', value: filtros.numeroDocumento, onChange: (v) => setFiltro('numeroDocumento', v) },
           { key: 'fecha', label: 'Fecha', type: 'date', value: filtros.fecha, onChange: (v) => setFiltro('fecha', v) },
           { key: 'estado', label: 'Estado de uso', type: 'select', value: filtros.estadoUso, onChange: (v) => setFiltro('estadoUso', v), options: ['Todos', ...ESTADOS_USO_VEHICULO] },
           { key: 'buscar', label: 'Buscar', type: 'search', value: filtros.buscar, onChange: (v) => setFiltro('buscar', v), placeholder: 'Buscar...', className: 'lg:col-span-1' },
@@ -483,11 +468,10 @@ export default function Vehiculos() {
         open={showRegistro}
         onClose={() => setModal('registro', false)}
         almacenes={almacenesQuery.data?.data ?? []}
-        onSuccess={(message) => {
-          setSuccessMsg(message);
+        onSuccess={() => {
           refreshVehiculos();
         }}
-        onError={(message) => setErrorMsg(message)}
+        onError={() => {}}
       />
     </div>
   );

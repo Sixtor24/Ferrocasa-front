@@ -239,8 +239,10 @@ export default function RegistroVehiculosModal({
     try {
       await ensureResponsablesVehiculos(items);
 
+      const numeroDocumento = documento.numeroDocumento?.trim() || undefined;
+
       const documentoCreado = await createDocumento({
-        numero_documento: documento.numeroDocumento?.trim() || undefined,
+        numero_documento: numeroDocumento,
         nombre_proveedor: documento.nombreProveedor.trim(),
         forma_adquisicion: documento.formaAdquisicion,
         fecha_adquisicion: toApiDateTime(documento.fechaAdquisicion),
@@ -248,7 +250,7 @@ export default function RegistroVehiculosModal({
       });
 
       idDoc = documentoCreado.id_doc;
-      const fechaIngreso = documento.fechaAdquisicion;
+      const fechaIngreso = new Date().toISOString().split('T')[0];
 
       for (const item of items) {
         const idAlmacen = resolveAlmacenIdVehiculo(item.almacen, almacenes)!;
@@ -257,6 +259,7 @@ export default function RegistroVehiculosModal({
             idDoc,
             fechaIngreso,
             idAlmacen,
+            numeroDocumento: numeroDocumento ?? documentoCreado.numero_documento ?? undefined,
           }),
         );
         codigosVehiculo.push(vehiculoCreado.id);

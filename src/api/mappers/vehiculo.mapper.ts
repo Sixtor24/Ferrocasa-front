@@ -1,17 +1,11 @@
 import type { Vehiculo } from '../../types/vehiculo';
 import type { ApiVehiculo } from '../types';
 import { resolveAlmacenNombre } from '../utils/almacenLookup';
-
-const UNIDAD_META_RE = /\[unidad:([^\]]+)\]/i;
-
-function extractUnidadMeta(observaciones?: string | null): string {
-  const match = observaciones?.match(UNIDAD_META_RE);
-  return match?.[1]?.trim() ?? '';
-}
-
-function stripVehiculoObservacionesMeta(observaciones?: string | null): string {
-  return (observaciones ?? '').replace(UNIDAD_META_RE, '').trim();
-}
+import {
+  extractNumeroDocumentoMeta,
+  extractUnidadAdministrativaMeta,
+  stripVehiculoObservacionesMeta,
+} from '../../utils/vehiculoObservacionesMeta';
 import {
   mapCondicionVehiculo,
   mapEstadoUsoVehiculo,
@@ -41,7 +35,7 @@ export function mapApiVehiculoToVehiculo(
     sede: v.almacen?.sede?.nombre ?? '—',
     unidadAdministrativa:
       v.unidad_administrativa
-      ?? extractUnidadMeta(v.observaciones)
+      ?? extractUnidadAdministrativaMeta(v.observaciones)
       ?? v.responsable?.departamento?.nombre
       ?? '—',
     responsable: v.responsable?.nombre ?? '—',
@@ -50,7 +44,10 @@ export function mapApiVehiculoToVehiculo(
     moneda: mapMoneda(v.documento?.moneda),
     fechaIngreso: toIsoDate(v.fecha_ingreso) || '—',
     fechaAdquisicion: toIsoDate(v.documento?.fecha_adquisicion) || '—',
-    numeroDocumento: v.documento?.numero_documento?.trim() || (v.documento ? String(v.documento.id_doc) : '—'),
+    numeroDocumento:
+      v.documento?.numero_documento?.trim()
+      || extractNumeroDocumentoMeta(v.observaciones)
+      || (v.id_doc ? String(v.id_doc) : '—'),
     anioFabricacion: v.anio_fabricacion ?? null,
     serialMotor: serialMotor || 'S/S',
     sinSerialMotor: !serialMotor,
