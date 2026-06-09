@@ -1,6 +1,13 @@
 import { z, ZodError } from 'zod';
 import {
   almacenSchema,
+  auditoriaRegistroSchema,
+  auditoriaResumenSchema,
+  dashboardActividadSchema,
+  dashboardAlertasSchema,
+  dashboardGraficosSchema,
+  dashboardStatsSchema,
+  reporteDataSchema,
   authSessionSchema,
   bienSchema,
   bienesStatsSchema,
@@ -174,6 +181,22 @@ export function getResponseSchema(path: string, method = 'GET') {
   if (p.endsWith('/bienes') && p.startsWith('/documentos/')) return relationArrayResponse(bienSchema);
   if (p.endsWith('/vehiculos') && p.startsWith('/documentos/')) return relationArrayResponse(vehiculoSchema);
   if (p.startsWith('/documentos/')) return itemResponseSchema(documentoSchema);
+
+  if (p.startsWith('/reportes/') && !p.includes('/exportar/')) return reporteDataSchema;
+
+  if (p === '/dashboard/stats') return itemResponseSchema(dashboardStatsSchema);
+  if (p === '/dashboard/actividad-reciente') return itemResponseSchema(dashboardActividadSchema);
+  if (p === '/dashboard/alertas') return itemResponseSchema(dashboardAlertasSchema);
+  if (p === '/dashboard/graficos') return itemResponseSchema(dashboardGraficosSchema);
+
+  if (p === '/auditoria/resumen') return itemResponseSchema(auditoriaResumenSchema);
+  if (p === '/auditoria/cambios-recientes') return itemResponseSchema(z.array(auditoriaRegistroSchema));
+  if (p === '/auditoria/fechas') return listResponseSchema(auditoriaRegistroSchema);
+  if (p.startsWith('/auditoria/tabla/') || p.startsWith('/auditoria/usuario/')) {
+    return listResponseSchema(auditoriaRegistroSchema);
+  }
+  if (p === '/auditoria') return listResponseSchema(auditoriaRegistroSchema);
+  if (p.startsWith('/auditoria/')) return itemResponseSchema(auditoriaRegistroSchema);
 
   return null;
 }

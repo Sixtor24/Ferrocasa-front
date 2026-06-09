@@ -141,3 +141,48 @@ export async function apiRequest<T>(
     throw err;
   }
 }
+
+function parseDownloadFilename(disposition: string | null, fallback: string): string {
+  if (!disposition) return fallback;
+  const match = /filename\*?=(?:UTF-8'')?["']?([^"';]+)/i.exec(disposition);
+  return match?.[1]?.trim() || fallback;
+}
+
+export async function apiDownload(
+  path: string,
+  params?: RequestOptions['params'],
+  fallbackFilename = 'descarga',
+  retryAuth = true,
+): Promise<void> {
+  const url = buildUrl(path, params);
+  const authorization = getAuthorizationHeader();
+  const headers = new Headers();
+  if (authorization) headers.set('Authorization', authorization);
+
+  const res = await fetch(url, { headers });
+
+  if (retryAuth && res.status === 401 && !isAuthRefreshPath(path)) {
+    const refreshed = await refreshAuthSession();
+    if (refreshed) {
+      await apiDownload(path, params, fallbackFilename, false);
+      return;
+    }
+    clearAuthSession();
+    emitAuthExpired();
+    throw new ApiError('Sesión expirada', 401);
+  }
+
+  if (!res.ok) {
+    const json = await res.json().catch(() => ({}));
+    throw new ApiError(formatApiErrorMessage(json, `Error HTTP ${res.status}`), res.status, json);
+  }
+
+  const blob = await res.blob();
+  const filename = parseDownloadFilename(res.headers.get('content-disposition'), fallbackFilename);
+  const objectUrl = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = objectUrl;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(objectUrl);
+}

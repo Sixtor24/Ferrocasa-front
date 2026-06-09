@@ -1,4 +1,5 @@
 import { apiRequest } from '../client';
+import { fetchAllPages } from '../pagination';
 import type { ApiItemResponse, ApiListResponse } from '../types';
 import type {
   ActivarUsuarioPayload,
@@ -65,4 +66,17 @@ export async function activarUsuario(id: number, body: ActivarUsuarioPayload): P
 
 export async function deleteUsuario(id: number): Promise<void> {
   await apiRequest(`/usuarios/${id}`, { method: 'DELETE' });
+}
+
+export async function fetchAllUsuarios() {
+  return fetchAllPages(
+    async (page, limit) => {
+      const res = await fetchUsuarios({ page, limit });
+      return {
+        data: res.data ?? [],
+        meta: res.meta ?? { page: 1, limit: 0, total: 0, totalPages: 1 },
+      };
+    },
+    100,
+  );
 }

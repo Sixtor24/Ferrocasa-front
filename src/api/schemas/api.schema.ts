@@ -94,6 +94,13 @@ export const rolSchema = z.object({
   descripcion: z.string(),
 }).passthrough();
 
+/** Rol anidado en auditoría/dashboard: el API a veces omite campos como `id_rol`. */
+export const rolAuditoriaSchema = z.object({
+  id_rol: z.number().optional(),
+  nombre_rol: z.string().optional(),
+  descripcion: z.string().optional(),
+}).passthrough();
+
 export const usuarioSchema = z.object({
   id_usuario: z.number(),
   nombre_usuario: z.string(),
@@ -101,6 +108,122 @@ export const usuarioSchema = z.object({
   id_rol: z.number(),
   activo: z.boolean(),
   rol: rolSchema,
+}).passthrough();
+
+/** Usuario anidado en auditoría: el API a veces omite campos como `activo`. */
+export const usuarioAuditoriaSchema = z.object({
+  id_usuario: z.number().optional(),
+  nombre_usuario: z.string().optional(),
+  correo: z.string().optional(),
+  id_rol: z.number().optional(),
+  activo: z.boolean().optional(),
+  rol: rolAuditoriaSchema.optional(),
+}).passthrough();
+
+export const auditoriaRegistroSchema = z.object({
+  id_auditoria: z.number(),
+  nombre_tabla: z.string(),
+  id_registro: z.number(),
+  id_usuario: z.number(),
+  accion: z.enum(['INSERT', 'UPDATE', 'DELETE']),
+  fecha_cambio: z.string(),
+  datos_previos: z.record(z.string(), z.unknown()).nullable().optional(),
+  datos_nuevos: z.record(z.string(), z.unknown()).nullable().optional(),
+  ip_origen: z.string().nullable().optional(),
+  user_agent: z.string().nullable().optional(),
+  usuario: usuarioAuditoriaSchema.optional(),
+}).passthrough();
+
+export const reporteDataSchema = z.object({
+  success: z.literal(true),
+  data: z.unknown(),
+}).passthrough();
+
+export const dashboardChartSeriesSchema = z.object({
+  labels: z.array(z.string()),
+  values: z.array(z.number()),
+}).passthrough();
+
+export const dashboardStatsSchema = z.object({
+  inventario: z.object({
+    parcelas: z.number(),
+    bienes: z.number(),
+    vehiculos: z.number(),
+    propiedades: z.number(),
+    almacenes: z.number(),
+    protocolos: z.number(),
+  }),
+  valoracion_total: z.number(),
+  actividad: z.object({
+    cambios_ultimos_7_dias: z.number(),
+    protocolos_mes_actual: z.number(),
+    usuarios_activos: z.number(),
+  }),
+  indicadores: z.object({
+    parcelas_disponibles: z.number(),
+    vehiculos_disponibles: z.number(),
+    bienes_almacenados: z.number(),
+  }),
+}).passthrough();
+
+export const dashboardActividadItemSchema = z.object({
+  id_auditoria: z.number(),
+  nombre_tabla: z.string(),
+  id_registro: z.number(),
+  accion: z.enum(['INSERT', 'UPDATE', 'DELETE']),
+  fecha_cambio: z.string(),
+  usuario: usuarioAuditoriaSchema.optional(),
+}).passthrough();
+
+export const dashboardActividadSchema = z.object({
+  data: z.array(dashboardActividadItemSchema),
+  total: z.number(),
+}).passthrough();
+
+export const dashboardAlertaSchema = z.object({
+  tipo: z.enum(['danger', 'warning', 'info']),
+  codigo: z.string(),
+  titulo: z.string(),
+  mensaje: z.string(),
+  cantidad: z.number(),
+}).passthrough();
+
+export const dashboardAlertasSchema = z.object({
+  data: z.array(dashboardAlertaSchema),
+  total: z.number(),
+  resumen: z.object({
+    criticas: z.number(),
+    advertencias: z.number(),
+    informativas: z.number(),
+  }),
+}).passthrough();
+
+export const dashboardGraficosSchema = z.object({
+  anio: z.number(),
+  parcelas_por_zona: dashboardChartSeriesSchema,
+  bienes_por_almacen: dashboardChartSeriesSchema,
+  vehiculos_por_estado: dashboardChartSeriesSchema,
+  protocolos_por_mes: dashboardChartSeriesSchema,
+  auditoria_ultimos_30_dias: dashboardChartSeriesSchema,
+}).passthrough();
+
+export const auditoriaResumenSchema = z.object({
+  total: z.number(),
+  porAccion: z.array(z.object({
+    accion: z.string(),
+    total: z.number(),
+  })),
+  porTabla: z.array(z.object({
+    nombre_tabla: z.string(),
+    total: z.number(),
+  })),
+  usuariosMasActivos: z.array(z.object({
+    id_usuario: z.number(),
+    total: z.number(),
+    usuario: usuarioAuditoriaSchema.optional(),
+  })),
+  ultimosSieteDias: z.number(),
+  ultimoCambio: z.string().nullable().optional(),
 }).passthrough();
 
 export const authSessionSchema = z.object({

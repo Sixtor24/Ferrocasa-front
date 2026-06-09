@@ -17,6 +17,7 @@ import { changePassword } from '../api/services/auth.service';
 import { useApiQuery } from '../hooks/useApiQuery';
 import { useAuth } from '../context/AuthContext';
 import SearchableSelect from '../components/forms/SearchableSelect';
+import { hasAdminAccess } from '../constants/adminAccess';
 import type { RolPayload, RolSistema, UpdateUsuarioPayload, UsuarioPayload, UsuarioSistema } from '../types/auth';
 import {
   CheckCircle2,
@@ -69,9 +70,9 @@ function roleDescription(rol?: RolSistema) {
 }
 
 export default function Configuracion() {
-  const { usuario, hasRole, logout } = useAuth();
+  const { usuario, logout } = useAuth();
   const navigate = useNavigate();
-  const isAdmin = hasRole('Administrador');
+  const isAdmin = hasAdminAccess(usuario?.rol.nombre_rol);
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [passwordForm, setPasswordForm] = useState({

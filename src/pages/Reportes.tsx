@@ -3,7 +3,15 @@ import { Link } from 'react-router-dom';
 import { fetchBienesAdministrativos, fetchBienesCementerio } from '../api/services/bienes-sedes.service';
 import { fetchVehiculos } from '../api/services/vehiculos.service';
 import { fetchParcelas, fetchParcelasEstadisticas } from '../api/services/parcelas.service';
+import {
+  exportReporteCsv,
+  exportReporteExcel,
+  fetchReporte,
+} from '../api/services/reportes.service';
 import { MODULE_PAGE_SIZE } from '../api/pagination';
+import { useAuth } from '../context/AuthContext';
+import { hasReportesAccess } from '../constants/reportesAccess';
+import { anioDesdeFecha, resolveReporteRecurso } from '../utils/reportesExport';
 import {
   CATEGORIAS_REPORTE,
   TIPOS_MOVIMIENTO_REPORTE,
@@ -56,22 +64,39 @@ function estadoUsoTerreno(comprometida: number, desincorporada: number): string 
 }
 
 export default function Reportes() {
+  const { usuario } = useAuth();
+  const canAccess = hasReportesAccess(usuario?.rol.nombre_rol);
+
+  const resumenQuery = useApiQuery(
+    () => fetchReporte('resumen-general'),
+    [],
+    canAccess,
+  );
+
   const bienesAdminQuery = useApiQuery(
     () => fetchBienesAdministrativos({ page: 1, limit: MODULE_PAGE_SIZE }),
     [],
+    canAccess,
   );
   const bienesCementerioQuery = useApiQuery(
     () => fetchBienesCementerio({ page: 1, limit: MODULE_PAGE_SIZE }),
     [],
+    canAccess,
   );
   const parcelasQuery = useApiQuery(
     () => fetchParcelas({ page: 1, limit: MODULE_PAGE_SIZE }),
     [],
+    canAccess,
   );
-  const parcelasStatsQuery = useApiQuery(() => fetchParcelasEstadisticas(), []);
+  const parcelasStatsQuery = useApiQuery(
+    () => fetchParcelasEstadisticas(),
+    [],
+    canAccess,
+  );
   const vehiculosQuery = useApiQuery(
     () => fetchVehiculos({ page: 1, limit: MODULE_PAGE_SIZE }),
     [],
+    canAccess,
   );
 
   const metricas = useMemo(() => {
@@ -79,12 +104,19 @@ export default function Reportes() {
     const listaCementerio = bienesCementerioQuery.data?.data ?? [];
     const listaVehiculos = vehiculosQuery.data?.data ?? [];
     const listaParcelas = parcelasQuery.data?.terrenos ?? [];
+    const resumen = resumenQuery.data;
 
     return {
       bienesAdministrativos: bienesAdminQuery.data?.meta.total ?? listaAdmin.length,
       bienesCementerio: bienesCementerioQuery.data?.meta.total ?? listaCementerio.length,
-      vehiculos: vehiculosQuery.data?.meta.total ?? listaVehiculos.length,
-      parcelas: parcelasStatsQuery.data?.total ?? listaParcelas.length,
+      vehiculos:
+        resumen?.inventario.vehiculos
+        ?? vehiculosQuery.data?.meta.total
+        ?? listaVehiculos.length,
+      parcelas:
+        resumen?.inventario.parcelas
+        ?? parcelasStatsQuery.data?.total
+        ?? listaParcelas.length,
     };
   }, [
     bienesAdminQuery.data,
@@ -92,6 +124,7 @@ export default function Reportes() {
     vehiculosQuery.data,
     parcelasQuery.data?.terrenos,
     parcelasStatsQuery.data?.total,
+    resumenQuery.data,
   ]);
 
   const [fechaDesde, setFechaDesde] = useState('2024-01-01');
@@ -100,6 +133,7 @@ export default function Reportes() {
   const [formato, setFormato] = useState<'Resumido' | 'Detallado'>('Resumido');
   const [generado, setGenerado] = useState(true);
   const [exportMsg, setExportMsg] = useState('');
+  const [exportando, setExportando] = useState(false);
   const [busqueda, setBusqueda] = useState('');
 
   const reporteActivos = useMemo((): FilaReporte[] => {
@@ -222,15 +256,48 @@ export default function Reportes() {
     setBusqueda('');
   };
 
-  const handleGenerar = () => {
-    setGenerado(false);
-    setTimeout(() => setGenerado(true), 900);
+  const refrescarFuentes = async () => {
+    await Promise.allSettled([
+      resumenQuery.refetch(),
+      bienesAdminQuery.refetch(),
+      bienesCementerioQuery.refetch(),
+      parcelasQuery.refetch(),
+      parcelasStatsQuery.refetch(),
+      vehiculosQuery.refetch(),
+    ]);
   };
 
-  const simularExport = (tipo: string) => {
-    setExportMsg(`Generando ${tipo}...`);
-    setTimeout(() => setExportMsg(`${tipo} descargado exitosamente`), 1500);
-    setTimeout(() => setExportMsg(''), 4000);
+  const handleGenerar = async () => {
+    setGenerado(false);
+    try {
+      await refrescarFuentes();
+    } finally {
+      setGenerado(true);
+    }
+  };
+
+  const exportarReporte = async (formato: 'excel' | 'csv') => {
+    if (!canAccess) return;
+
+    const recurso = resolveReporteRecurso(categoriasSeleccionadas);
+    const anio = recurso === 'protocolos-por-mes' ? anioDesdeFecha(fechaDesde) : undefined;
+    const etiqueta = formato === 'excel' ? 'Excel' : 'CSV';
+
+    setExportando(true);
+    setExportMsg(`Generando ${etiqueta}...`);
+    try {
+      if (formato === 'excel') {
+        await exportReporteExcel(recurso, anio);
+      } else {
+        await exportReporteCsv(recurso, anio);
+      }
+      setExportMsg(`${etiqueta} descargado exitosamente`);
+    } catch (err) {
+      setExportMsg(err instanceof Error ? err.message : `No se pudo exportar ${etiqueta}`);
+    } finally {
+      setExportando(false);
+      setTimeout(() => setExportMsg(''), 4000);
+    }
   };
 
   const activeFilterCount = (categoriasSeleccionadas.length > 0 ? 1 : 0) +
@@ -253,15 +320,19 @@ export default function Reportes() {
         <div className="flex flex-wrap gap-2 items-center">
           {exportMsg && <span className="text-sm text-green-600 font-medium animate-pulse">{exportMsg}</span>}
           <button
-            onClick={() => simularExport('Excel')}
-            className="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50"
+            type="button"
+            onClick={() => exportarReporte('excel')}
+            disabled={exportando || !canAccess}
+            className="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-60"
           >
             <FileSpreadsheet size={16} />
             <span className="hidden sm:inline">Excel (.xlsx)</span>
           </button>
           <button
-            onClick={() => simularExport('PDF')}
-            className="flex items-center gap-2 px-4 py-2 bg-navy-900 text-white rounded-lg text-sm font-medium hover:bg-navy-800"
+            type="button"
+            onClick={() => exportarReporte('csv')}
+            disabled={exportando || !canAccess}
+            className="flex items-center gap-2 px-4 py-2 bg-navy-900 text-white rounded-lg text-sm font-medium hover:bg-navy-800 disabled:opacity-60"
           >
             <FileText size={16} />
             Descargar PDF
