@@ -176,6 +176,7 @@ export default function RegistroParcelasModal({
         });
 
         const observaciones = buildParcelaObservacionesMeta(item.observaciones ?? '', {
+          codigo: item.codigo,
           fechaAdquisicion: documento.fechaAdquisicion,
           fechaIngreso: new Date().toISOString().split('T')[0],
           numeroDocumento: documento.numeroDocumento,
@@ -339,6 +340,7 @@ export default function RegistroParcelasModal({
             <table className="w-full min-w-[1100px] text-sm">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-200">
+                  <Th>Código</Th>
                   <Th>Identificación</Th>
                   <Th>Ubicación Adicional</Th>
                   <Th>Área Total M²</Th>
@@ -354,7 +356,7 @@ export default function RegistroParcelasModal({
               <tbody>
                 {items.length === 0 ? (
                   <tr>
-                    <td colSpan={10} className="px-4 py-10 text-center text-sm text-gray-400">
+                    <td colSpan={11} className="px-4 py-10 text-center text-sm text-gray-400">
                       No hay parcelas agregadas. Use el botón + para registrar cada parcela.
                     </td>
                   </tr>
@@ -364,6 +366,7 @@ export default function RegistroParcelasModal({
                       key={item.key}
                       className={`border-b border-gray-100 ${index % 2 === 1 ? 'bg-gray-50/80' : 'bg-white'}`}
                     >
+                      <Td><span className="font-mono font-medium text-navy-900">{item.codigo}</span></Td>
                       <Td>{item.identificacion}</Td>
                       <Td><span className="block max-w-[180px] truncate">{item.ubicacionAdicional}</span></Td>
                       <Td>{item.areaTotalM2.toLocaleString('es-VE')}</Td>

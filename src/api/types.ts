@@ -196,6 +196,7 @@ export interface ApiDesincorporacionTerreno {
 
 export interface ApiParcela {
   id_terreno: number;
+  codigo?: string | null;
   nombre?: string | null;
   zona?: string | null;
   /** Día en que se registró la parcela en el sistema (si el API lo expone). */

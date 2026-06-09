@@ -13,9 +13,10 @@ export const documentoParcelaFormSchema = z.object({
 export type DocumentoParcelaForm = z.infer<typeof documentoParcelaFormSchema>;
 
 export const parcelaRegistroFormSchema = z.object({
+  codigo: z.string().trim().min(1, 'Indique el código'),
   identificacion: z.string().trim().min(1, 'Indique la identificación'),
   zona: z.string().trim().min(1, 'Indique lote / manzana'),
-  zonificacion: z.string().trim().min(1, 'Seleccione la zonificación'),
+  zonificacion: z.string().trim().min(1, 'Indique la zonificación'),
   ubicacionAdicional: z.string().trim().min(1, 'Indique la ubicación adicional'),
   areaTotalM2: z.coerce.number().positive('Indique el área total'),
   valorAdquisicion: z.coerce.number().min(0, 'El valor no puede ser negativo'),
@@ -32,6 +33,7 @@ export const registroParcelasListSchema = z
   .min(1, 'Agregue al menos una parcela con el botón +');
 
 export function parcelaDraftToFormInput(item: {
+  codigo: string;
   identificacion: string;
   zona: string;
   zonificacion: string;
@@ -44,6 +46,7 @@ export function parcelaDraftToFormInput(item: {
   levantamientoTopografico: 'Sí' | 'En trámite';
 }): ParcelaRegistroForm {
   return {
+    codigo: item.codigo,
     identificacion: item.identificacion,
     zona: item.zona,
     zonificacion: item.zonificacion,

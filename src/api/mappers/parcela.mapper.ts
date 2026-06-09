@@ -2,6 +2,7 @@ import type { Terreno, ProtocolizacionTerreno } from '../../types/terreno';
 import type { Inmueble } from '../../types/inmueble';
 import type { ApiParcela } from '../types';
 import {
+  extractCodigoMeta,
   extractFechaAdquisicionMeta,
   extractFechaIngresoMeta,
   extractNumeroDocumentoMeta,
@@ -39,6 +40,14 @@ function numeroDocumentoParcela(p: ApiParcela): string {
   );
 }
 
+function codigoParcela(p: ApiParcela): string {
+  return (
+    p.codigo?.trim()
+    || extractCodigoMeta(p.observaciones)
+    || `T-${String(p.id_terreno).padStart(4, '0')}`
+  );
+}
+
 function areaFromDoc(p: ApiParcela): number {
   return toNumber(p.documento?.area_total_m2) ?? 0;
 }
@@ -58,7 +67,7 @@ export function mapApiParcelaToTerreno(p: ApiParcela): Terreno {
 
   return {
     id: p.id_terreno,
-    codigo: `T-${String(p.id_terreno).padStart(4, '0')}`,
+    codigo: codigoParcela(p),
     identificacion: p.nombre ?? `Parcela ${p.id_terreno}`,
     ubicacion: p.documento?.propiedad?.ubicacion ?? p.ubicacion_adicional ?? '—',
     areaDocumento: areaDoc,

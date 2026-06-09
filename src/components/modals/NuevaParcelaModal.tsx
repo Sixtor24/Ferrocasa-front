@@ -10,7 +10,6 @@ import ModalField from './ModalField';
 import {
   ESTADOS_TRAMITE,
   LEVANTAMIENTO_TOPOGRAFICO_OPCIONES,
-  ZONIFICACIONES,
 } from '../../types/terreno';
 import { parseMontoInput, sanitizeMontoDraft } from '../../utils/formatters';
 import {
@@ -31,9 +30,10 @@ type NuevaParcelaModalProps = {
 function emptyParcela(): ParcelaRegistroDraft {
   return {
     key: `parcela-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    codigo: '',
     identificacion: '',
     zona: '',
-    zonificacion: ZONIFICACIONES[0],
+    zonificacion: '',
     ubicacionAdicional: '',
     areaTotalM2: 0,
     valorAdquisicion: 0,
@@ -110,8 +110,10 @@ export default function NuevaParcelaModal({
     onSave({
       ...parsed,
       key: itemKey,
+      codigo: parsed.codigo.trim(),
       identificacion: parsed.identificacion.trim(),
       zona: parsed.zona.trim(),
+      zonificacion: parsed.zonificacion.trim(),
       ubicacionAdicional: parsed.ubicacionAdicional.trim(),
       ciResponsable: parsed.ciResponsable.trim(),
       observaciones: parsed.observaciones?.trim() ?? '',
@@ -154,6 +156,9 @@ export default function NuevaParcelaModal({
     >
       <div className="space-y-5">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <ModalField label="Código *" error={errors.codigo?.message}>
+            <input {...register('codigo')} className="input-field" />
+          </ModalField>
           <ModalField label="Identificación *" error={errors.identificacion?.message}>
             <input {...register('identificacion')} className="input-field" />
           </ModalField>
@@ -161,13 +166,7 @@ export default function NuevaParcelaModal({
             <input {...register('zona')} className="input-field" />
           </ModalField>
           <ModalField label="Zonificación *" error={errors.zonificacion?.message}>
-            <Controller
-              name="zonificacion"
-              control={control}
-              render={({ field }) => (
-                <SearchableSelect value={field.value} onChange={field.onChange} options={ZONIFICACIONES} />
-              )}
-            />
+            <input {...register('zonificacion')} className="input-field" />
           </ModalField>
           <ModalField label="CI Responsable *" error={errors.ciResponsable?.message}>
             <Controller
