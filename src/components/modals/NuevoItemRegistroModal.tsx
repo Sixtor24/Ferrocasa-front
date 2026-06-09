@@ -23,6 +23,7 @@ import {
   type ItemRegistroForm,
 } from '../../schemas/registro.schema';
 import { formatMoneda } from '../../utils/formatters';
+import ResponsableAlmacenField from '../forms/ResponsableAlmacenField';
 import { resolveResponsableForAlmacen } from '../../utils/registroBienMappers';
 
 type NuevoItemRegistroModalProps = {
@@ -438,14 +439,11 @@ export default function NuevoItemRegistroModal({
               )}
             />
           </ModalField>
-          <ModalField label="Responsable">
-            <input
-              value={responsable || '—'}
-              readOnly
-              className="input-field bg-gray-50 text-gray-700"
-              title="Se asigna al elegir el almacén"
-            />
-          </ModalField>
+          <ResponsableAlmacenField
+            nombre={responsable}
+            ciResponsable={ciResponsable}
+            sinConfigurar={Boolean(almacen) && !ciResponsable}
+          />
           <ModalField label="Observaciones" error={errors.observaciones?.message}>
             <textarea {...register('observaciones')} className="input-field" rows={4} />
           </ModalField>

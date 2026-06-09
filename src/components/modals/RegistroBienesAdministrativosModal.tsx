@@ -1,4 +1,3 @@
-import type { ApiAlmacen } from '../../api/types';
 import {
   ALMACENES_BIENES_ADMINISTRATIVOS,
   DEPARTAMENTOS_BIENES_ADMINISTRATIVOS,
@@ -9,7 +8,6 @@ import RegistroBienesModal from './RegistroBienesModal';
 type RegistroBienesAdministrativosModalProps = {
   open: boolean;
   onClose: () => void;
-  almacenes: ApiAlmacen[];
   onSuccess: (message: string) => void;
   onError: (message: string) => void;
 };

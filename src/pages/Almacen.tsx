@@ -547,7 +547,6 @@ export default function Almacen() {
       <RegistroBienesAdministrativosModal
         open={showModal}
         onClose={() => setModal('registro', false)}
-        almacenes={almacenesQuery.data?.data ?? []}
         onSuccess={() => {
           bienesQuery.refetch();
           statsQuery.refetch();

@@ -26,7 +26,8 @@ import {
 import { formatMoneda } from '../../utils/formatters';
 import { validarConZod } from '../../utils/validators';
 import { toApiDateTime } from '../../api/mappers/enums';
-import { monedaBienToDocumento, normalizeCatalogValue } from '../../utils/registroBienMappers';
+import { almacenNombresPorSede, monedaBienToDocumento, normalizeCatalogValue } from '../../utils/registroBienMappers';
+import { useAlmacenesRegistro } from '../../hooks/useAlmacenesRegistro';
 import { buildRegistroVehiculosSuccessMessage } from '../../utils/assetNotify';
 import { rollbackRegistroVehiculos } from '../../utils/registroRollback';
 import { itemVehiculoToPayload, resolveAlmacenIdVehiculo } from '../../utils/registroVehiculoMappers';
@@ -40,7 +41,6 @@ import {
 type RegistroVehiculosModalProps = {
   open: boolean;
   onClose: () => void;
-  almacenes: ApiAlmacen[];
   onSuccess: (message: string) => void;
   onError: (message: string) => void;
 };
@@ -79,10 +79,10 @@ function totalItem(item: ItemVehiculoRegistroDraft) {
 export default function RegistroVehiculosModal({
   open,
   onClose,
-  almacenes,
   onSuccess,
   onError,
 }: RegistroVehiculosModalProps) {
+  const { almacenes } = useAlmacenesRegistro(open);
   const [items, setItems] = useState<ItemVehiculoRegistroDraft[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [itemModalOpen, setItemModalOpen] = useState(false);
@@ -106,12 +106,10 @@ export default function RegistroVehiculosModal({
   const moneda = watch('moneda');
   const prevSedeRef = useRef(sede);
 
-  const almacenOptions = useMemo(() => {
-    const catalog = new Set(almacenesPorSede(sede).map((nombre) => nombre.toLowerCase()));
-    const fromApi = almacenes.map((a) => a.nombre).filter(Boolean);
-    const matchingApi = fromApi.filter((nombre) => catalog.has(nombre.toLowerCase()));
-    return matchingApi.length > 0 ? matchingApi : [...almacenesPorSede(sede)];
-  }, [almacenes, sede]);
+  const almacenOptions = useMemo(
+    () => almacenNombresPorSede(almacenes, sede, sedesApi, almacenesPorSede(sede)),
+    [almacenes, sede, sedesApi],
+  );
 
   const departamentoOptions = useMemo(
     () => departamentosPorSede(sede),

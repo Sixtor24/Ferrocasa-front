@@ -7,3 +7,8 @@ export function hasAdminAccess(rol: RoleName | undefined | null): boolean {
   if (!rol) return false;
   return ADMIN_ACCESS_ROLES.includes(rol);
 }
+
+/** Configuración almacén → responsable (no aplica a Super Administrador). */
+export function hasAlmacenResponsableConfigAccess(rol: RoleName | undefined | null): boolean {
+  return rol === 'Administrador';
+}

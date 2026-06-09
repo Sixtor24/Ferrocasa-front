@@ -24,7 +24,7 @@ export const itemVehiculoRegistroFormSchema = z.object({
     .number({ error: 'Indique el valor de adquisición' })
     .min(0, 'El valor no puede ser negativo'),
   unidadAdministrativa: z.string().min(1, 'Seleccione la unidad administrativa'),
-  ciResponsable: z.string().trim().min(1, 'Seleccione el responsable'),
+  ciResponsable: z.string().trim().min(1, 'Configure el responsable del almacén en Configuración'),
   almacen: z.string().min(1, 'Seleccione el almacén'),
   idCategoriaGeneral: z.coerce.number().int().positive('Seleccione la categoría'),
   idSubcategoria: z.coerce.number().int().positive('Seleccione la subcategoría'),

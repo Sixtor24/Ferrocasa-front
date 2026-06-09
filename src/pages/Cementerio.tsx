@@ -540,7 +540,6 @@ export default function Cementerio() {
       <RegistroBienesCementerioModal
         open={showRegistro}
         onClose={() => setModal('registro', false)}
-        almacenes={almacenes}
         sedes={sedes}
         onSuccess={() => {
           bienesQuery.refetch();

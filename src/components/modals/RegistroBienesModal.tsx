@@ -23,10 +23,12 @@ import {
 } from '../../schemas/registro.schema';
 import { validarConZod } from '../../utils/validators';
 import {
+  almacenNombresPorSede,
   itemRegistroToBienPayload,
   monedaBienToDocumento,
   normalizeCatalogValue,
 } from '../../utils/registroBienMappers';
+import { useAlmacenesRegistro } from '../../hooks/useAlmacenesRegistro';
 import {
   extractRegistroError,
   notifyRegistroError,
@@ -50,7 +52,6 @@ export type RegistroBienesModalConfig = {
 type RegistroBienesModalProps = RegistroBienesModalConfig & {
   open: boolean;
   onClose: () => void;
-  almacenes: ApiAlmacen[];
   sedesReferencia?: ApiSede[];
   onSuccess: (message: string) => void;
   onError: (message: string) => void;
@@ -94,17 +95,9 @@ function resolveAlmacenId(nombre: string, almacenes: ApiAlmacen[]) {
   return match?.id_almacen ?? null;
 }
 
-function filterAlmacenesByCatalog(almacenes: ApiAlmacen[], catalog: readonly string[]) {
-  const catalogNames = new Set(catalog.map(normalizeCatalogValue));
-  const fromApi = almacenes.map((a) => a.nombre).filter((nombre) => catalogNames.has(normalizeCatalogValue(nombre)));
-  if (fromApi.length > 0) return fromApi;
-  return [...catalog];
-}
-
 export default function RegistroBienesModal({
   open,
   onClose,
-  almacenes,
   onSuccess,
   onError,
   modulo,
@@ -115,6 +108,7 @@ export default function RegistroBienesModal({
   almacenesCatalog,
   sedesReferencia = [],
 }: RegistroBienesModalProps) {
+  const { almacenes } = useAlmacenesRegistro(open);
   const sedeInicial = sedes[0] ?? '';
   const [items, setItems] = useState<ItemRegistroDraft[]>([]);
   const [submitting, setSubmitting] = useState(false);
@@ -144,13 +138,21 @@ export default function RegistroBienesModal({
       const sedesCementerio = sedesReferencia.length > 0 ? sedesReferencia : sedesApi;
       return nombresAlmacenesCementerio(almacenes, sedesCementerio);
     }
-    return filterAlmacenesByCatalog(almacenes, almacenesPorSede(sede) ?? almacenesCatalog);
+    return almacenNombresPorSede(
+      almacenes,
+      sede,
+      sedesApi,
+      almacenesPorSede(sede) ?? almacenesCatalog,
+    );
   }, [almacenes, almacenesCatalog, modulo, sede, sedesApi, sedesReferencia]);
 
   const departamentoOptions = useMemo(() => {
-    if (modulo === 'cementerio') return departamentos;
+    if (modulo === 'cementerio') {
+      const sedesCementerio = sedesReferencia.length > 0 ? sedesReferencia : sedesApi;
+      return nombresAlmacenesCementerio(almacenes, sedesCementerio);
+    }
     return departamentosPorSede(sede) ?? departamentos;
-  }, [departamentos, modulo, sede]);
+  }, [almacenes, departamentos, modulo, sede, sedesApi, sedesReferencia]);
 
   const sedeSelectOptions = useMemo(() => {
     const catalogNormalized = new Set(sedes.map(normalizeCatalogValue));

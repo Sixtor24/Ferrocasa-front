@@ -294,7 +294,7 @@ export default function Layout() {
         </main>
 
         <footer className="bg-white border-t border-gray-200/90 px-4 sm:px-6 py-2 flex items-center justify-between text-xs text-gray-400 shrink-0">
-          <span className="truncate">© 2024 C.V.G. FERROCASA — v1.0</span>
+          <span className="truncate">© 2026 C.V.G. FERROCASA</span>
           <div className="hidden sm:flex gap-4">
             <span className="hover:text-navy-600 cursor-pointer">Privacidad</span>
             <span className="hover:text-navy-600 cursor-pointer">Soporte Técnico</span>

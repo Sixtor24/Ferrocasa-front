@@ -467,7 +467,6 @@ export default function Vehiculos() {
       <RegistroVehiculosModal
         open={showRegistro}
         onClose={() => setModal('registro', false)}
-        almacenes={almacenesQuery.data?.data ?? []}
         onSuccess={() => {
           refreshVehiculos();
         }}

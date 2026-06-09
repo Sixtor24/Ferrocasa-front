@@ -297,9 +297,6 @@ export default function RegistroParcelasModal({
                   className={`input-field ${errors.fechaAdquisicion ? 'border-red-400' : ''}`}
                 />
                 {errors.fechaAdquisicion && <p className="text-xs text-red-600 mt-1">{errors.fechaAdquisicion.message}</p>}
-                <p className="text-xs text-gray-500 mt-1">
-                  Se asocia a la parcela al registrar (el documento de propiedad del API aún no persiste fechas).
-                </p>
               </Field>
               <Field label="Forma de Adquisición">
                 <Controller

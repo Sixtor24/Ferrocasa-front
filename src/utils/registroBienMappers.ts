@@ -78,7 +78,38 @@ export function resolveSedeId(nombreSede: string, sedes: ApiSede[]): number | nu
 
 export function findAlmacenByNombre(nombre: string, almacenes: ApiAlmacen[]) {
   const normalized = normalizeCatalogValue(nombre);
-  return almacenes.find((almacen) => normalizeCatalogValue(almacen.nombre) === normalized);
+  const exact = almacenes.find((almacen) => normalizeCatalogValue(almacen.nombre) === normalized);
+  if (exact) return exact;
+
+  return almacenes.find((almacen) => {
+    const apiName = normalizeCatalogValue(almacen.nombre);
+    return apiName.includes(normalized) || normalized.includes(apiName);
+  });
+}
+
+export function almacenNombresPorSede(
+  almacenes: ApiAlmacen[],
+  sede: string,
+  sedes: ApiSede[],
+  catalogFallback: readonly string[],
+): string[] {
+  const idSede = resolveSedeId(sede, sedes);
+  const fromApi = almacenes
+    .filter((almacen) => (idSede ? almacen.id_sede === idSede : true))
+    .map((almacen) => almacen.nombre)
+    .filter((nombre): nombre is string => Boolean(nombre?.trim()));
+
+  if (fromApi.length > 0) {
+    return [...new Set(fromApi)].sort((a, b) => a.localeCompare(b, 'es'));
+  }
+
+  const catalogNames = new Set(catalogFallback.map(normalizeCatalogValue));
+  const fromCatalog = almacenes
+    .map((almacen) => almacen.nombre)
+    .filter((nombre) => catalogNames.has(normalizeCatalogValue(nombre)));
+  if (fromCatalog.length > 0) return fromCatalog;
+
+  return [...catalogFallback];
 }
 
 export async function resolveResponsableForAlmacen(
@@ -103,7 +134,11 @@ export async function resolveResponsableForAlmacen(
 
   try {
     const responsable = await fetchResponsableByCi(ci);
-    return { responsable: responsable.nombre, ciResponsable: responsable.ci_responsable };
+    const ciNormalizado = ciResponsableForApi(responsable.ci_responsable) ?? ci;
+    return {
+      responsable: responsable.nombre,
+      ciResponsable: ciNormalizado,
+    };
   } catch {
     return { responsable: '—', ciResponsable: '' };
   }

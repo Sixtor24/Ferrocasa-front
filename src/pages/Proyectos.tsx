@@ -266,7 +266,7 @@ export default function Proyectos() {
               DESTACADO DEL MES
             </span>
             <p className="text-lg font-bold">Residencias El Ávila</p>
-            <p className="text-sm text-white/80">Finalización estimada: Q4 2024. Avance de obra: 78%.</p>
+            <p className="text-sm text-white/80">Finalización estimada: Q4 2026. Avance de obra: 78%.</p>
           </div>
         </div>
 
