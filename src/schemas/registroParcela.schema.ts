@@ -1,8 +1,8 @@
 import { z } from 'zod';
 
 export const documentoParcelaFormSchema = z.object({
-  numeroDocumento: z.string().optional().default(''),
-  numeroPropiedad: z.coerce.number().int().positive('Indique el nro de propiedad'),
+  numeroDocumento: z.string(),
+  numeroPropiedad: z.number().int().positive('Indique el nro de propiedad'),
   nombrePropiedad: z.string().trim().min(1, 'Indique el nombre de la propiedad'),
   ubicacionPropiedad: z.string().trim().min(1, 'Indique la ubicación'),
   fechaAdquisicion: z.string().min(1, 'Indique la fecha de adquisición'),
@@ -10,7 +10,8 @@ export const documentoParcelaFormSchema = z.object({
   moneda: z.enum(['Bs', 'USD', 'EUR']),
 });
 
-export type DocumentoParcelaForm = z.infer<typeof documentoParcelaFormSchema>;
+export type DocumentoParcelaFormInput = z.input<typeof documentoParcelaFormSchema>;
+export type DocumentoParcelaForm = z.output<typeof documentoParcelaFormSchema>;
 
 export const parcelaRegistroFormSchema = z.object({
   codigo: z.string().trim().min(1, 'Indique el código'),

@@ -15,6 +15,7 @@ import {
   parcelaDraftToFormInput,
   registroParcelasListSchema,
   type DocumentoParcelaForm,
+  type DocumentoParcelaFormInput,
 } from '../../schemas/registroParcela.schema';
 import { validarConZod } from '../../utils/validators';
 import {
@@ -39,7 +40,7 @@ const FORMAS_DOCUMENTO: { label: string; value: FormaAdquisicionPropiedad }[] = 
   { label: 'Confiscación', value: 'Confiscacion' },
 ];
 
-const documentoDefaultValues: DocumentoParcelaForm = {
+const documentoDefaultValues: DocumentoParcelaFormInput = {
   numeroDocumento: '',
   numeroPropiedad: 0,
   nombrePropiedad: '',
@@ -109,7 +110,7 @@ export default function RegistroParcelasModal({
     reset,
     watch,
     formState: { errors },
-  } = useForm<DocumentoParcelaForm>({
+  } = useForm<DocumentoParcelaFormInput, unknown, DocumentoParcelaForm>({
     resolver: zodResolver(documentoParcelaFormSchema),
     defaultValues: documentoDefaultValues,
   });
