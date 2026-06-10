@@ -9,7 +9,6 @@ import {
 import { fetchVehiculosAll } from '../api/services/vehiculos.service';
 import type { BienMueble } from '../types/bien';
 import type { Vehiculo } from '../types/vehiculo';
-import { downloadExcelFormat } from './downloadExcelFormat';
 import { fillExcelTemplate } from './excelWorkbookExport';
 import { SUDEBIP_HEADER_ROW } from './excelSheetStyles';
 import {
@@ -82,11 +81,6 @@ export async function exportSudebipForModule(module: ModuleFormatKey): Promise<v
     case 'vehiculos': {
       const { data } = await fetchVehiculosAll();
       await exportSudebipVehiculos(data);
-      return;
-    }
-    case 'terrenos': {
-      // Sin reporte oficial de inmuebles: se entrega la plantilla de carga.
-      await downloadExcelFormat('sudebip-inmuebles');
       return;
     }
     default:

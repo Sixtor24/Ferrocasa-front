@@ -76,6 +76,8 @@ export function mapApiParcelaToTerreno(p: ApiParcela): Terreno {
     zonificacion: p.zonificacion ?? '—',
     levantamientoTopografico: mapLevantamientoTopografico(p.levantamiento_topografico),
     acreditacionTecnicaAmbiental: mapAcreditacionAmbiental(p.acreditacion_ambiental),
+    levantamientoTopograficoApi: p.levantamiento_topografico ?? '',
+    acreditacionAmbientalApi: p.acreditacion_ambiental ?? '',
     nombre: p.nombre ?? '—',
     nroPropiedad: String(p.documento?.propiedad?.numero_propiedad ?? p.documento?.numero_propiedad ?? '—'),
     fechaIngreso: fechaIngresoParcela(p) || '—',

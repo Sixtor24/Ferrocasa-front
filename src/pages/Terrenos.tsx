@@ -41,7 +41,7 @@ import AssetDetailView from '../components/module/AssetDetailView';
 import ApiState from '../components/ApiState';
 import { formatFecha, formatMoneda } from '../utils/formatters';
 import { aggregateTerrenoMetricas } from '../utils/parcelasStats';
-import { exportSudebipTerrenos } from '../utils/exportTerrenosSudebipExcel';
+import { exportInventarioParcelas } from '../utils/exportInventarioParcelasExcel';
 import { useModuleUiState } from '../stores/moduleUiStore';
 import type { Column } from '../components/DataTable';
 import { AlertTriangle, ArrowLeft, Map, MapPin, Layers, MinusCircle } from 'lucide-react';
@@ -530,7 +530,7 @@ export default function Terrenos() {
     detailQuery.refetch();
   };
 
-  const exportarSudebipFiltrado = async () => {
+  const exportarInventarioParcelas = async () => {
     const result = await fetchParcelasAll({
       search: apiSearch,
       estado: filtros.estado && filtros.estado !== 'Todos'
@@ -541,7 +541,7 @@ export default function Terrenos() {
     if (rows.length === 0) {
       throw new Error('No hay terrenos para exportar con los filtros seleccionados');
     }
-    await exportSudebipTerrenos(rows);
+    await exportInventarioParcelas(rows);
   };
 
   const columns: Column<Terreno>[] = [
@@ -599,8 +599,8 @@ export default function Terrenos() {
       <ModulePageHeader
         title="Terrenos"
         breadcrumb={[{ label: 'Dashboard', to: '/dashboard' }, { label: 'Terrenos' }]}
-        formatModule="terrenos"
-        onExportSudebip={exportarSudebipFiltrado}
+        exportLabel="Inventario de Parcelas"
+        onExport={exportarInventarioParcelas}
         onCreate={() => setModal('registro', true)}
         createLabel="Crear Registro"
       />

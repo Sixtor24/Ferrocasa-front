@@ -56,7 +56,7 @@ export function levantamientoTopograficoToApi(value: 'Sí' | 'No' | 'En trámite
   return value === 'Sí' ? 'Si' : 'Solicitar';
 }
 
-export function mapAcreditacionAmbiental(api: string): 'Sí' | 'No' | 'En trámite' {
+export function mapAcreditacionAmbiental(api: string): 'Sí' | 'No' {
   if (api === 'Si_posee') return 'Sí';
   return 'No';
 }

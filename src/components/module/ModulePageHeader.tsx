@@ -16,11 +16,14 @@ interface ModulePageHeaderProps {
   onCreate?: () => void;
   createLabel?: string;
   extraActions?: ReactNode;
-  /** Módulo que define qué plantillas Excel descargar. */
+  /** Módulo que define qué plantillas Excel descargar (SUDEBIP + formato interno). */
   formatModule?: ModuleFormatKey;
   internalFormatLabel?: string;
   onExportSudebip?: () => Promise<void>;
   onExportInterno?: () => Promise<void>;
+  /** Exportación única (ej. Inventario de Parcelas en Terrenos). */
+  exportLabel?: string;
+  onExport?: () => Promise<void>;
 }
 
 export default function ModulePageHeader({
@@ -33,13 +36,29 @@ export default function ModulePageHeader({
   internalFormatLabel,
   onExportSudebip,
   onExportInterno,
+  exportLabel,
+  onExport,
 }: ModulePageHeaderProps) {
-  const [downloading, setDownloading] = useState<'sudebip' | 'interno' | null>(null);
+  const [downloading, setDownloading] = useState<'sudebip' | 'interno' | 'export' | null>(null);
   const moduleFormats =
     formatModule && EXCEL_FORMAT_MODULE_KEYS.includes(formatModule)
       ? MODULE_EXCEL_FORMATS[formatModule]
       : null;
   const internoLabel = internalFormatLabel ?? moduleFormats?.internoLabel ?? 'Formato Interno';
+
+  const handleSingleExport = async () => {
+    if (!onExport) return;
+
+    setDownloading('export');
+    try {
+      await onExport();
+      toast.success(`${exportLabel ?? 'Inventario'} exportado correctamente`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'No se pudo completar la descarga');
+    } finally {
+      setDownloading(null);
+    }
+  };
 
   const handleDownload = async (type: 'sudebip' | 'interno') => {
     if (!moduleFormats) return;
@@ -101,6 +120,18 @@ export default function ModulePageHeader({
           >
             <Plus size={16} />
             {createLabel}
+          </button>
+        )}
+        {onExport && (
+          <button
+            type="button"
+            onClick={() => void handleSingleExport()}
+            disabled={downloading !== null}
+            className="inline-flex items-center gap-2 px-4 py-2.5 border border-gray-200 bg-white text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-60"
+            title={`Exportar ${exportLabel ?? 'inventario'} con datos del sistema`}
+          >
+            <FileText size={16} />
+            {downloading === 'export' ? 'Exportando...' : exportLabel ?? 'Exportar'}
           </button>
         )}
         {moduleFormats && (

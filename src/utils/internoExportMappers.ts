@@ -1,5 +1,4 @@
 import type { BienMueble } from '../types/bien';
-import type { Terreno } from '../types/terreno';
 import type { Vehiculo } from '../types/vehiculo';
 import { sudebipEstadoUso } from './sudebipExportMappers';
 
@@ -66,19 +65,5 @@ export function vehiculoToInternoMueblesRow(vehiculo: Vehiculo): (string | numbe
     dashToEmpty(vehiculo.color),
     serial || 'S/S',
     sudebipEstadoUso(vehiculo.estadoUso),
-  ];
-}
-
-export function terrenoToInternoParcelaRow(index: number, terreno: Terreno): (string | number)[] {
-  return [
-    index + 1,
-    dashToEmpty(terreno.ubicacion) || dashToEmpty(terreno.zona),
-    terreno.areaDocumento ?? terreno.areaTotalM2 ?? 0,
-    terreno.areaDesincorporada ?? 0,
-    terreno.areaComprometida ?? 0,
-    terreno.areaDisponible ?? 0,
-    dashToEmpty(terreno.identificacion) || dashToEmpty(terreno.nombre),
-    dashToEmpty(terreno.zonificacion),
-    dashToEmpty(terreno.observacion),
   ];
 }

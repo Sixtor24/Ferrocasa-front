@@ -6,20 +6,18 @@ export type ExcelFormatId =
   | 'interno-area-patio'
   | 'interno-parcelas';
 
-export type ModuleFormatKey = 'almacen' | 'vehiculos' | 'cementerio' | 'terrenos';
+export type ModuleFormatKey = 'almacen' | 'vehiculos' | 'cementerio';
 
 /** Submódulos que exponen descarga SUDEBIP y formato interno. */
 export const EXCEL_FORMAT_MODULE_KEYS: readonly ModuleFormatKey[] = [
   'almacen',
   'vehiculos',
-  'terrenos',
   'cementerio',
 ] as const;
 
 export const EXCEL_FORMAT_MODULE_LABELS: Record<ModuleFormatKey, string> = {
   almacen: 'Bienes administrativos',
   vehiculos: 'Vehículos',
-  terrenos: 'Terrenos',
   cementerio: 'Cementerio',
 };
 
@@ -82,10 +80,5 @@ export const MODULE_EXCEL_FORMATS: Record<
     sudebip: 'sudebip-muebles',
     interno: 'interno-area-patio',
     internoLabel: 'Formato Área Patio',
-  },
-  terrenos: {
-    sudebip: 'sudebip-inmuebles',
-    interno: 'interno-parcelas',
-    internoLabel: 'Inventario de Parcelas',
   },
 };

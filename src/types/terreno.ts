@@ -9,6 +9,10 @@ export interface Terreno {
   zonificacion: string;
   levantamientoTopografico: 'Sí' | 'No' | 'En trámite';
   acreditacionTecnicaAmbiental: 'Sí' | 'No' | 'En trámite';
+  /** Valor crudo API: `Si` | `Solicitar` */
+  levantamientoTopograficoApi: string;
+  /** Valor crudo API: `Si_posee` | `No_posee` */
+  acreditacionAmbientalApi: string;
   nombre: string;
   nroPropiedad: string;
   fechaIngreso: string;

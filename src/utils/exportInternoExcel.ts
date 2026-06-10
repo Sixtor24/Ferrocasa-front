@@ -7,15 +7,12 @@ import {
   SEDES_BIENES_ADMINISTRATIVOS,
   SEDES_CEMENTERIO,
 } from '../api/services/bienes-sedes.service';
-import { fetchParcelasAll } from '../api/services/parcelas.service';
 import { fetchVehiculosAll } from '../api/services/vehiculos.service';
 import type { BienMueble } from '../types/bien';
-import type { Terreno } from '../types/terreno';
 import type { Vehiculo } from '../types/vehiculo';
 import { fillExcelTemplate, type ExcelTemplateLayout } from './excelWorkbookExport';
 import {
   bienToInternoMueblesRow,
-  terrenoToInternoParcelaRow,
   vehiculoToInternoMueblesRow,
 } from './internoExportMappers';
 
@@ -33,15 +30,6 @@ const INTERNO_PATIO_LAYOUT: ExcelTemplateLayout = {
   headerRow: 8,
   dataStartRow: 9,
   minCols: 7,
-};
-
-const INTERNO_PARCELAS_LAYOUT: ExcelTemplateLayout = {
-  assetPath: EXCEL_FORMATS['interno-parcelas'].assetPath,
-  downloadName: EXCEL_FORMATS['interno-parcelas'].downloadName,
-  sheetName: 'Prop2-Cd. Guayana (ACTUAL)',
-  headerRow: 7,
-  dataStartRow: 10,
-  minCols: 8,
 };
 
 async function fetchAllBienesBySedeAliases(aliases: readonly string[]): Promise<BienMueble[]> {
@@ -84,11 +72,6 @@ export async function exportInternoVehiculos(vehiculos: Vehiculo[]): Promise<voi
   );
 }
 
-export async function exportInternoParcelas(terrenos: Terreno[]): Promise<void> {
-  const rows = terrenos.map((terreno, index) => terrenoToInternoParcelaRow(index, terreno));
-  await fillExcelTemplate(INTERNO_PARCELAS_LAYOUT, rows);
-}
-
 export async function exportInternoForModule(module: ModuleFormatKey): Promise<void> {
   switch (module) {
     case 'almacen': {
@@ -104,11 +87,6 @@ export async function exportInternoForModule(module: ModuleFormatKey): Promise<v
     case 'vehiculos': {
       const { data } = await fetchVehiculosAll();
       await exportInternoVehiculos(data);
-      return;
-    }
-    case 'terrenos': {
-      const { terrenos } = await fetchParcelasAll();
-      await exportInternoParcelas(terrenos);
       return;
     }
     default:
