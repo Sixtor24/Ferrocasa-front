@@ -1,3 +1,4 @@
+import axios, { type AxiosRequestConfig, type Method } from 'axios';
 import { ApiValidationError, validateApiPayload, validateApiResponse } from './validation';
 import {
   clearAuthSession,
@@ -9,6 +10,13 @@ import type { AuthSession } from '../types/auth';
 import { formatApiErrorMessage } from '../utils/apiErrorMessage';
 
 const API_BASE = import.meta.env.VITE_API_URL ?? '/api/v1';
+
+const http = axios.create({
+  baseURL: API_BASE.replace(/\/$/, ''),
+  headers: {
+    Accept: 'application/json',
+  },
+});
 
 export class ApiError extends Error {
   constructor(
@@ -29,26 +37,26 @@ type RequestOptions = {
   retryAuth?: boolean;
 };
 
-function buildUrl(path: string, params?: RequestOptions['params']): string {
-  const base = API_BASE.replace(/\/$/, '');
-  const normalized = path.startsWith('/') ? path : `/${path}`;
-  const url = `${base}${normalized}`;
-  if (!params) return url;
+function normalizePath(path: string): string {
+  return path.startsWith('/') ? path : `/${path}`;
+}
 
-  const search = new URLSearchParams();
-  for (const [key, value] of Object.entries(params)) {
-    if (value !== undefined && value !== null && value !== '') {
-      search.set(key, String(value));
-    }
-  }
-  const qs = search.toString();
-  return qs ? `${url}?${qs}` : url;
+function sanitizeParams(params?: RequestOptions['params']) {
+  if (!params) return undefined;
+  return Object.fromEntries(
+    Object.entries(params).filter(([, value]) => value !== undefined && value !== null && value !== ''),
+  );
+}
+
+function authHeaders(auth: boolean): AxiosRequestConfig['headers'] {
+  const authorization = auth ? getAuthorizationHeader() : null;
+  return authorization ? { Authorization: authorization } : undefined;
 }
 
 let refreshPromise: Promise<AuthSession | null> | null = null;
 
 function isAuthRefreshPath(path: string) {
-  return buildUrl(path).endsWith('/auth/refresh-token');
+  return normalizePath(path).endsWith('/auth/refresh-token');
 }
 
 function emitAuthExpired() {
@@ -62,14 +70,11 @@ async function refreshAuthSession(): Promise<AuthSession | null> {
   if (!refreshToken) return null;
 
   if (!refreshPromise) {
-    refreshPromise = fetch(buildUrl('/auth/refresh-token'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refresh_token: refreshToken }),
-    })
-      .then(async (res) => {
-        const json = await res.json().catch(() => ({}));
-        if (!res.ok || json.success === false || !json.data) {
+    refreshPromise = http
+      .post('/auth/refresh-token', { refresh_token: refreshToken }, { validateStatus: () => true })
+      .then((res) => {
+        const json = res.data ?? {};
+        if (res.status < 200 || res.status >= 300 || json.success === false || !json.data) {
           clearAuthSession();
           emitAuthExpired();
           return null;
@@ -95,21 +100,16 @@ export async function apiRequest<T>(
   options: RequestOptions = {}
 ): Promise<T> {
   const { method = 'GET', body, params, auth = true, retryAuth = true } = options;
-  const url = buildUrl(path, params);
   const validatedBody = validateApiPayload(path, method, body);
-  const authorization = auth ? getAuthorizationHeader() : null;
-  const headers = new Headers();
-
-  if (validatedBody) headers.set('Content-Type', 'application/json');
-  if (authorization) headers.set('Authorization', authorization);
-
-  const res = await fetch(url, {
-    method,
-    headers,
-    body: validatedBody ? JSON.stringify(validatedBody) : undefined,
+  const res = await http.request({
+    url: normalizePath(path),
+    method: method as Method,
+    data: validatedBody,
+    params: sanitizeParams(params),
+    headers: authHeaders(auth),
+    validateStatus: () => true,
   });
-
-  const json = await res.json().catch(() => ({}));
+  const json = res.data ?? {};
 
   if (auth && retryAuth && res.status === 401 && !isAuthRefreshPath(path)) {
     const refreshed = await refreshAuthSession();
@@ -118,7 +118,7 @@ export async function apiRequest<T>(
     }
   }
 
-  if (!res.ok || json.success === false) {
+  if (res.status < 200 || res.status >= 300 || json.success === false) {
     if (auth && res.status === 401) {
       clearAuthSession();
       emitAuthExpired();
@@ -154,12 +154,12 @@ export async function apiDownload(
   fallbackFilename = 'descarga',
   retryAuth = true,
 ): Promise<void> {
-  const url = buildUrl(path, params);
-  const authorization = getAuthorizationHeader();
-  const headers = new Headers();
-  if (authorization) headers.set('Authorization', authorization);
-
-  const res = await fetch(url, { headers });
+  const res = await http.get<Blob>(normalizePath(path), {
+    params: sanitizeParams(params),
+    headers: authHeaders(true),
+    responseType: 'blob',
+    validateStatus: () => true,
+  });
 
   if (retryAuth && res.status === 401 && !isAuthRefreshPath(path)) {
     const refreshed = await refreshAuthSession();
@@ -172,17 +172,29 @@ export async function apiDownload(
     throw new ApiError('Sesión expirada', 401);
   }
 
-  if (!res.ok) {
-    const json = await res.json().catch(() => ({}));
+  if (res.status < 200 || res.status >= 300) {
+    const json = await parseAxiosBlobError(res.data);
     throw new ApiError(formatApiErrorMessage(json, `Error HTTP ${res.status}`), res.status, json);
   }
 
-  const blob = await res.blob();
-  const filename = parseDownloadFilename(res.headers.get('content-disposition'), fallbackFilename);
+  const blob = res.data;
+  const disposition = typeof res.headers['content-disposition'] === 'string'
+    ? res.headers['content-disposition']
+    : null;
+  const filename = parseDownloadFilename(disposition, fallbackFilename);
   const objectUrl = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
   anchor.href = objectUrl;
   anchor.download = filename;
   anchor.click();
   URL.revokeObjectURL(objectUrl);
+}
+
+async function parseAxiosBlobError(body: unknown) {
+  if (!(body instanceof Blob)) return body ?? {};
+  try {
+    return JSON.parse(await body.text());
+  } catch {
+    return {};
+  }
 }

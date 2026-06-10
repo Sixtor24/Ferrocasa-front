@@ -41,11 +41,13 @@ import AssetDetailView from '../components/module/AssetDetailView';
 import ApiState from '../components/ApiState';
 import { formatFecha, formatMoneda } from '../utils/formatters';
 import { aggregateTerrenoMetricas } from '../utils/parcelasStats';
+import { exportSudebipTerrenos } from '../utils/exportTerrenosSudebipExcel';
 import { useModuleUiState } from '../stores/moduleUiStore';
 import type { Column } from '../components/DataTable';
 import { AlertTriangle, ArrowLeft, Map, MapPin, Layers, MinusCircle } from 'lucide-react';
 
 const ESTADOS_PARCELA = ['disponible', 'comprometida', 'desincorporada'] as const;
+type TerrenosFilters = typeof FILTROS_TERRENOS_VACIOS;
 
 function formatAreaM2Detail(value: number) {
   return `${value.toLocaleString('es-VE')} m²`;
@@ -54,6 +56,23 @@ function formatAreaM2Detail(value: number) {
 function acreditacionEstadoToApi(value: Terreno['acreditacionTecnicaAmbiental']) {
   if (value === 'Sí') return 'Si_posee';
   return 'No_posee';
+}
+
+function filterTerrenosByUiFilters(terrenos: Terreno[], filtros: TerrenosFilters) {
+  return terrenos.filter((t) => {
+    if (filtros.codigo && !t.codigo.toLowerCase().includes(filtros.codigo.toLowerCase())) return false;
+    if (
+      filtros.identificacion &&
+      !t.identificacion.toLowerCase().includes(filtros.identificacion.toLowerCase())
+    ) {
+      return false;
+    }
+    if (filtros.nroPropiedad && !t.nroPropiedad.includes(filtros.nroPropiedad)) return false;
+    if (filtros.fecha && t.fechaAdquisicion !== filtros.fecha) return false;
+    if (filtros.levantamiento && filtros.levantamiento !== 'Todos' && t.levantamientoTopografico !== filtros.levantamiento) return false;
+    if (filtros.acreditacion && filtros.acreditacion !== 'Todos' && t.acreditacionTecnicaAmbiental !== filtros.acreditacion) return false;
+    return true;
+  });
 }
 
 function parcelaPayloadFromApi(
@@ -496,22 +515,7 @@ export default function Terrenos() {
     [metricsQuery.data?.terrenos],
   );
 
-  const filtered = useMemo(() => {
-    return terrenos.filter((t) => {
-      if (filtros.codigo && !t.codigo.toLowerCase().includes(filtros.codigo.toLowerCase())) return false;
-      if (
-        filtros.identificacion &&
-        !t.identificacion.toLowerCase().includes(filtros.identificacion.toLowerCase())
-      ) {
-        return false;
-      }
-      if (filtros.nroPropiedad && !t.nroPropiedad.includes(filtros.nroPropiedad)) return false;
-      if (filtros.fecha && t.fechaAdquisicion !== filtros.fecha) return false;
-      if (filtros.levantamiento && filtros.levantamiento !== 'Todos' && t.levantamientoTopografico !== filtros.levantamiento) return false;
-      if (filtros.acreditacion && filtros.acreditacion !== 'Todos' && t.acreditacionTecnicaAmbiental !== filtros.acreditacion) return false;
-      return true;
-    });
-  }, [terrenos, filtros]);
+  const filtered = useMemo(() => filterTerrenosByUiFilters(terrenos, filtros), [terrenos, filtros]);
 
   const paginated = filtered;
 
@@ -524,6 +528,20 @@ export default function Terrenos() {
     listQuery.refetch();
     metricsQuery.refetch();
     detailQuery.refetch();
+  };
+
+  const exportarSudebipFiltrado = async () => {
+    const result = await fetchParcelasAll({
+      search: apiSearch,
+      estado: filtros.estado && filtros.estado !== 'Todos'
+        ? (filtros.estado as (typeof ESTADOS_PARCELA)[number])
+        : undefined,
+    });
+    const rows = filterTerrenosByUiFilters(result.terrenos, filtros);
+    if (rows.length === 0) {
+      throw new Error('No hay terrenos para exportar con los filtros seleccionados');
+    }
+    await exportSudebipTerrenos(rows);
   };
 
   const columns: Column<Terreno>[] = [
@@ -582,6 +600,7 @@ export default function Terrenos() {
         title="Terrenos"
         breadcrumb={[{ label: 'Dashboard', to: '/dashboard' }, { label: 'Terrenos' }]}
         formatModule="terrenos"
+        onExportSudebip={exportarSudebipFiltrado}
         onCreate={() => setModal('registro', true)}
         createLabel="Crear Registro"
       />

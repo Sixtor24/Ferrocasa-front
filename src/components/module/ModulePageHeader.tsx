@@ -19,6 +19,8 @@ interface ModulePageHeaderProps {
   /** Módulo que define qué plantillas Excel descargar. */
   formatModule?: ModuleFormatKey;
   internalFormatLabel?: string;
+  onExportSudebip?: () => Promise<void>;
+  onExportInterno?: () => Promise<void>;
 }
 
 export default function ModulePageHeader({
@@ -29,6 +31,8 @@ export default function ModulePageHeader({
   extraActions,
   formatModule,
   internalFormatLabel,
+  onExportSudebip,
+  onExportInterno,
 }: ModulePageHeaderProps) {
   const [downloading, setDownloading] = useState<'sudebip' | 'interno' | null>(null);
   const moduleFormats =
@@ -43,10 +47,18 @@ export default function ModulePageHeader({
     setDownloading(type);
     try {
       if (type === 'sudebip' && formatModule) {
-        await exportSudebipForModule(formatModule);
+        if (onExportSudebip) {
+          await onExportSudebip();
+        } else {
+          await exportSudebipForModule(formatModule);
+        }
         toast.success('Inventario SUDEBIP exportado correctamente');
       } else if (formatModule) {
-        await exportInternoForModule(formatModule);
+        if (onExportInterno) {
+          await onExportInterno();
+        } else {
+          await exportInternoForModule(formatModule);
+        }
         toast.success('Inventario interno exportado correctamente');
       }
     } catch (err) {
