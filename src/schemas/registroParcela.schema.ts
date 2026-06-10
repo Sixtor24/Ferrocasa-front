@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 export const documentoParcelaFormSchema = z.object({
   numeroDocumento: z.string(),
-  numeroPropiedad: z.number().int().positive('Indique el nro de propiedad'),
+  numeroPropiedad: z.number().int().min(0, 'Indique el nro de propiedad'),
   nombrePropiedad: z.string().trim().min(1, 'Indique el nombre de la propiedad'),
   ubicacionPropiedad: z.string().trim().min(1, 'Indique la ubicación'),
   fechaAdquisicion: z.string().min(1, 'Indique la fecha de adquisición'),
@@ -21,10 +21,10 @@ export const parcelaRegistroFormSchema = z.object({
   ubicacionAdicional: z.string().trim().min(1, 'Indique la ubicación adicional'),
   areaTotalM2: z.coerce.number().positive('Indique el área total'),
   valorAdquisicion: z.coerce.number().min(0, 'El valor no puede ser negativo'),
-  ciResponsable: z.string().trim().min(1, 'Seleccione el responsable'),
+  ciResponsable: z.string(),
   observaciones: z.string().optional().default(''),
   acreditacionTecnicaAmbiental: z.enum(['Sí', 'No', 'En trámite']),
-  levantamientoTopografico: z.enum(['Sí', 'En trámite']),
+  levantamientoTopografico: z.enum(['Sí', 'No', 'En trámite']),
 });
 
 export type ParcelaRegistroForm = z.infer<typeof parcelaRegistroFormSchema>;
@@ -44,7 +44,7 @@ export function parcelaDraftToFormInput(item: {
   ciResponsable: string;
   observaciones: string;
   acreditacionTecnicaAmbiental: 'Sí' | 'No' | 'En trámite';
-  levantamientoTopografico: 'Sí' | 'En trámite';
+  levantamientoTopografico: 'Sí' | 'No' | 'En trámite';
 }): ParcelaRegistroForm {
   return {
     codigo: item.codigo,

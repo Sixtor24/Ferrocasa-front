@@ -462,7 +462,7 @@ export const payloadSchemas = {
   }),
   protocolo: z.object({
     motivo: z.enum(['Venta', 'Ejecucion_de_obras', 'Afectado_por_bienhechurias_de_FMO']),
-    id_beneficiado: z.number().int(),
+    id_beneficiado: z.number().int().nullable().optional(),
     fecha_protocolo: z.string().min(1),
   }),
   desincorporacion: z.object({

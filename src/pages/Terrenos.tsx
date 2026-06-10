@@ -22,9 +22,13 @@ import {
 } from '../api/mappers/enums';
 import type { ProtocolizacionTerreno, Terreno } from '../types/terreno';
 import {
+  Modal,
   NuevaProtocolizacionModal,
   RegistroParcelasModal,
 } from '../components/modals';
+import { useAuth } from '../context/AuthContext';
+import { createProtocolo } from '../api/services/protocolos.service';
+import { createDesincorporacion } from '../api/services/desincorporaciones.service';
 import UnsavedChangesModal from '../components/modals/UnsavedChangesModal';
 import { useUnsavedChangesGuard } from '../hooks/useUnsavedChangesGuard';
 import type { TipoProtocolizacionParcela } from '../components/modals/NuevaProtocolizacionModal';
@@ -41,7 +45,6 @@ import { useModuleUiState } from '../stores/moduleUiStore';
 import type { Column } from '../components/DataTable';
 import { AlertTriangle, ArrowLeft, Map, MapPin, Layers, MinusCircle } from 'lucide-react';
 
-const PER_PAGE = 5;
 const ESTADOS_PARCELA = ['disponible', 'comprometida', 'desincorporada'] as const;
 
 function formatAreaM2Detail(value: number) {
@@ -94,10 +97,14 @@ function TerrenoParcelaDetail({
   onUpdated: () => void;
 }) {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [acreditacion, setAcreditacion] = useState(terreno.acreditacionTecnicaAmbiental);
   const [levantamiento, setLevantamiento] = useState(terreno.levantamientoTopografico);
   const [protocolModalOpen, setProtocolModalOpen] = useState(false);
   const [protocolTipo, setProtocolTipo] = useState<TipoProtocolizacionParcela>('Compromiso');
+  const [protocolLockTipo, setProtocolLockTipo] = useState(false);
+  const [retiroConfirmOpen, setRetiroConfirmOpen] = useState(false);
+  const [retiroSubmitting, setRetiroSubmitting] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -144,6 +151,32 @@ function TerrenoParcelaDetail({
       description: `${terreno.codigo}: ${tipo.toLowerCase()} registrado correctamente.`,
     });
     onUpdated();
+  };
+
+  const handleRetiroConfirmado = async () => {
+    const today = new Date().toISOString().split('T')[0];
+    const areaTotal = terreno.areaDisponible + terreno.areaComprometida;
+    setRetiroSubmitting(true);
+    try {
+      const protocolo = await createProtocolo({
+        motivo: 'Venta',
+        id_beneficiado: null,
+        fecha_protocolo: today,
+      });
+      const desincorporacion = await createDesincorporacion({
+        id_protocolo: protocolo.id_protocolo,
+        cantidad_m2: areaTotal,
+        fecha_desincorporacion: today,
+      });
+      await vincularProtocolizacion('Desincorporación', desincorporacion.id_desincorporada);
+      setRetiroConfirmOpen(false);
+    } catch (err) {
+      toast.error('No se pudo retirar del inventario', {
+        description: err instanceof Error ? err.message : 'Intente nuevamente.',
+      });
+    } finally {
+      setRetiroSubmitting(false);
+    }
   };
 
   return (
@@ -235,6 +268,7 @@ function TerrenoParcelaDetail({
               type="button"
               onClick={() => {
                 setProtocolTipo('Compromiso');
+                setProtocolLockTipo(false);
                 setProtocolModalOpen(true);
               }}
               disabled={terreno.areaDisponible === 0}
@@ -252,10 +286,7 @@ function TerrenoParcelaDetail({
             </button>
             <button
               type="button"
-              onClick={() => {
-                setProtocolTipo('Desincorporación');
-                setProtocolModalOpen(true);
-              }}
+              onClick={() => setRetiroConfirmOpen(true)}
               disabled={yaDesincorporada || areaRetirable === 0}
               title={
                 yaDesincorporada
@@ -289,46 +320,117 @@ function TerrenoParcelaDetail({
       )}
 
       {protocolos.length > 0 && (
-        <div className="px-4 md:px-6 pb-8 max-w-7xl mx-auto space-y-4">
-          <h2 className="text-lg font-bold text-navy-900 font-display">Detalles de área</h2>
-          {protocolos.map((p) => (
-            <div
-              key={p.id}
-              className="bg-white rounded-xl border border-gray-200/80 shadow-sm p-5 grid grid-cols-1 md:grid-cols-2 gap-6"
-            >
-              <div className="space-y-4">
-                <div>
-                  <p className="text-xs text-gray-500">Tipo de Protocolización</p>
-                  <p className="text-sm font-medium text-navy-900">{p.tipoProtocolizacion}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500">Motivo</p>
-                  <p className="text-sm font-medium text-navy-900">{p.motivo}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500">Beneficiario</p>
-                  <p className="text-sm font-medium text-navy-900">{p.beneficiario}</p>
-                </div>
-              </div>
-              <div className="space-y-4">
-                <div>
-                  <p className="text-xs text-gray-500">Fecha</p>
-                  <p className="text-sm font-medium text-navy-900">{formatFecha(p.fecha)}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500">Cantidad de Área Comprometida o desincorporada M²</p>
-                  <p className="text-sm font-medium text-navy-900">{formatAreaM2Detail(p.areaComprometidaM2)}</p>
-                </div>
+        <div className="px-4 md:px-6 pb-8 max-w-7xl mx-auto space-y-6">
+          {protocolos.filter(p => p.tipoProtocolizacion === 'Compromiso').length > 0 && (
+            <div>
+              <h2 className="text-lg font-bold text-navy-900 font-display mb-3">Compromisos</h2>
+              <div className="overflow-x-auto rounded-xl border border-gray-200/80 shadow-sm">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
+                      <th className="px-4 py-3 text-left font-medium">Motivo</th>
+                      <th className="px-4 py-3 text-left font-medium">Beneficiario</th>
+                      <th className="px-4 py-3 text-left font-medium">Fecha</th>
+                      <th className="px-4 py-3 text-right font-medium">Cantidad M²</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {protocolos.filter(p => p.tipoProtocolizacion === 'Compromiso').map((p) => (
+                      <tr key={p.id} className="bg-white hover:bg-gray-50 transition-colors">
+                        <td className="px-4 py-3 text-navy-900">{p.motivo}</td>
+                        <td className="px-4 py-3 text-navy-900">{p.beneficiario}</td>
+                        <td className="px-4 py-3 text-navy-900">{formatFecha(p.fecha)}</td>
+                        <td className="px-4 py-3 text-right tabular-nums font-medium text-blue-700">{formatAreaM2Detail(p.areaComprometidaM2)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
-          ))}
+          )}
+          {protocolos.filter(p => p.tipoProtocolizacion === 'Desincorporación').length > 0 && (
+            <div>
+              <h2 className="text-lg font-bold text-navy-900 font-display mb-3">Desincorporaciones</h2>
+              <div className="overflow-x-auto rounded-xl border border-gray-200/80 shadow-sm">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
+                      <th className="px-4 py-3 text-left font-medium">Motivo</th>
+                      <th className="px-4 py-3 text-left font-medium">Beneficiario</th>
+                      <th className="px-4 py-3 text-left font-medium">Fecha</th>
+                      <th className="px-4 py-3 text-right font-medium">Cantidad M²</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {protocolos.filter(p => p.tipoProtocolizacion === 'Desincorporación').map((p) => (
+                      <tr key={p.id} className="bg-white hover:bg-gray-50 transition-colors">
+                        <td className="px-4 py-3 text-navy-900">{p.motivo}</td>
+                        <td className="px-4 py-3 text-navy-900">{p.beneficiario}</td>
+                        <td className="px-4 py-3 text-navy-900">{formatFecha(p.fecha)}</td>
+                        <td className="px-4 py-3 text-right tabular-nums font-medium text-amber-700">{formatAreaM2Detail(p.areaComprometidaM2)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
+      <Modal
+        open={retiroConfirmOpen}
+        onClose={() => setRetiroConfirmOpen(false)}
+        title="Retirar de Inventario"
+        maxWidth="lg"
+        zIndexClass="z-[60]"
+        footer={
+          <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
+            <button
+              type="button"
+              onClick={() => setRetiroConfirmOpen(false)}
+              className="px-5 py-2.5 border border-gray-200 text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-50"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={handleRetiroConfirmado}
+              disabled={retiroSubmitting}
+              className="px-5 py-2.5 bg-red-600 text-white rounded-lg text-sm font-semibold hover:bg-red-700 disabled:opacity-60"
+            >
+              {retiroSubmitting ? 'Retirando...' : 'Confirmar y Retirar'}
+            </button>
+          </div>
+        }
+      >
+        <div className="space-y-4">
+          <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+            <AlertTriangle size={18} className="mt-0.5 shrink-0 text-red-600" />
+            <div>
+              <p className="text-sm font-semibold text-red-900">Está a punto de retirar esta parcela del inventario</p>
+              <p className="text-sm text-red-800 mt-1">
+                Esta operación registrará la parcela como desincorporada. Una vez confirmada, no podrá revertirse desde esta interfaz.
+              </p>
+            </div>
+          </div>
+          <p className="text-sm text-gray-700">
+            Al confirmar, usted declara conocer y asumir la responsabilidad de esta operación. Su usuario y la fecha actual quedarán registrados automáticamente como referencia de auditoría.
+          </p>
+          {user && (
+            <p className="text-xs text-gray-500 bg-gray-50 rounded-lg px-3 py-2">
+              Responsable: <span className="font-semibold text-navy-900">{user.username}</span>
+              {' · '}
+              Fecha: <span className="font-semibold text-navy-900">{new Date().toLocaleDateString('es-VE')}</span>
+            </p>
+          )}
+        </div>
+      </Modal>
       <NuevaProtocolizacionModal
         open={protocolModalOpen}
         onClose={() => setProtocolModalOpen(false)}
         tipo={protocolTipo}
+        lockTipo={protocolLockTipo}
         areaDisponible={terreno.areaDisponible}
         areaComprometida={terreno.areaComprometida}
         onCreated={vincularProtocolizacion}
@@ -357,6 +459,7 @@ export default function Terrenos() {
     setModal,
   } = useModuleUiState('terrenos', FILTROS_TERRENOS_VACIOS);
   const showRegistro = modals.registro ?? false;
+  const [perPage, setPerPage] = useState(50);
 
   const apiSearch = useMemo(() => {
     return [filtros.buscar, filtros.identificacion, filtros.zonificacion]
@@ -374,13 +477,13 @@ export default function Terrenos() {
   const listQuery = useApiQuery(
     () => fetchParcelas({
       page,
-      limit: PER_PAGE,
+      limit: perPage,
       search: apiSearch,
       estado: filtros.estado && filtros.estado !== 'Todos'
         ? (filtros.estado as (typeof ESTADOS_PARCELA)[number])
         : undefined,
     }),
-    [page, apiSearch, filtros.estado],
+    [page, perPage, apiSearch, filtros.estado],
   );
 
   const metricsQuery = useApiQuery(() => fetchParcelasAll(), []);
@@ -426,6 +529,7 @@ export default function Terrenos() {
   const columns: Column<Terreno>[] = [
     { key: 'codigo', label: 'Código', render: (t) => <span className="font-mono font-bold text-navy-900">{t.codigo}</span> },
     { key: 'identificacion', label: 'Identificación' },
+    { key: 'nroPropiedad', label: 'Nro de Propiedad' },
     { key: 'ubicacion', label: 'Ubicación', render: (t) => <span className="max-w-[180px] truncate block">{t.ubicacion}</span> },
     { key: 'areaDocumento', label: 'Área de documento', render: (t) => `${t.areaDocumento.toLocaleString('es-VE')} m²` },
     { key: 'areaDesincorporada', label: 'Área Desincorporada', render: (t) => `${t.areaDesincorporada.toLocaleString('es-VE')} m²` },
@@ -535,7 +639,7 @@ export default function Terrenos() {
           { key: 'estado', label: 'Estado', type: 'select', value: filtros.estado, onChange: (v) => setFiltro('estado', v), options: ['Todos', ...ESTADOS_PARCELA] },
           { key: 'zonificacion', label: 'Zonificación', type: 'text', value: filtros.zonificacion, onChange: (v) => setFiltro('zonificacion', v) },
           { key: 'nroPropiedad', label: 'Nro de Propiedad', type: 'text', value: filtros.nroPropiedad, onChange: (v) => setFiltro('nroPropiedad', v) },
-          { key: 'fecha', label: 'Fecha', type: 'date', value: filtros.fecha, onChange: (v) => setFiltro('fecha', v) },
+          { key: 'fecha', label: 'Fecha de Adquisición', type: 'date', value: filtros.fecha, onChange: (v) => setFiltro('fecha', v) },
           { key: 'levantamiento', label: 'Levantamiento Topográfico', type: 'select', value: filtros.levantamiento, onChange: (v) => setFiltro('levantamiento', v), options: ['Todos', ...LEVANTAMIENTO_TOPOGRAFICO_OPCIONES] },
           { key: 'acreditacion', label: 'Acreditación Técnica Ambiental', type: 'select', value: filtros.acreditacion, onChange: (v) => setFiltro('acreditacion', v), options: ['Todos', ...ESTADOS_TRAMITE] },
           { key: 'buscar', label: 'Buscar', type: 'search', value: filtros.buscar, onChange: (v) => setFiltro('buscar', v), placeholder: 'Buscar en registros...', className: 'sm:col-span-2 lg:col-span-1' },
@@ -556,7 +660,24 @@ export default function Terrenos() {
           onDetails={(t) => navigate(`/terrenos/${t.id}`)}
         />
 
-        <ModulePagination page={page} totalPages={totalPages} onPageChange={setPage} />
+        <div className="flex items-center justify-between flex-wrap gap-3 py-1">
+          <div className="flex items-center gap-2 text-sm text-gray-600">
+            <span>Filas por página:</span>
+            <select
+              value={perPage}
+              onChange={(e) => {
+                setPerPage(Number(e.target.value));
+                setPage(1);
+              }}
+              className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-navy-500"
+            >
+              <option value={50}>50</option>
+              <option value={100}>100</option>
+              <option value={200}>200</option>
+            </select>
+          </div>
+          <ModulePagination page={page} totalPages={totalPages} onPageChange={setPage} />
+        </div>
       </ApiState>
 
       <RegistroParcelasModal

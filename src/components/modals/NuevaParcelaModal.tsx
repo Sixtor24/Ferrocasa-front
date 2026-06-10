@@ -1,8 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Controller, useForm } from 'react-hook-form';
+import { useEffect, useState } from 'react';
+import { Controller, useForm, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { API_MAX_LIMIT } from '../../api/pagination';
-import { fetchResponsables } from '../../api/services/responsables.service';
 import CurrencyAmountInput from '../forms/CurrencyAmountInput';
 import SearchableSelect from '../forms/SearchableSelect';
 import Modal from './Modal';
@@ -58,8 +56,6 @@ export default function NuevaParcelaModal({
 }: NuevaParcelaModalProps) {
   const [itemKey, setItemKey] = useState('');
   const [areaDraft, setAreaDraft] = useState('');
-  const [responsables, setResponsables] = useState<{ ci: string; nombre: string }[]>([]);
-  const [loadingResponsables, setLoadingResponsables] = useState(false);
   const isEditing = Boolean(item);
 
   const {
@@ -69,7 +65,7 @@ export default function NuevaParcelaModal({
     reset,
     formState: { errors },
   } = useForm<ParcelaRegistroForm>({
-    resolver: zodResolver(parcelaRegistroFormSchema),
+    resolver: zodResolver(parcelaRegistroFormSchema) as Resolver<ParcelaRegistroForm>,
     defaultValues: parcelaToFormValues(emptyParcela()),
   });
 
@@ -81,31 +77,6 @@ export default function NuevaParcelaModal({
     setAreaDraft(next.areaTotalM2 > 0 ? String(next.areaTotalM2).replace('.', ',') : '');
   }, [open, item, reset]);
 
-  useEffect(() => {
-    if (!open) return;
-    setLoadingResponsables(true);
-    fetchResponsables({ page: 1, limit: API_MAX_LIMIT })
-      .then((res) => {
-        setResponsables(
-          (res.data ?? []).map((row) => ({
-            ci: row.ci_responsable,
-            nombre: row.nombre,
-          })),
-        );
-      })
-      .catch(() => setResponsables([]))
-      .finally(() => setLoadingResponsables(false));
-  }, [open]);
-
-  const responsableOptions = useMemo(
-    () =>
-      responsables.map((row) => ({
-        label: `${row.ci} — ${row.nombre}`,
-        value: row.ci,
-      })),
-    [responsables],
-  );
-
   const onSubmit = (parsed: ParcelaRegistroForm) => {
     onSave({
       ...parsed,
@@ -115,7 +86,6 @@ export default function NuevaParcelaModal({
       zona: parsed.zona.trim(),
       zonificacion: parsed.zonificacion.trim(),
       ubicacionAdicional: parsed.ubicacionAdicional.trim(),
-      ciResponsable: parsed.ciResponsable.trim(),
       observaciones: parsed.observaciones?.trim() ?? '',
     });
     onClose();
@@ -167,28 +137,6 @@ export default function NuevaParcelaModal({
           </ModalField>
           <ModalField label="Zonificación *" error={errors.zonificacion?.message}>
             <input {...register('zonificacion')} className="input-field" />
-          </ModalField>
-          <ModalField label="CI Responsable *" error={errors.ciResponsable?.message}>
-            <Controller
-              name="ciResponsable"
-              control={control}
-              render={({ field }) => (
-                <SearchableSelect
-                  value={field.value}
-                  onChange={field.onChange}
-                  options={responsableOptions}
-                  placeholder={loadingResponsables ? 'Cargando responsables...' : 'Seleccionar responsable'}
-                  searchPlaceholder="Buscar por CI o nombre..."
-                  disabled={loadingResponsables || responsableOptions.length === 0}
-                  minSearchLength={1}
-                />
-              )}
-            />
-            {!loadingResponsables && responsableOptions.length === 0 && (
-              <p className="text-xs text-amber-700 mt-1.5">
-                No hay responsables en el sistema. Créelos en el API (`POST /responsables`) antes de registrar parcelas.
-              </p>
-            )}
           </ModalField>
           <ModalField label="Ubicación Adicional *" error={errors.ubicacionAdicional?.message} className="md:col-span-2">
             <input

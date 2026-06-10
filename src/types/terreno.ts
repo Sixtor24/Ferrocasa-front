@@ -7,7 +7,7 @@ export interface Terreno {
   areaDesincorporada: number;
   areaDisponible: number;
   zonificacion: string;
-  levantamientoTopografico: 'Sí' | 'En trámite';
+  levantamientoTopografico: 'Sí' | 'No' | 'En trámite';
   acreditacionTecnicaAmbiental: 'Sí' | 'No' | 'En trámite';
   nombre: string;
   nroPropiedad: string;
@@ -39,4 +39,4 @@ export interface ProtocolizacionTerreno {
 export const ZONIFICACIONES = ['Residencial', 'Comercial', 'Industrial', 'Mixto', 'Institucional', 'Verde'] as const;
 export const ESTADOS_TRAMITE = ['Sí', 'No', 'En trámite'] as const;
 /** Valores permitidos por el API en `levantamiento_topografico` (Si | Solicitar). */
-export const LEVANTAMIENTO_TOPOGRAFICO_OPCIONES = ['Sí', 'En trámite'] as const;
+export const LEVANTAMIENTO_TOPOGRAFICO_OPCIONES = ['Sí', 'No', 'En trámite'] as const;

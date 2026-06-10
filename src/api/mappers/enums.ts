@@ -46,12 +46,13 @@ export function normalizeEstadoVehiculoApi(value?: string | null): EstadoVehicul
   return 'Carga_Completa';
 }
 
-export function mapLevantamientoTopografico(api: string): 'Sí' | 'En trámite' {
+export function mapLevantamientoTopografico(api: string): 'Sí' | 'No' | 'En trámite' {
   if (api === 'Si') return 'Sí';
+  if (api === 'No') return 'No';
   return 'En trámite';
 }
 
-export function levantamientoTopograficoToApi(value: 'Sí' | 'En trámite'): 'Si' | 'Solicitar' {
+export function levantamientoTopograficoToApi(value: 'Sí' | 'No' | 'En trámite'): 'Si' | 'Solicitar' {
   return value === 'Sí' ? 'Si' : 'Solicitar';
 }
 

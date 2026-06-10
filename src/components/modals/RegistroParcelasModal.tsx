@@ -5,7 +5,6 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { createDocumentoPropiedad, type FormaAdquisicionPropiedad } from '../../api/services/documentos-propiedad.service';
 import { createParcela } from '../../api/services/parcelas.service';
 import { createPropiedad } from '../../api/services/propiedades.service';
-import { fetchResponsableByCi } from '../../api/services/responsables.service';
 import { levantamientoTopograficoToApi } from '../../api/mappers/enums';
 import { buildParcelaObservacionesMeta } from '../../utils/parcelaFechaMeta';
 import { MONEDAS_REGISTRO } from '../../types/registroBienItem';
@@ -77,20 +76,6 @@ async function ensurePropiedad(documento: DocumentoParcelaForm) {
   }
 }
 
-async function ensureResponsablesParcelas(items: ParcelaRegistroDraft[]) {
-  const cedulas = [...new Set(items.map((item) => item.ciResponsable.trim()).filter(Boolean))];
-
-  for (const ci of cedulas) {
-    try {
-      await fetchResponsableByCi(ci);
-    } catch {
-      throw new Error(
-        `La CI ${ci} no está registrada como responsable. Seleccione un responsable del listado o créelo en el API (POST /responsables).`,
-      );
-    }
-  }
-}
-
 export default function RegistroParcelasModal({
   open,
   onClose,
@@ -116,6 +101,7 @@ export default function RegistroParcelasModal({
   });
 
   const moneda = watch('moneda');
+  const nroPropiedad = watch('numeroPropiedad');
 
   const totalArea = useMemo(() => areaTotal(items), [items]);
   const totalValor = useMemo(() => valorTotal(items), [items]);
@@ -166,8 +152,6 @@ export default function RegistroParcelasModal({
     setSubmitting(true);
     try {
       await ensurePropiedad(documento);
-      await ensureResponsablesParcelas(items);
-
       const createdIds: number[] = [];
       for (const item of items) {
         const doc = await createDocumentoPropiedad({
@@ -269,7 +253,7 @@ export default function RegistroParcelasModal({
                     <input
                       type="text"
                       inputMode="numeric"
-                      value={field.value > 0 ? String(field.value) : ''}
+                      value={field.value != null ? String(field.value) : ''}
                       onChange={(e) => field.onChange(Number(e.target.value.replace(/\D/g, '')) || 0)}
                       className={`input-field ${errors.numeroPropiedad ? 'border-red-400' : ''}`}
                     />
@@ -335,10 +319,11 @@ export default function RegistroParcelasModal({
           </section>
 
           <section className="overflow-x-auto border border-gray-200 rounded-lg">
-            <table className="w-full min-w-[1100px] text-sm">
+            <table className="w-full min-w-[1200px] text-sm">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-200">
                   <Th>Código</Th>
+                  <Th>Nro Propiedad</Th>
                   <Th>Identificación</Th>
                   <Th>Ubicación Adicional</Th>
                   <Th>Área Total M²</Th>
@@ -354,7 +339,7 @@ export default function RegistroParcelasModal({
               <tbody>
                 {items.length === 0 ? (
                   <tr>
-                    <td colSpan={11} className="px-4 py-10 text-center text-sm text-gray-400">
+                    <td colSpan={12} className="px-4 py-10 text-center text-sm text-gray-400">
                       No hay parcelas agregadas. Use el botón + para registrar cada parcela.
                     </td>
                   </tr>
@@ -365,6 +350,7 @@ export default function RegistroParcelasModal({
                       className={`border-b border-gray-100 ${index % 2 === 1 ? 'bg-gray-50/80' : 'bg-white'}`}
                     >
                       <Td><span className="font-mono font-medium text-navy-900">{item.codigo}</span></Td>
+                      <Td>{nroPropiedad}</Td>
                       <Td>{item.identificacion}</Td>
                       <Td><span className="block max-w-[180px] truncate">{item.ubicacionAdicional}</span></Td>
                       <Td>{item.areaTotalM2.toLocaleString('es-VE')}</Td>

@@ -139,7 +139,7 @@ function mapProtocoloItem(
     terrenoId: p.id_terreno,
     tipoProtocolizacion: tipo,
     motivo: proto?.motivo?.replace(/_/g, ' ') ?? '—',
-    beneficiario: proto?.id_beneficiado ? String(proto.id_beneficiado) : '—',
+    beneficiario: proto?.id_beneficiado != null ? String(proto.id_beneficiado) : '—',
     fecha: toIsoDate(fechaMovimiento ?? proto?.fecha_protocolo) || '—',
     areaComprometidaM2: toNumber(movimiento.cantidad_m2) ?? 0,
   };

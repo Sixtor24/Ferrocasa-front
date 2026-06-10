@@ -1,16 +1,15 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Controller, useForm, type Resolver } from 'react-hook-form';
+import { useEffect, useState } from 'react';
+import { Controller, useForm, useWatch, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { API_MAX_LIMIT } from '../../api/pagination';
 import { createCompromiso } from '../../api/services/compromisos.service';
 import { createDesincorporacion } from '../../api/services/desincorporaciones.service';
 import { createProtocolo, type MotivoProtocolo } from '../../api/services/protocolos.service';
-import { fetchUsuarios } from '../../api/services/usuarios.service';
 import {
   protocolizacionFormSchema,
   type ProtocolizacionForm,
 } from '../../schemas/protocolizacion.schema';
 import { parseMontoInput, sanitizeMontoDraft } from '../../utils/formatters';
+import { useAuth } from '../../context/AuthContext';
 import SearchableSelect from '../forms/SearchableSelect';
 import Modal from './Modal';
 import ModalField from './ModalField';
@@ -21,6 +20,8 @@ type NuevaProtocolizacionModalProps = {
   open: boolean;
   onClose: () => void;
   tipo: TipoProtocolizacionParcela;
+  /** Si es true, el tipo queda bloqueado y el beneficiario se registra automáticamente con el usuario actual */
+  lockTipo?: boolean;
   areaDisponible?: number;
   areaComprometida?: number;
   onCreated: (tipo: TipoProtocolizacionParcela, idMovimiento: number) => Promise<void> | void;
@@ -46,12 +47,12 @@ const MOTIVOS: { label: string; value: MotivoProtocolo }[] = [
   { label: 'Afectado por bienhechurías de FMO', value: 'Afectado_por_bienhechurias_de_FMO' },
 ];
 
-function defaultValues(tipo: TipoProtocolizacionParcela): ProtocolizacionForm {
+function defaultValues(tipo: TipoProtocolizacionParcela, beneficiario = ''): ProtocolizacionForm {
   return {
     tipo,
     motivo: 'Venta',
     fecha: '',
-    idBeneficiado: 0,
+    beneficiario,
     cantidadM2: 0,
   };
 }
@@ -60,15 +61,15 @@ export default function NuevaProtocolizacionModal({
   open,
   onClose,
   tipo,
+  lockTipo = false,
   areaDisponible = 0,
   areaComprometida = 0,
   onCreated,
   onError,
 }: NuevaProtocolizacionModalProps) {
+  const { user } = useAuth();
   const [cantidadDraft, setCantidadDraft] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [usuarios, setUsuarios] = useState<{ id: number; nombre: string }[]>([]);
-  const [loadingUsuarios, setLoadingUsuarios] = useState(false);
 
   const {
     register,
@@ -81,46 +82,27 @@ export default function NuevaProtocolizacionModal({
     defaultValues: defaultValues(tipo),
   });
 
-  const areaMaxima = areaMaximaPorTipo(tipo, areaDisponible, areaComprometida);
-  const esDesincorporacion = tipo === 'Desincorporación';
+  const tipoActual = useWatch({ control, name: 'tipo' }) ?? tipo;
+  const esDesincorporacion = tipoActual === 'Desincorporación';
+  const areaMaxima = areaMaximaPorTipo(tipoActual, areaDisponible, areaComprometida);
+
+  const areaMaximaInicial = areaMaximaPorTipo(tipo, areaDisponible, areaComprometida);
+  const esDesincorporacionInicial = tipo === 'Desincorporación';
 
   useEffect(() => {
     if (!open) return;
-    const defaults = defaultValues(tipo);
-    if (esDesincorporacion && areaMaxima > 0) {
-      const draft = String(areaMaxima).replace('.', ',');
+    const beneficiarioDefault = lockTipo ? (user?.username ?? '') : '';
+    const defaults = defaultValues(tipo, beneficiarioDefault);
+
+    if (esDesincorporacionInicial && areaMaximaInicial > 0) {
+      const draft = String(areaMaximaInicial).replace('.', ',');
       setCantidadDraft(draft);
-      reset({ ...defaults, cantidadM2: areaMaxima });
+      reset({ ...defaults, cantidadM2: areaMaximaInicial });
       return;
     }
     reset(defaults);
     setCantidadDraft('');
-  }, [open, tipo, reset, esDesincorporacion, areaMaxima]);
-
-  useEffect(() => {
-    if (!open) return;
-    setLoadingUsuarios(true);
-    fetchUsuarios({ page: 1, limit: API_MAX_LIMIT, activo: true })
-      .then((res) => {
-        setUsuarios(
-          (res.data ?? []).map((row) => ({
-            id: row.id_usuario,
-            nombre: row.nombre_usuario,
-          })),
-        );
-      })
-      .catch(() => setUsuarios([]))
-      .finally(() => setLoadingUsuarios(false));
-  }, [open]);
-
-  const usuarioOptions = useMemo(
-    () =>
-      usuarios.map((row) => ({
-        label: row.nombre,
-        value: String(row.id),
-      })),
-    [usuarios],
-  );
+  }, [open, tipo, reset, esDesincorporacionInicial, areaMaximaInicial, lockTipo, user?.username]);
 
   const onSubmit = async (form: ProtocolizacionForm) => {
     const maxPermitido = areaMaximaPorTipo(form.tipo, areaDisponible, areaComprometida);
@@ -130,11 +112,18 @@ export default function NuevaProtocolizacionModal({
       return;
     }
 
+    const idBeneficiado = lockTipo
+      ? null
+      : (() => {
+          const parsed = parseInt(form.beneficiario.replace(/\D/g, ''), 10);
+          return parsed > 0 ? parsed : null;
+        })();
+
     setSubmitting(true);
     try {
       const protocolo = await createProtocolo({
         motivo: form.motivo,
-        id_beneficiado: form.idBeneficiado,
+        id_beneficiado: idBeneficiado,
         fecha_protocolo: form.fecha,
       });
 
@@ -166,7 +155,7 @@ export default function NuevaProtocolizacionModal({
     <Modal
       open={open}
       onClose={onClose}
-      title={esDesincorporacion ? 'Retirar de Inventario' : 'Nueva Protocolización'}
+      title={lockTipo && esDesincorporacion ? 'Retirar de Inventario' : 'Nueva Protocolización'}
       maxWidth="2xl"
       footer={
         <div className="flex justify-end pt-4 border-t border-gray-100">
@@ -191,7 +180,7 @@ export default function NuevaProtocolizacionModal({
                 value={field.value}
                 onChange={field.onChange}
                 options={['Compromiso', 'Desincorporación']}
-                disabled
+                disabled={lockTipo}
                 disableSearch
               />
             )}
@@ -213,23 +202,21 @@ export default function NuevaProtocolizacionModal({
             )}
           />
         </ModalField>
-        <ModalField label="Beneficiario (usuario) *" error={errors.idBeneficiado?.message}>
-          <Controller
-            name="idBeneficiado"
-            control={control}
-            render={({ field }) => (
-              <SearchableSelect
-                value={field.value > 0 ? String(field.value) : ''}
-                onChange={(value) => field.onChange(value ? Number(value) : 0)}
-                options={usuarioOptions}
-                placeholder={loadingUsuarios ? 'Cargando usuarios...' : 'Seleccionar usuario'}
-                searchPlaceholder="Buscar por nombre..."
-                disabled={loadingUsuarios || usuarioOptions.length === 0}
-                disableSearch={usuarioOptions.length <= 6}
-                aria-label="Beneficiario"
-              />
-            )}
+        <ModalField
+          label={lockTipo ? 'Ejecutado por (usuario actual)' : 'Beneficiario *'}
+          error={!lockTipo ? errors.beneficiario?.message : undefined}
+        >
+          <input
+            {...register('beneficiario')}
+            className="input-field"
+            readOnly={lockTipo}
+            placeholder={!lockTipo ? 'V-12345678 o BEN-0001' : undefined}
           />
+          {lockTipo && (
+            <p className="text-xs text-gray-500 mt-1">
+              Registrado automáticamente con el usuario activo.
+            </p>
+          )}
         </ModalField>
         <ModalField
           label={

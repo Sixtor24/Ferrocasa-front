@@ -20,7 +20,7 @@ export type ProtocolosQuery = {
 
 export type ProtocoloPayload = {
   motivo: MotivoProtocolo;
-  id_beneficiado: number;
+  id_beneficiado?: number | null;
   fecha_protocolo: string;
 };
 

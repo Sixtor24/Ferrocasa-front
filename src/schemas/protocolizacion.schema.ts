@@ -11,7 +11,7 @@ export const protocolizacionFormSchema = z.object({
   tipo: z.enum(['Compromiso', 'Desincorporación']),
   motivo: z.enum(MOTIVOS),
   fecha: z.string().min(1, 'Indique la fecha'),
-  idBeneficiado: z.number().int().positive('Indique el beneficiario'),
+  beneficiario: z.string().trim().min(1, 'Indique el beneficiario'),
   cantidadM2: z.number().positive('Indique la cantidad de área'),
 });
 
