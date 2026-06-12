@@ -21,6 +21,7 @@ export type DocumentosPropiedadQuery = {
 
 /** Campos aceptados por POST/PUT /documentos-propiedad según OpenAPI (additionalProperties: false). */
 export type DocumentoPropiedadPayload = {
+  id_documento_propiedad: string;
   numero_propiedad: number;
   forma_adquisicion: FormaAdquisicionPropiedad;
   area_total_m2: number;

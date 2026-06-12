@@ -155,6 +155,7 @@ export default function RegistroParcelasModal({
       const createdIds: number[] = [];
       for (const item of items) {
         const doc = await createDocumentoPropiedad({
+          id_documento_propiedad: documento.numeroDocumento.trim(),
           numero_propiedad: documento.numeroPropiedad,
           forma_adquisicion: documento.formaAdquisicion,
           area_total_m2: item.areaTotalM2,

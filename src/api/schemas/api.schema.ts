@@ -546,6 +546,7 @@ export const payloadSchemas = {
     ubicacion: z.string().min(1),
   }),
   documentoPropiedad: z.object({
+    id_documento_propiedad: z.string().trim().min(1).max(20),
     numero_propiedad: z.number().int(),
     forma_adquisicion: z.enum(['Compra', 'Donacion', 'Confiscacion']),
     area_total_m2: z.number().positive(),
