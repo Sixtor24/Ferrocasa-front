@@ -5,7 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import Modal from './Modal';
 import NuevoItemVehiculoRegistroModal from './NuevoItemVehiculoRegistroModal';
 import SearchableSelect from '../forms/SearchableSelect';
-import { createDocumento, type FormaAdquisicionDocumento } from '../../api/services/documentos.service';
+import { createDocumentoVehiculo, type FormaAdquisicionDocumento } from '../../api/services/documentos.service';
 import { fetchSedes } from '../../api/services/sedes.service';
 import { API_MAX_LIMIT } from '../../api/pagination';
 import { fetchResponsableByCi } from '../../api/services/responsables.service';
@@ -18,7 +18,7 @@ import {
 } from '../../data/bienesCatalogos';
 import { MONEDAS_REGISTRO } from '../../types/registroBienItem';
 import type { ItemVehiculoRegistroDraft } from '../../types/registroVehiculoItem';
-import { documentoRegistroFormSchema, type DocumentoRegistroForm } from '../../schemas/registro.schema';
+import { documentoRegistroVehiculoFormSchema, type DocumentoRegistroVehiculoForm } from '../../schemas/registroVehiculo.schema';
 import {
   itemVehiculoDraftToFormInput,
   registroVehiculosListSchema,
@@ -30,8 +30,8 @@ import { almacenNombresPorSede, monedaBienToDocumento, normalizeCatalogValue } f
 import { useAlmacenesRegistro } from '../../hooks/useAlmacenesRegistro';
 import { buildRegistroVehiculosSuccessMessage } from '../../utils/assetNotify';
 import { rollbackRegistroVehiculos } from '../../utils/registroRollback';
-import { itemVehiculoToPayload, resolveAlmacenIdVehiculo } from '../../utils/registroVehiculoMappers';
-import { ciResponsableForApi } from '../../utils/vehiculoApiFields';
+import { buildDocumentoVehiculoPayload, itemVehiculoToPayload, resolveAlmacenIdVehiculo } from '../../utils/registroVehiculoMappers';
+import { ciResponsableForApi, readDocumentoId } from '../../utils/vehiculoApiFields';
 import {
   extractRegistroError,
   notifyRegistroError,
@@ -61,7 +61,7 @@ function sedeLabel(value: string) {
   return SEDE_LABELS[value] ?? value;
 }
 
-function documentoDefaultValues(): DocumentoRegistroForm {
+function documentoDefaultValues(): DocumentoRegistroVehiculoForm {
   return {
     numeroDocumento: '',
     nombreProveedor: '',
@@ -97,8 +97,8 @@ export default function RegistroVehiculosModal({
     reset,
     watch,
     formState: { errors: documentoErrors },
-  } = useForm<DocumentoRegistroForm>({
-    resolver: zodResolver(documentoRegistroFormSchema),
+  } = useForm<DocumentoRegistroVehiculoForm>({
+    resolver: zodResolver(documentoRegistroVehiculoFormSchema),
     defaultValues: documentoDefaultValues(),
   });
 
@@ -231,23 +231,23 @@ export default function RegistroVehiculosModal({
     }
 
     setSubmitting(true);
-    let idDoc: number | null = null;
-    const codigosVehiculo: number[] = [];
+    let idDoc: string | null = null;
+    const codigosVehiculo: Array<number | string> = [];
 
     try {
       await ensureResponsablesVehiculos(items);
 
-      const numeroDocumento = documento.numeroDocumento?.trim() || undefined;
+      const documentoCreado = await createDocumentoVehiculo(
+        buildDocumentoVehiculoPayload({
+          numeroDocumento: documento.numeroDocumento,
+          nombreProveedor: documento.nombreProveedor,
+          formaAdquisicion: documento.formaAdquisicion,
+          fechaAdquisicion: toApiDateTime(documento.fechaAdquisicion),
+          moneda: monedaBienToDocumento(documento.moneda),
+        }),
+      );
 
-      const documentoCreado = await createDocumento({
-        numero_documento: numeroDocumento,
-        nombre_proveedor: documento.nombreProveedor.trim(),
-        forma_adquisicion: documento.formaAdquisicion,
-        fecha_adquisicion: toApiDateTime(documento.fechaAdquisicion),
-        moneda: monedaBienToDocumento(documento.moneda),
-      });
-
-      idDoc = documentoCreado.id_doc;
+      idDoc = readDocumentoId(documentoCreado);
       const fechaIngreso = new Date().toISOString().split('T')[0];
 
       for (const item of items) {
@@ -257,7 +257,7 @@ export default function RegistroVehiculosModal({
             idDoc,
             fechaIngreso,
             idAlmacen,
-            numeroDocumento: numeroDocumento ?? documentoCreado.numero_documento ?? undefined,
+            numeroDocumento: documento.numeroDocumento.trim(),
           }),
         );
         codigosVehiculo.push(vehiculoCreado.id);

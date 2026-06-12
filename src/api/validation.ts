@@ -1,4 +1,5 @@
 import { z, ZodError } from 'zod';
+import { entityIdForApi, vehiculoCodigoForApi, vehiculoSerialCreateForApi } from '../utils/vehiculoApiFields';
 import {
   almacenSchema,
   auditoriaRegistroSchema,
@@ -240,13 +241,46 @@ export function validateApiPayload(path: string, method: string, body: unknown) 
   if ((method === 'POST' || method === 'PUT') && p.startsWith('/almacenes')) return parseWithSchema(payloadSchemas.almacen, body);
   if ((method === 'POST' || method === 'PUT') && p.startsWith('/bienes')) return parseWithSchema(payloadSchemas.bien, body);
   if (method === 'PATCH' && p.endsWith('/cambiar-estado') && p.startsWith('/bienes/')) return parseWithSchema(payloadSchemas.cambiarEstadoBien, body);
-  if ((method === 'POST' || method === 'PUT') && p.startsWith('/vehiculos')) return parseWithSchema(payloadSchemas.vehiculo, body);
+  if (method === 'POST' && p === '/vehiculos') {
+    const source = (body ?? {}) as Record<string, unknown>;
+    const codigo = vehiculoCodigoForApi(source.codigo as string | number | null | undefined);
+    const normalized = {
+      ...source,
+      codigo,
+      id_doc: entityIdForApi(source.id_doc as string | number | null | undefined),
+      serial_motor: vehiculoSerialCreateForApi(
+        source.serial_motor as string | null | undefined,
+        'motor',
+        codigo,
+      ),
+      serial_carroceria: vehiculoSerialCreateForApi(
+        source.serial_carroceria as string | null | undefined,
+        'carroceria',
+        codigo,
+      ),
+    };
+    return parseWithSchema(payloadSchemas.vehiculoCreate, normalized);
+  }
+  if (method === 'PUT' && p.startsWith('/vehiculos/')) {
+    const source = (body ?? {}) as Record<string, unknown>;
+    const normalized = {
+      ...source,
+      id_doc: entityIdForApi(source.id_doc as string | number | null | undefined),
+    };
+    return parseWithSchema(payloadSchemas.vehiculo, normalized);
+  }
   if (method === 'PATCH' && p.endsWith('/asignar') && p.startsWith('/vehiculos/')) return parseWithSchema(payloadSchemas.asignarVehiculo, body);
   if (method === 'PATCH' && p.endsWith('/cambiar-estado') && p.startsWith('/vehiculos/')) return parseWithSchema(payloadSchemas.cambiarEstadoVehiculo, body);
   if ((method === 'POST' || method === 'PUT') && p.startsWith('/categorias/general')) return parseWithSchema(payloadSchemas.categoriaGeneral, body);
   if ((method === 'POST' || method === 'PUT') && p.startsWith('/categorias/subcategoria')) return parseWithSchema(payloadSchemas.subcategoria, body);
   if ((method === 'POST' || method === 'PUT') && p.startsWith('/categorias/especifica')) return parseWithSchema(payloadSchemas.categoriaEspecifica, body);
-  if ((method === 'POST' || method === 'PUT') && p.startsWith('/documentos')) return parseWithSchema(payloadSchemas.documento, body);
+  if ((method === 'POST' || method === 'PUT') && p.startsWith('/documentos')) {
+    const source = (body ?? {}) as Record<string, unknown>;
+    if (method === 'POST' && typeof source.id_doc === 'string' && source.id_doc.trim()) {
+      return parseWithSchema(payloadSchemas.documentoVehiculo, body);
+    }
+    return parseWithSchema(payloadSchemas.documento, body);
+  }
 
   return body;
 }

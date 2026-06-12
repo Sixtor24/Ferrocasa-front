@@ -1,11 +1,16 @@
 import type {
   CondicionFisicaVehiculoApi,
   EstadoUsoVehiculoApi,
-  VehiculoBody,
+  VehiculoCreateBody,
 } from '../api/services/vehiculos.service';
 import { toApiDateTime } from '../api/mappers/enums';
 import type { ItemVehiculoRegistroDraft } from '../types/registroVehiculoItem';
 import type { CondicionVehiculo, EstadoUsoVehiculo } from '../types/vehiculo';
+import type {
+  DocumentoVehiculoPayload,
+  FormaAdquisicionDocumento,
+  MonedaDocumento,
+} from '../api/services/documentos.service';
 import {
   condicionFisicaToApi,
   estadoUsoToApi,
@@ -14,9 +19,33 @@ import {
 import {
   apiStringField,
   ciResponsableForApi,
+  entityIdForApi,
   usuarioCargaForApi,
+  vehiculoCodigoForApi,
+  vehiculoSerialCreateForApi,
 } from './vehiculoApiFields';
 import { buildVehiculoObservacionesMeta } from './vehiculoObservacionesMeta';
+
+export function buildDocumentoVehiculoPayload(input: {
+  numeroDocumento: string;
+  nombreProveedor: string;
+  formaAdquisicion: FormaAdquisicionDocumento;
+  fechaAdquisicion?: string | null;
+  moneda: MonedaDocumento;
+}): DocumentoVehiculoPayload {
+  const id_doc = input.numeroDocumento.trim();
+  if (!id_doc) {
+    throw new Error('Indique el número de documento de ingreso');
+  }
+
+  return {
+    id_doc,
+    nombre_proveedor: input.nombreProveedor.trim(),
+    forma_adquisicion: input.formaAdquisicion,
+    fecha_adquisicion: input.fechaAdquisicion ?? null,
+    moneda: input.moneda,
+  };
+}
 
 export function estadoUsoVehiculoToApi(estado: EstadoUsoVehiculo): EstadoUsoVehiculoApi {
   return estadoUsoToApi(estado);
@@ -31,21 +60,23 @@ export function condicionVehiculoToApi(condicion: CondicionVehiculo): CondicionF
 export function itemVehiculoToPayload(
   item: ItemVehiculoRegistroDraft,
   params: {
-    idDoc: number;
+    idDoc: string;
     fechaIngreso: string;
     idAlmacen: number;
     numeroDocumento?: string;
   },
-): VehiculoBody {
+): VehiculoCreateBody {
   const notas = buildVehiculoObservacionesMeta(item.observaciones, {
     unidadAdministrativa: item.unidadAdministrativa,
     numeroDocumento: params.numeroDocumento,
   });
   const ci = ciResponsableForApi(item.ciResponsable);
+  const codigo = vehiculoCodigoForApi(item.codigoInterno);
 
   return {
+    codigo,
     descripcion: item.descripcion.trim(),
-    id_doc: params.idDoc,
+    id_doc: entityIdForApi(params.idDoc),
     fecha_egreso: null,
     valor_adquisicion: item.valorAdquisicion,
     marca: apiStringField(item.marca),
@@ -53,8 +84,8 @@ export function itemVehiculoToPayload(
     anio_fabricacion: item.anioFabricacion,
     modelo: apiStringField(item.modelo),
     color: apiStringField(item.color),
-    serial_motor: apiStringField(item.serialMotor) || 'S/S',
-    serial_carroceria: apiStringField(item.serialCarroceria),
+    serial_motor: vehiculoSerialCreateForApi(item.serialMotor, 'motor', codigo),
+    serial_carroceria: vehiculoSerialCreateForApi(item.serialCarroceria, 'carroceria', codigo),
     estado_uso: estadoUsoVehiculoToApi(item.estadoUso),
     condicion_fisica: condicionVehiculoToApi(item.condicionFisica),
     id_categoria_especifica: item.idCategoriaEspecifica,

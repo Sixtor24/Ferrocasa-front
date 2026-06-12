@@ -1,4 +1,5 @@
 import type { ModuleFormatKey } from '../constants/excelFormats';
+import { getStoredUser } from '../api/auth/session';
 import { fetchAllPages } from '../api/pagination';
 import { fetchBienes } from '../api/services/bienes.service';
 import {
@@ -11,19 +12,11 @@ import type { BienMueble } from '../types/bien';
 import type { Vehiculo } from '../types/vehiculo';
 import { fillExcelTemplate } from './excelWorkbookExport';
 import { SUDEBIP_HEADER_ROW } from './excelSheetStyles';
+import { exportSudebipBienesMuebles } from './exportSudebipBienesMueblesExcel';
 import {
-  bienToSudebipReportRow,
   sudebipFechaEmision,
   vehiculoToSudebipReportRow,
 } from './sudebipExportMappers';
-
-const SUDEBIP_MUEBLES_LAYOUT = {
-  assetPath: '/formats/sudebip-muebles-report.xlsx',
-  downloadName: 'Inventario_Bienes_SUDEBIP.xlsx',
-  headerRow: SUDEBIP_HEADER_ROW,
-  dataStartRow: 9,
-  minCols: 20,
-};
 
 const SUDEBIP_VEHICULOS_LAYOUT = {
   assetPath: '/formats/sudebip-vehiculos-report.xlsx',
@@ -34,7 +27,8 @@ const SUDEBIP_VEHICULOS_LAYOUT = {
 };
 
 function sudebipMetaCells() {
-  return [{ row: 6, col: 0, value: sudebipFechaEmision() }];
+  const rol = getStoredUser()?.rol.nombre_rol;
+  return [{ row: 6, col: 0, value: sudebipFechaEmision(new Date(), rol) }];
 }
 
 async function fetchAllBienesBySedeAliases(aliases: readonly string[]): Promise<BienMueble[]> {
@@ -44,14 +38,9 @@ async function fetchAllBienesBySedeAliases(aliases: readonly string[]): Promise<
 
 export async function exportSudebipMuebles(
   bienes: BienMueble[],
-  downloadName?: string,
+  scope?: string,
 ): Promise<void> {
-  const rows = bienes.map((bien, index) => bienToSudebipReportRow(index, bien));
-  await fillExcelTemplate(
-    { ...SUDEBIP_MUEBLES_LAYOUT, staticCells: sudebipMetaCells() },
-    rows,
-    downloadName,
-  );
+  await exportSudebipBienesMuebles(bienes, scope);
 }
 
 export async function exportSudebipVehiculos(
@@ -70,12 +59,12 @@ export async function exportSudebipForModule(module: ModuleFormatKey): Promise<v
   switch (module) {
     case 'almacen': {
       const bienes = await fetchAllBienesBySedeAliases(SEDES_BIENES_ADMINISTRATIVOS);
-      await exportSudebipMuebles(bienes, 'Inventario_Bienes_Administrativos_SUDEBIP.xlsx');
+      await exportSudebipMuebles(bienes, 'Administrativos');
       return;
     }
     case 'cementerio': {
       const bienes = await fetchAllBienesBySedeAliases(SEDES_CEMENTERIO);
-      await exportSudebipMuebles(bienes, 'Inventario_Bienes_Cementerio_SUDEBIP.xlsx');
+      await exportSudebipMuebles(bienes, 'Cementerio');
       return;
     }
     case 'vehiculos': {

@@ -23,7 +23,9 @@ import { isSinSerialBien, serialBienToApi } from './serialBien';
 import {
   apiStringField,
   ciResponsableForApi,
+  entityIdForApi,
   usuarioCargaForApi,
+  vehiculoSerialUpdateForApi,
 } from './vehiculoApiFields';
 
 /** El API exige string en campos opcionales; null provoca 400 en PUT. */
@@ -98,7 +100,7 @@ export function apiVehiculoToUpdatePayload(
 
   const base: VehiculoBody = {
     descripcion: v.descripcion?.trim() ?? '',
-    id_doc: v.id_doc ?? null,
+    id_doc: entityIdForApi(v.id_doc ?? v.documento?.id_doc),
     fecha_egreso: v.fecha_egreso ? toApiDateTime(v.fecha_egreso) ?? null : null,
     valor_adquisicion: toNumber(v.valor_adquisicion) ?? 0,
     marca: apiStringField(v.marca),
@@ -106,8 +108,8 @@ export function apiVehiculoToUpdatePayload(
     anio_fabricacion: v.anio_fabricacion ?? new Date().getFullYear(),
     modelo: apiStringField(v.modelo),
     color: apiStringField(v.color),
-    serial_motor: apiStringField(v.serial_motor) || 'S/S',
-    serial_carroceria: apiStringField(v.serial_carroceria),
+    serial_motor: vehiculoSerialUpdateForApi(v.serial_motor) ?? 'S/S',
+    serial_carroceria: vehiculoSerialUpdateForApi(v.serial_carroceria),
     estado_uso: normalizeEstadoUsoApi(v.estado_uso) as EstadoUsoVehiculoApi,
     condicion_fisica: normalizeCondicionVehiculoApi(v.condicion_fisica),
     id_categoria_especifica: v.id_categoria_especifica,
