@@ -169,6 +169,11 @@ export interface ApiDocumentoPropiedad {
   parcelas?: ApiParcela[];
 }
 
+export interface ApiBeneficiario {
+  id_beneficiario: string;
+  nombre: string;
+}
+
 export interface ApiProtocolo {
   id_protocolo: number;
   motivo: string;
