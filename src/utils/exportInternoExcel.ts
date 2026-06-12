@@ -11,10 +11,10 @@ import { fetchVehiculosAll } from '../api/services/vehiculos.service';
 import type { BienMueble } from '../types/bien';
 import type { Vehiculo } from '../types/vehiculo';
 import { exportInternoBienesAdministrativos } from './exportInternoBienesAdministrativosExcel';
+import { exportInternoVehiculosMaquinaria } from './exportInternoVehiculosExcel';
 import { fillExcelTemplate, type ExcelTemplateLayout } from './excelWorkbookExport';
 import {
   bienToInternoMueblesRow,
-  vehiculoToInternoMueblesRow,
 } from './internoExportMappers';
 
 const INTERNO_MUEBLES_LAYOUT: ExcelTemplateLayout = {
@@ -62,15 +62,7 @@ export async function exportInternoMuebles(
 }
 
 export async function exportInternoVehiculos(vehiculos: Vehiculo[]): Promise<void> {
-  const rows = vehiculos.map((vehiculo) => vehiculoToInternoMueblesRow(vehiculo));
-  await fillExcelTemplate(
-    {
-      ...INTERNO_MUEBLES_LAYOUT,
-      downloadName: 'Formato_Interno_Inventario_Vehiculos.xlsx',
-      staticCells: [{ row: 6, col: 0, value: 'INVENTARIO  (VEHÍCULOS) (FLOTA)' }],
-    },
-    rows,
-  );
+  await exportInternoVehiculosMaquinaria(vehiculos);
 }
 
 export async function exportInternoForModule(module: ModuleFormatKey): Promise<void> {

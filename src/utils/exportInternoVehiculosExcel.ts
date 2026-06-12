@@ -1,20 +1,25 @@
 import logoUrl from '../assets/imagen1-logo-exel.png';
-import type { AuditoriaRegistroView } from '../types/auditoria';
-import { accionAuditoriaLabel } from './auditoriaFormat';
+import type { Vehiculo } from '../types/vehiculo';
 import type { Alignment, Borders, IAnchor, Workbook, Worksheet } from 'exceljs';
+import { vehiculoToInternoInventarioRow } from './internoExportMappers';
 
-const COLUMN_COUNT = 7;
+const COLUMN_COUNT = 12;
 const COLUMN_HEADERS = [
-  'Fecha / Hora',
-  'Usuario',
-  'Tabla',
-  'ID',
-  'Acción',
+  'Código',
   'Descripción',
-  'IP',
+  'Placa',
+  'Marca',
+  'Modelo',
+  'Color',
+  'Almacén',
+  'Sede',
+  'Fecha de adquisición',
+  'Estado de uso',
+  'Condición Física',
+  'Observaciones',
 ] as const;
 
-const TITLE = 'REPORTE DE AUDITORÍA DEL SISTEMA';
+const TITLE = 'INVENTARIO VEHICULOS Y MAQUINARIAS';
 const TITLE_ROW = 5;
 const HEADER_ROW = 7;
 const DATA_START_ROW = 8;
@@ -25,7 +30,6 @@ const COLOR_HEADER_TEXT = 'FFFFFFFF';
 
 const LOGO_HEIGHT_CM = 3.1;
 const LOGO_AREA_ROWS = 4;
-const COLUMN_WIDTHS = [20, 24, 22, 10, 14, 52, 16] as const;
 const LOGO_WIDTH_PX = 359;
 const LOGO_HEIGHT_PX = 117;
 const EMU_PER_PIXEL = 9525;
@@ -92,18 +96,6 @@ async function loadLogoBase64() {
   });
 }
 
-function auditoriaToRow(registro: AuditoriaRegistroView): (string | number)[] {
-  return [
-    registro.fecha,
-    registro.usuario,
-    registro.tablaLabel,
-    registro.idRegistro,
-    accionAuditoriaLabel(registro.accion),
-    registro.descripcion,
-    registro.ip,
-  ];
-}
-
 function setRowHeights(worksheet: Worksheet) {
   const logoRowHeight = getLogoAreaHeightPoints() / LOGO_AREA_ROWS;
   for (let row = 1; row <= LOGO_AREA_ROWS; row += 1) {
@@ -115,7 +107,7 @@ function setRowHeights(worksheet: Worksheet) {
 }
 
 function setColumnWidths(worksheet: Worksheet) {
-  COLUMN_WIDTHS.forEach((width, index) => {
+  [12, 28, 12, 14, 14, 10, 18, 22, 18, 14, 14, 32].forEach((width, index) => {
     worksheet.getColumn(index + 1).width = width;
   });
 }
@@ -160,17 +152,17 @@ function styleColumnHeaders(worksheet: Worksheet) {
   });
 }
 
-function styleDataRows(worksheet: Worksheet, registros: AuditoriaRegistroView[]) {
-  registros.forEach((registro, index) => {
+function styleDataRows(worksheet: Worksheet, vehiculos: Vehiculo[]) {
+  vehiculos.forEach((vehiculo, index) => {
     const rowNumber = DATA_START_ROW + index;
-    const values = auditoriaToRow(registro);
+    const values = vehiculoToInternoInventarioRow(vehiculo);
 
     values.forEach((value, colIndex) => {
       const colNumber = colIndex + 1;
       const cell = worksheet.getCell(rowNumber, colNumber);
       cell.value = value;
 
-      const isLongTextCol = colNumber === 2 || colNumber === 6;
+      const isLongTextCol = colNumber === 2 || colNumber === 7 || colNumber === 8 || colNumber === 12;
       cell.alignment = isLongTextCol
         ? { vertical: 'middle', horizontal: 'left', wrapText: true }
         : CENTER;
@@ -195,7 +187,6 @@ async function addLogo(workbook: Workbook, worksheet: Worksheet) {
   const offsetXPx = Math.max(0, Math.round((sheetWidthPx - LOGO_WIDTH_PX) / 2));
   const offsetYPx = Math.max(0, Math.round((logoAreaHeightPx - LOGO_HEIGHT_PX) / 2));
 
-  // Usar nativeCol/nativeRow: si se pasa `col`, ExcelJS ignora nativeColOff y queda en A1.
   worksheet.addImage(imageId, {
     tl: {
       nativeCol: 0,
@@ -212,10 +203,10 @@ function uniqueExportFilename(date = new Date()) {
   const pad = (value: number) => String(value).padStart(2, '0');
   const day = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
   const time = `${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}`;
-  return `Auditoria_${day}_${time}.xlsx`;
+  return `Inventario_Vehiculos_Maquinaria_${day}_${time}.xlsx`;
 }
 
-export async function exportAuditoriaExcel(registros: AuditoriaRegistroView[]): Promise<void> {
+export async function exportInternoVehiculosMaquinaria(vehiculos: Vehiculo[]): Promise<void> {
   const ExcelJS = await import('exceljs');
   const exportDate = new Date();
   const workbook = new ExcelJS.Workbook();
@@ -223,7 +214,7 @@ export async function exportAuditoriaExcel(registros: AuditoriaRegistroView[]): 
   workbook.created = exportDate;
   workbook.modified = exportDate;
 
-  const worksheet = workbook.addWorksheet('Auditoría', {
+  const worksheet = workbook.addWorksheet('Vehículos y maquinaria', {
     views: [{ state: 'frozen', ySplit: HEADER_ROW }],
     pageSetup: {
       orientation: 'landscape',
@@ -238,11 +229,11 @@ export async function exportAuditoriaExcel(registros: AuditoriaRegistroView[]): 
   styleLogoArea(worksheet);
   styleTitle(worksheet);
   styleColumnHeaders(worksheet);
-  styleDataRows(worksheet, registros);
+  styleDataRows(worksheet, vehiculos);
   await addLogo(workbook, worksheet);
 
-  const lastDataRow = Math.max(HEADER_ROW, DATA_START_ROW + registros.length - 1);
-  if (registros.length > 0) {
+  const lastDataRow = Math.max(HEADER_ROW, DATA_START_ROW + vehiculos.length - 1);
+  if (vehiculos.length > 0) {
     worksheet.autoFilter = {
       from: { row: HEADER_ROW, column: 1 },
       to: { row: lastDataRow, column: COLUMN_COUNT },
