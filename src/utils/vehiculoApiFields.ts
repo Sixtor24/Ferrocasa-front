@@ -1,4 +1,4 @@
-import type { ApiDocumento } from '../api/types';
+import type { ApiBien, ApiDocumento } from '../api/types';
 import { getStoredUser } from '../api/auth/session';
 
 /** Normaliza IDs de entidad (p. ej. BIGINT) al string que espera el API en POST/PUT. */
@@ -33,7 +33,29 @@ export function readDocumentoId(doc: ApiDocumento): string {
     ?? extended.idDoc
     ?? extended.id_documento
     ?? extended.documento?.id_doc
-    ?? extended.documento?.id;
+    ?? extended.documento?.id
+    ?? extended.numero_documento?.trim();
+
+  return entityIdForApi(raw);
+}
+
+/** Lee id_doc de un bien para PUT/POST, con fallbacks del API (incl. cementerio). */
+export function readBienDocumentoId(bien: ApiBien): string {
+  const extended = bien as ApiBien & {
+    id?: number | string;
+    idDoc?: number | string;
+    id_documento?: number | string;
+  };
+  const documento = bien.documento as ApiDocumento & { id?: number | string } | null | undefined;
+
+  const raw =
+    extended.id_doc
+    ?? extended.id
+    ?? extended.idDoc
+    ?? extended.id_documento
+    ?? documento?.id_doc
+    ?? documento?.id
+    ?? documento?.numero_documento?.trim();
 
   return entityIdForApi(raw);
 }
