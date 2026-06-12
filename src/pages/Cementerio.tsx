@@ -55,8 +55,6 @@ import {
   AlertCircle,
 } from "lucide-react";
 
-const PER_PAGE = 10;
-
 function CementerioBienDetail({
   bien,
   almacenes,
@@ -293,14 +291,15 @@ export default function Cementerio() {
     setModal,
   } = useModuleUiState("cementerio", FILTROS_INVENTARIO_VACIOS);
   const showRegistro = modals.registro ?? false;
+  const [perPage, setPerPage] = useState(50);
   const apiSearch = useMemo(
     () => filtros.buscar.trim() || undefined,
     [filtros.buscar],
   );
 
   const bienesQuery = useApiQuery(
-    () => fetchBienesCementerio({ page, limit: PER_PAGE, search: apiSearch }),
-    [page, apiSearch],
+    () => fetchBienesCementerio({ page, limit: perPage, search: apiSearch }),
+    [page, perPage, apiSearch],
   );
   const metricsQuery = useApiQuery(async () => {
     const bienes = await fetchAllBienesCementerio({ search: apiSearch });
@@ -650,11 +649,24 @@ export default function Cementerio() {
           }
           emptyMessage="No hay registros del cementerio."
         />
-        <ModulePagination
-          page={page}
-          totalPages={totalPages}
-          onPageChange={setPage}
-        />
+        <div className="flex items-center justify-between flex-wrap gap-3 py-1">
+          <div className="flex items-center gap-2 text-sm text-gray-600">
+            <span>Filas por página:</span>
+            <select
+              value={perPage}
+              onChange={(e) => {
+                setPerPage(Number(e.target.value));
+                setPage(1);
+              }}
+              className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-navy-500"
+            >
+              <option value={50}>50</option>
+              <option value={100}>100</option>
+              <option value={200}>200</option>
+            </select>
+          </div>
+          <ModulePagination page={page} totalPages={totalPages} onPageChange={setPage} />
+        </div>
       </ApiState>
 
       <RegistroBienesCementerioModal

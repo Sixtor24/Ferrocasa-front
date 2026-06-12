@@ -23,7 +23,7 @@ import { isSinSerialBien, serialBienToApi } from './serialBien';
 import {
   apiStringField,
   ciResponsableForApi,
-  entityIdForApi,
+  readBienDocumentoId,
   usuarioCargaForApi,
   vehiculoSerialUpdateForApi,
 } from './vehiculoApiFields';
@@ -58,7 +58,7 @@ function normalizeConsumibilidad(value?: string | null): ConsumibilidadBienApi {
 
 /** El PUT de bienes exige id_doc como string (igual que vehículos). */
 function idDocBienForPayload(b: ApiBien): string {
-  return entityIdForApi(b.id_doc ?? b.documento?.id_doc);
+  return readBienDocumentoId(b);
 }
 
 export function apiBienToUpdatePayload(

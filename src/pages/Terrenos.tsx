@@ -709,6 +709,7 @@ export default function Terrenos() {
         ]}
       />
 
+{/* Tabla de terrenos */}
       <ApiState
         loading={listQuery.loading && !listQuery.data}
         error={listQuery.error}
@@ -723,6 +724,7 @@ export default function Terrenos() {
           onDetails={(t) => navigate(`/terrenos/${t.id}`)}
         />
 
+{/* Paginación */}
         <ModuleTablePaginationBar
           perPage={perPage}
           onPerPageChange={(size) => {
