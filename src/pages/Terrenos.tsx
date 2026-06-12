@@ -76,6 +76,22 @@ function filterTerrenosByUiFilters(terrenos: Terreno[], filtros: TerrenosFilters
   });
 }
 
+function entityIdAsString(value: number | string | null | undefined): string {
+  if (value == null || value === '') {
+    throw new Error('ID de documento de propiedad inválido');
+  }
+  return String(value);
+}
+
+function nullableEntityIdAsNumber(value: number | string | null | undefined): number | null {
+  if (value == null || value === '') return null;
+  const num = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(num)) {
+    throw new Error('ID de entidad inválido');
+  }
+  return num;
+}
+
 function parcelaPayloadFromApi(
   raw: ApiParcela,
   overrides: Partial<Pick<ParcelaPayload, 'id_comprometida' | 'id_desincorporada'>> = {},
@@ -83,9 +99,11 @@ function parcelaPayloadFromApi(
   return {
     nombre: raw.nombre ?? `Parcela ${raw.id_terreno}`,
     zona: raw.zona ?? 'Sin zona',
-    id_documento_propiedad: raw.id_documento_propiedad,
-    id_desincorporada: overrides.id_desincorporada ?? raw.id_desincorporada ?? null,
-    id_comprometida: overrides.id_comprometida ?? raw.id_comprometida ?? null,
+    id_documento_propiedad: entityIdAsString(raw.id_documento_propiedad),
+    id_desincorporada: overrides.id_desincorporada
+      ?? nullableEntityIdAsNumber(raw.id_desincorporada),
+    id_comprometida: overrides.id_comprometida
+      ?? nullableEntityIdAsNumber(raw.id_comprometida),
     ci_responsable: raw.ci_responsable ?? raw.responsable?.ci_responsable ?? '0',
     zonificacion: raw.zonificacion ?? 'Sin zonificar',
     observaciones: raw.observaciones ?? null,
@@ -139,6 +157,9 @@ function TerrenoParcelaDetail({
   const unsaved = useUnsavedChangesGuard(isDirty);
   const areaRetirable = terreno.areaDisponible + terreno.areaComprometida;
   const yaDesincorporada = Boolean(raw.id_desincorporada);
+  const compromisos = protocolos.filter((p) => p.tipoProtocolizacion === 'Compromiso');
+  const desincorporaciones = protocolos.filter((p) => p.tipoProtocolizacion === 'Desincorporación');
+  const sinAreaParaCompromiso = terreno.areaDisponible === 0 && !yaDesincorporada;
 
   const guardarCambio = async () => {
     setSaving(true);
@@ -298,6 +319,11 @@ function TerrenoParcelaDetail({
                   setProtocolModalOpen(true);
                 }}
                 disabled={terreno.areaDisponible === 0}
+                title={
+                  terreno.areaDisponible === 0
+                    ? 'No hay área disponible para nuevos compromisos'
+                    : undefined
+                }
                 className="px-5 py-2.5 bg-navy-900 text-white rounded-lg text-sm font-semibold hover:bg-navy-800 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Agregar Protocolización
@@ -334,77 +360,82 @@ function TerrenoParcelaDetail({
         }
       />
 
-      {terreno.areaDisponible === 0 && !yaDesincorporada && (
-        <div className="px-4 md:px-6 max-w-7xl">
-          <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-900">
-            <AlertTriangle size={18} className="mt-0.5 shrink-0" />
-            <div>
-              <p className="text-sm font-semibold">No hay área disponible para nuevos compromisos</p>
-              <p className="text-sm">
-                {terreno.areaComprometida > 0
-                  ? `Tiene ${formatAreaM2Detail(terreno.areaComprometida)} comprometidos. Puede retirarlos del inventario con el botón «Retirar de Inventario».`
-                  : 'Esta parcela tiene 0 m² disponibles para nuevas operaciones.'}
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
       {protocolos.length > 0 && (
-        <div className="px-4 md:px-6 pb-8 max-w-7xl mx-auto space-y-6">
-          {protocolos.filter(p => p.tipoProtocolizacion === 'Compromiso').length > 0 && (
-            <div>
-              <h2 className="text-lg font-bold text-navy-900 font-display mb-3">Compromisos</h2>
-              <div className="overflow-x-auto rounded-xl border border-gray-200/80 shadow-sm">
+        <div className="px-4 md:px-6 pb-8 max-w-7xl space-y-6">
+          {compromisos.length > 0 && (
+            <section className="bg-white rounded-xl border border-gray-200/80 shadow-sm overflow-hidden">
+              <div className="px-5 py-3.5 border-b border-gray-100 bg-linear-to-r from-navy-50/80 to-white">
+                <h2 className="text-sm font-bold text-navy-900 uppercase tracking-wide">Compromisos</h2>
+              </div>
+              {sinAreaParaCompromiso && (
+                <div className="mx-5 mt-4 flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-amber-900">
+                  <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+                  <p className="text-sm">
+                    {terreno.areaComprometida > 0 ? (
+                      <>
+                        <span className="font-semibold">Área total comprometida.</span>
+                        {' '}
+                        Tiene {formatAreaM2Detail(terreno.areaComprometida)} asignados y no puede agregar otro compromiso.
+                        Para retirar del inventario, use el botón «Retirar de Inventario» arriba.
+                      </>
+                    ) : (
+                      'Esta parcela no tiene área disponible para nuevos compromisos.'
+                    )}
+                  </p>
+                </div>
+              )}
+              <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
-                      <th className="px-4 py-3 text-left font-medium">Motivo</th>
-                      <th className="px-4 py-3 text-left font-medium">Beneficiario</th>
-                      <th className="px-4 py-3 text-left font-medium">Fecha</th>
-                      <th className="px-4 py-3 text-right font-medium">Cantidad M²</th>
+                      <th className="px-5 py-3 text-left font-medium">Motivo</th>
+                      <th className="px-5 py-3 text-left font-medium">Beneficiario</th>
+                      <th className="px-5 py-3 text-left font-medium">Fecha</th>
+                      <th className="px-5 py-3 text-right font-medium">Cantidad M²</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {protocolos.filter(p => p.tipoProtocolizacion === 'Compromiso').map((p) => (
+                    {compromisos.map((p) => (
                       <tr key={p.id} className="bg-white hover:bg-gray-50 transition-colors">
-                        <td className="px-4 py-3 text-navy-900">{p.motivo}</td>
-                        <td className="px-4 py-3 text-navy-900">{p.beneficiario}</td>
-                        <td className="px-4 py-3 text-navy-900">{formatFecha(p.fecha)}</td>
-                        <td className="px-4 py-3 text-right tabular-nums font-medium text-blue-700">{formatAreaM2Detail(p.areaComprometidaM2)}</td>
+                        <td className="px-5 py-3 text-navy-900">{p.motivo}</td>
+                        <td className="px-5 py-3 text-navy-900">{p.beneficiario}</td>
+                        <td className="px-5 py-3 text-navy-900">{formatFecha(p.fecha)}</td>
+                        <td className="px-5 py-3 text-right tabular-nums font-medium text-blue-700">{formatAreaM2Detail(p.areaComprometidaM2)}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
-            </div>
+            </section>
           )}
-          {protocolos.filter(p => p.tipoProtocolizacion === 'Desincorporación').length > 0 && (
-            <div>
-              <h2 className="text-lg font-bold text-navy-900 font-display mb-3">Desincorporaciones</h2>
-              <div className="overflow-x-auto rounded-xl border border-gray-200/80 shadow-sm">
+          {desincorporaciones.length > 0 && (
+            <section className="bg-white rounded-xl border border-gray-200/80 shadow-sm overflow-hidden">
+              <div className="px-5 py-3.5 border-b border-gray-100 bg-linear-to-r from-navy-50/80 to-white">
+                <h2 className="text-sm font-bold text-navy-900 uppercase tracking-wide">Desincorporaciones</h2>
+              </div>
+              <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
-                      <th className="px-4 py-3 text-left font-medium">Motivo</th>
-                      <th className="px-4 py-3 text-left font-medium">Beneficiario</th>
-                      <th className="px-4 py-3 text-left font-medium">Fecha</th>
-                      <th className="px-4 py-3 text-right font-medium">Cantidad M²</th>
+                      <th className="px-5 py-3 text-left font-medium">Motivo</th>
+                      <th className="px-5 py-3 text-left font-medium">Beneficiario</th>
+                      <th className="px-5 py-3 text-left font-medium">Fecha</th>
+                      <th className="px-5 py-3 text-right font-medium">Cantidad M²</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {protocolos.filter(p => p.tipoProtocolizacion === 'Desincorporación').map((p) => (
+                    {desincorporaciones.map((p) => (
                       <tr key={p.id} className="bg-white hover:bg-gray-50 transition-colors">
-                        <td className="px-4 py-3 text-navy-900">{p.motivo}</td>
-                        <td className="px-4 py-3 text-navy-900">{p.beneficiario}</td>
-                        <td className="px-4 py-3 text-navy-900">{formatFecha(p.fecha)}</td>
-                        <td className="px-4 py-3 text-right tabular-nums font-medium text-amber-700">{formatAreaM2Detail(p.areaComprometidaM2)}</td>
+                        <td className="px-5 py-3 text-navy-900">{p.motivo}</td>
+                        <td className="px-5 py-3 text-navy-900">{p.beneficiario}</td>
+                        <td className="px-5 py-3 text-navy-900">{formatFecha(p.fecha)}</td>
+                        <td className="px-5 py-3 text-right tabular-nums font-medium text-amber-700">{formatAreaM2Detail(p.areaComprometidaM2)}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
-            </div>
+            </section>
           )}
         </div>
       )}

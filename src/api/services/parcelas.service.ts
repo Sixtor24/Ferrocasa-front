@@ -22,6 +22,7 @@ import {
   fetchDesincorporacionesByParcela,
 } from './desincorporaciones.service';
 import { fetchProtocoloById } from './protocolos.service';
+import { fetchBeneficiarioById } from './beneficiarios.service';
 import { fetchResponsableByCi } from './responsables.service';
 
 export type ParcelasQuery = {
@@ -35,7 +36,8 @@ export type ParcelasQuery = {
 export type ParcelaPayload = {
   nombre: string;
   zona: string;
-  id_documento_propiedad: number;
+  /** El API espera string (p. ej. `"5"` o `"DP-001"`). */
+  id_documento_propiedad: string;
   id_desincorporada?: number | null;
   id_comprometida?: number | null;
   ci_responsable: string;
@@ -170,22 +172,14 @@ async function enrichProtocolosBeneficiario(
   return Promise.all(
     protocolos.map(async (item) => {
       const ref = item.beneficiario;
-      if (!ref || ref === '—' || ref.startsWith('BEN-')) return item;
+      if (!ref || ref === '—') return item;
 
-      const ciCandidates = ref.startsWith('V-')
-        ? [ref, ref.slice(2)]
-        : [ref, `V-${ref.replace(/\D/g, '')}`];
-
-      for (const ci of ciCandidates) {
-        try {
-          const responsable = await fetchResponsableByCi(ci);
-          return { ...item, beneficiario: responsable.nombre };
-        } catch {
-          // Intentar siguiente formato de cédula.
-        }
+      try {
+        const beneficiario = await fetchBeneficiarioById(ref);
+        return { ...item, beneficiario: beneficiario.nombre };
+      } catch {
+        return item;
       }
-
-      return item;
     }),
   );
 }

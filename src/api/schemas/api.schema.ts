@@ -525,9 +525,9 @@ export const payloadSchemas = {
   parcela: z.object({
     nombre: z.string().min(1),
     zona: z.string().min(1),
-    id_documento_propiedad: z.number().int(),
-    id_desincorporada: z.number().int().nullable().optional(),
-    id_comprometida: z.number().int().nullable().optional(),
+    id_documento_propiedad: z.string().min(1),
+    id_desincorporada: z.coerce.number().int().nullable().optional(),
+    id_comprometida: z.coerce.number().int().nullable().optional(),
     ci_responsable: z.string().min(1),
     zonificacion: z.string().min(1),
     observaciones: z.string().nullable().optional(),
