@@ -10,8 +10,10 @@ import {
   type ProtocolizacionForm,
 } from '../../schemas/protocolizacion.schema';
 import { parseMontoInput, sanitizeMontoDraft } from '../../utils/formatters';
+import { resolveBeneficiarioId } from '../../utils/beneficiario';
 import { useAuth } from '../../context/AuthContext';
 import SearchableSelect from '../forms/SearchableSelect';
+import BeneficiarioAutocomplete from '../forms/BeneficiarioAutocomplete';
 import Modal from './Modal';
 import ModalField from './ModalField';
 
@@ -115,10 +117,10 @@ export default function NuevaProtocolizacionModal({
       return;
     }
 
-    const idBeneficiado = lockTipo ? null : form.beneficiario;
-
     setSubmitting(true);
     try {
+      const idBeneficiado = lockTipo ? null : await resolveBeneficiarioId(form.beneficiario);
+
       const protocolo = await createProtocolo({
         motivo: form.motivo,
         id_beneficiado: idBeneficiado,
@@ -204,15 +206,29 @@ export default function NuevaProtocolizacionModal({
           label={lockTipo ? 'Ejecutado por (usuario actual)' : 'Beneficiario *'}
           error={!lockTipo ? errors.beneficiario?.message : undefined}
         >
-          <input
-            {...register('beneficiario')}
-            className="input-field"
-            readOnly={lockTipo}
-            placeholder={!lockTipo ? 'V-12345678 o BEN-0001' : undefined}
-          />
+          {lockTipo ? (
+            <input
+              {...register('beneficiario')}
+              className="input-field"
+              readOnly
+            />
+          ) : (
+            <Controller
+              name="beneficiario"
+              control={control}
+              render={({ field }) => (
+                <BeneficiarioAutocomplete
+                  value={field.value}
+                  onChange={field.onChange}
+                  aria-label="Beneficiario"
+                />
+              )}
+            />
+          )}
           {!lockTipo && (
             <p className="text-xs text-gray-500 mt-1">
-              Puede ingresar solo la cédula (ej. 12345678); se enviará como V-12345678.
+              Escriba para buscar beneficiarios existentes o ingrese un nombre nuevo (ej. Jose, Ferrominera).
+              También puede usar cédula (12345678) o código BEN-0001.
             </p>
           )}
           {lockTipo && (
