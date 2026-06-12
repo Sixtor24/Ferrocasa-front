@@ -6,11 +6,12 @@ import {
   type AuditoriaQuery,
 } from '../api/services/auditoria.service';
 import { fetchAllUsuarios } from '../api/services/usuarios.service';
-import { fetchAllPages, MODULE_PAGE_SIZE } from '../api/pagination';
+import { fetchAllPages } from '../api/pagination';
 import { useApiQuery } from '../hooks/useApiQuery';
 import { useAuth } from '../context/AuthContext';
 import { hasAdminAccess } from '../constants/adminAccess';
 import SearchableSelect from '../components/forms/SearchableSelect';
+import ModuleTablePaginationBar from '../components/module/ModuleTablePaginationBar';
 import type { AuditoriaAccion, AuditoriaRegistroApi, AuditoriaRegistroView } from '../types/auditoria';
 import {
   accionAuditoriaColor,
@@ -26,13 +27,14 @@ import {
 } from '../utils/auditoriaFormat';
 import { exportAuditoriaExcel } from '../utils/exportAuditoriaExcel';
 import {
-  ChevronLeft,
   ChevronRight,
   FileSpreadsheet,
   Filter,
   ShieldAlert,
   X,
 } from 'lucide-react';
+
+const DEFAULT_PAGE_SIZE = 50;
 
 function mapRegistroView(registro: AuditoriaRegistroApi): AuditoriaRegistroView {
   const usuario = registro.usuario?.nombre_usuario ?? `Usuario #${registro.id_usuario}`;
@@ -59,6 +61,7 @@ function parseIdRegistro(value: string): number | undefined {
 
 function buildAuditoriaQuery(input: {
   pagina: number;
+  limit: number;
   tabla: string;
   usuarioId: string;
   accion: string;
@@ -68,7 +71,7 @@ function buildAuditoriaQuery(input: {
 }): AuditoriaQuery {
   const query: AuditoriaQuery = {
     page: input.pagina,
-    limit: MODULE_PAGE_SIZE,
+    limit: input.limit,
   };
 
   if (input.tabla !== 'Todas las tablas') query.nombre_tabla = input.tabla;
@@ -88,6 +91,7 @@ export default function Auditoria() {
   const canAccess = hasAdminAccess(usuario?.rol.nombre_rol);
 
   const [pagina, setPagina] = useState(1);
+  const [filasPorPagina, setFilasPorPagina] = useState(DEFAULT_PAGE_SIZE);
   const [busqueda, setBusqueda] = useState('');
   const [idRegistro, setIdRegistro] = useState('');
   const [usuarioId, setUsuarioId] = useState('Todos los usuarios');
@@ -101,6 +105,7 @@ export default function Auditoria() {
   const filtrosQuery = useMemo(
     () => buildAuditoriaQuery({
       pagina,
+      limit: filasPorPagina,
       tabla,
       usuarioId,
       accion,
@@ -108,7 +113,7 @@ export default function Auditoria() {
       fechaHasta,
       idRegistro,
     }),
-    [pagina, tabla, usuarioId, accion, fechaDesde, fechaHasta, idRegistro],
+    [pagina, filasPorPagina, tabla, usuarioId, accion, fechaDesde, fechaHasta, idRegistro],
   );
 
   const auditoriaQuery = useApiQuery(
@@ -213,6 +218,7 @@ export default function Auditoria() {
     try {
       const query = buildAuditoriaQuery({
         pagina: 1,
+        limit: filasPorPagina,
         tabla,
         usuarioId,
         accion,
@@ -475,32 +481,25 @@ export default function Auditoria() {
           </table>
         </div>
 
-        <div className="flex flex-col sm:flex-row items-center justify-between px-4 sm:px-6 py-3 border-t border-gray-200 gap-2">
-          <p className="text-sm text-gray-500">
-            {totalRegistros === 0
-              ? 'Sin resultados'
-              : `Página ${paginaActual} de ${totalPaginas} · ${totalRegistros} registros`}
-            {busqueda && ' · búsqueda local en página actual'}
-          </p>
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => setPagina(Math.max(1, paginaActual - 1))}
-              disabled={paginaActual <= 1 || auditoriaQuery.loading}
-              className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 disabled:opacity-30"
-            >
-              <ChevronLeft size={18} />
-            </button>
-            <span className="text-sm text-gray-600 px-2">{paginaActual}</span>
-            <button
-              type="button"
-              onClick={() => setPagina(Math.min(totalPaginas, paginaActual + 1))}
-              disabled={paginaActual >= totalPaginas || auditoriaQuery.loading}
-              className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 disabled:opacity-30"
-            >
-              <ChevronRight size={18} />
-            </button>
-          </div>
+        <div className="px-4 sm:px-6 py-3 border-t border-gray-200">
+          <ModuleTablePaginationBar
+            perPage={filasPorPagina}
+            onPerPageChange={(size) => {
+              setFilasPorPagina(size);
+              setPagina(1);
+            }}
+            page={paginaActual}
+            totalPages={totalPaginas}
+            onPageChange={setPagina}
+          />
+          {(totalRegistros > 0 || busqueda) && (
+            <p className="text-xs text-gray-500 mt-2">
+              {totalRegistros === 0
+                ? 'Sin resultados'
+                : `${totalRegistros} registros en total`}
+              {busqueda && ' · búsqueda local en página actual'}
+            </p>
+          )}
         </div>
       </div>
 

@@ -31,7 +31,7 @@ import ModuleMetricCard from '../components/module/ModuleMetricCard';
 import SearchableSelect from '../components/forms/SearchableSelect';
 import { FILTROS_INVENTARIO_VACIOS } from '../constants/moduleFilters';
 import ModuleDataTable from '../components/module/ModuleDataTable';
-import ModulePagination from '../components/module/ModulePagination';
+import ModuleTablePaginationBar from '../components/module/ModuleTablePaginationBar';
 import AssetDetailView from '../components/module/AssetDetailView';
 import ApiState from '../components/ApiState';
 import StatusBadge from '../components/StatusBadge';
@@ -45,9 +45,9 @@ import {
 import { aggregateVehiculosMetricsFromList } from '../utils/vehiculosStats';
 import { useModuleUiState } from '../stores/moduleUiStore';
 import type { Column } from '../components/DataTable';
-import { ArrowLeft, Car, Truck, Wrench, Users } from 'lucide-react';
+import { AlertCircle, AlertTriangle, ArrowLeft, BarChart3, Car } from 'lucide-react';
 
-const PER_PAGE = 5;
+const DEFAULT_PAGE_SIZE = 50;
 
 function catalogOptions(values: string[], allLabel: string) {
   const unique = Array.from(
@@ -282,13 +282,14 @@ export default function Vehiculos() {
     resetFilters,
     setModal,
   } = useModuleUiState('vehiculos', FILTROS_INVENTARIO_VACIOS);
+  const [perPage, setPerPage] = useState(DEFAULT_PAGE_SIZE);
 
   const showRegistro = modals.registro ?? false;
   const apiSearch = useMemo(() => filtros.buscar.trim() || undefined, [filtros.buscar]);
 
   const listQuery = useApiQuery(
-    () => fetchVehiculos({ page, limit: PER_PAGE, search: apiSearch }),
-    [page, apiSearch],
+    () => fetchVehiculos({ page, limit: perPage, search: apiSearch }),
+    [page, perPage, apiSearch],
   );
   const metricsQuery = useApiQuery(
     async () => {
@@ -314,9 +315,6 @@ export default function Vehiculos() {
   const vehiculo = id ? detailQuery.data : null;
   const metricas = metricsQuery.data ?? {
     total: 0,
-    disponibles: 0,
-    asignados: 0,
-    enMantenimiento: 0,
     valorTotal: 0,
     enUso: 0,
     enObsolescencia: 0,
@@ -437,25 +435,27 @@ export default function Vehiculos() {
           iconWrapClassName="bg-navy-100"
         />
         <ModuleMetricCard
-          label="Disponibles"
-          value={(metricas.disponibles ?? 0).toLocaleString('es-VE')}
-          icon={<Truck size={22} className="text-green-600" />}
+          label="En Uso"
+          value={(metricas.enUso ?? 0).toLocaleString('es-VE')}
+          icon={<BarChart3 size={22} className="text-green-600" />}
           iconWrapClassName="bg-green-100"
           valueClassName="text-green-700"
         />
         <ModuleMetricCard
-          label="Asignados"
-          value={(metricas.asignados ?? 0).toLocaleString('es-VE')}
-          icon={<Users size={22} className="text-blue-600" />}
-          iconWrapClassName="bg-blue-100"
-          valueClassName="text-blue-700"
+          label="En obsolescencia"
+          value={(metricas.enObsolescencia ?? 0).toLocaleString('es-VE')}
+          icon={<AlertTriangle size={22} className="text-amber-500" />}
+          iconWrapClassName="bg-amber-100"
+          borderClassName="border-amber-200"
+          valueClassName="text-amber-700"
         />
         <ModuleMetricCard
-          label="En mantenimiento"
-          value={(metricas.enMantenimiento ?? 0).toLocaleString('es-VE')}
-          icon={<Wrench size={22} className="text-amber-500" />}
-          iconWrapClassName="bg-amber-100"
-          valueClassName="text-amber-700"
+          label="Obsoleto"
+          value={(metricas.obsoletos ?? 0).toLocaleString('es-VE')}
+          icon={<AlertCircle size={22} className="text-red-500" />}
+          iconWrapClassName="bg-red-100"
+          borderClassName="border-red-200"
+          valueClassName="text-red-700"
         />
         <ModuleMetricCard
           label="Valor total"
@@ -495,7 +495,16 @@ export default function Vehiculos() {
           onDetails={(v) => navigate(`/vehiculos/${v.id}`)}
         />
 
-        <ModulePagination page={page} totalPages={totalPages} onPageChange={setPage} />
+        <ModuleTablePaginationBar
+          perPage={perPage}
+          onPerPageChange={(size) => {
+            setPerPage(size);
+            setPage(1);
+          }}
+          page={page}
+          totalPages={totalPages}
+          onPageChange={setPage}
+        />
       </ApiState>
 
       <RegistroVehiculosModal
