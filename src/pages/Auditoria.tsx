@@ -94,7 +94,7 @@ export default function Auditoria() {
   const [accion, setAccion] = useState('Todas las acciones');
   const [fechaDesde, setFechaDesde] = useState('');
   const [fechaHasta, setFechaHasta] = useState('');
-  const [detalleId, setDetalleId] = useState<number | null>(null);
+  const [detalleId, setDetalleId] = useState<number | string | null>(null);
   const [exportando, setExportando] = useState(false);
 
   const filtrosQuery = useMemo(
@@ -119,7 +119,7 @@ export default function Auditoria() {
   const usuariosQuery = useApiQuery(() => fetchAllUsuarios(), [], canAccess);
 
   const detalleQuery = useApiQuery(
-    () => fetchAuditoriaById(detalleId as number),
+    () => fetchAuditoriaById(detalleId as number | string),
     [detalleId],
     canAccess && detalleId !== null,
   );
@@ -200,7 +200,7 @@ export default function Auditoria() {
     setPagina(1);
   };
 
-  const verHistorialRegistro = (nombreTabla: string, idReg: number) => {
+  const verHistorialRegistro = (nombreTabla: string, idReg: number | string) => {
     setTabla(nombreTabla);
     setIdRegistro(String(idReg));
     setDetalleId(null);

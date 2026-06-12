@@ -2,6 +2,9 @@ import { z } from 'zod';
 
 const numeric = z.union([z.number(), z.string()]).nullable().optional();
 const dateLike = z.string().nullable().optional();
+/** IDs que el API puede serializar como number o string (p. ej. BIGINT). */
+const entityId = z.union([z.number(), z.string()]);
+const nullableEntityId = entityId.nullable().optional();
 
 export const paginationMetaSchema = z.object({
   page: z.number(),
@@ -126,7 +129,7 @@ export const usuarioPerfilSchema = z.object({
 
 /** Usuario anidado en auditoría: el API a veces omite campos como `activo`. */
 export const usuarioAuditoriaSchema = z.object({
-  id_usuario: z.number().optional(),
+  id_usuario: entityId.optional(),
   nombre_usuario: z.string().optional(),
   correo: z.string().optional(),
   id_rol: z.number().optional(),
@@ -135,10 +138,10 @@ export const usuarioAuditoriaSchema = z.object({
 }).passthrough();
 
 export const auditoriaRegistroSchema = z.object({
-  id_auditoria: z.number(),
+  id_auditoria: entityId,
   nombre_tabla: z.string(),
-  id_registro: z.number(),
-  id_usuario: z.number(),
+  id_registro: entityId,
+  id_usuario: entityId,
   accion: z.enum(['INSERT', 'UPDATE', 'DELETE']),
   fecha_cambio: z.string(),
   datos_previos: z.record(z.string(), z.unknown()).nullable().optional(),
@@ -179,9 +182,9 @@ export const dashboardStatsSchema = z.object({
 }).passthrough();
 
 export const dashboardActividadItemSchema = z.object({
-  id_auditoria: z.number(),
+  id_auditoria: entityId,
   nombre_tabla: z.string(),
-  id_registro: z.number(),
+  id_registro: entityId,
   accion: z.enum(['INSERT', 'UPDATE', 'DELETE']),
   fecha_cambio: z.string(),
   usuario: usuarioAuditoriaSchema.optional(),
@@ -230,7 +233,7 @@ export const auditoriaResumenSchema = z.object({
     total: z.number(),
   })),
   usuariosMasActivos: z.array(z.object({
-    id_usuario: z.number(),
+    id_usuario: entityId,
     total: z.number(),
     usuario: usuarioAuditoriaSchema.optional(),
   })),
@@ -253,7 +256,7 @@ export const propiedadSchema: z.ZodTypeAny = z.lazy(() => z.object({
 }).passthrough());
 
 export const documentoPropiedadSchema: z.ZodTypeAny = z.lazy(() => z.object({
-  id_documento_propiedad: z.number(),
+  id_documento_propiedad: entityId,
   numero_documento: z.string().nullable().optional(),
   numero_propiedad: z.number(),
   forma_adquisicion: z.string(),
@@ -291,12 +294,12 @@ export const desincorporacionSchema: z.ZodTypeAny = z.lazy(() => z.object({
 }).passthrough());
 
 export const parcelaSchema: z.ZodTypeAny = z.lazy(() => z.object({
-  id_terreno: z.number(),
+  id_terreno: entityId,
   nombre: z.string().nullable().optional(),
   zona: z.string().nullable().optional(),
-  id_documento_propiedad: z.number(),
-  id_desincorporada: z.number().nullable().optional(),
-  id_comprometida: z.number().nullable().optional(),
+  id_documento_propiedad: entityId,
+  id_desincorporada: nullableEntityId,
+  id_comprometida: nullableEntityId,
   ci_responsable: z.string().nullable().optional(),
   zonificacion: z.string().nullable().optional(),
   observaciones: z.string().nullable().optional(),
@@ -339,7 +342,7 @@ export const bienSchema = z.object({
 export const vehiculoSchema = z.object({
   codigo: z.union([z.number(), z.string()]),
   descripcion: z.string().nullable().optional(),
-  id_doc: z.number().nullable().optional(),
+  id_doc: nullableEntityId,
   fecha_egreso: dateLike,
   valor_adquisicion: numeric,
   marca: z.string().nullable().optional(),

@@ -26,9 +26,9 @@ export type DashboardStatsApi = {
 };
 
 export type DashboardActividadItem = {
-  id_auditoria: number;
+  id_auditoria: number | string;
   nombre_tabla: string;
-  id_registro: number;
+  id_registro: number | string;
   accion: AuditoriaAccion;
   fecha_cambio: string;
   usuario?: {

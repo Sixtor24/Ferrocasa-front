@@ -55,7 +55,7 @@ export async function fetchDocumentosPropiedad(query: DocumentosPropiedadQuery =
   return mapDocumentosPropiedadList(res);
 }
 
-export async function fetchDocumentoPropiedadById(id: number) {
+export async function fetchDocumentoPropiedadById(id: number | string) {
   const res = await apiRequest<ApiItemResponse<ApiDocumentoPropiedad>>(`/documentos-propiedad/${id}`);
   if (!res.data) throw new Error('Respuesta vacía del API');
 

@@ -88,7 +88,7 @@ export async function fetchAuditoriaCambiosRecientes(query: {
 
 export async function fetchAuditoriaPorTablaRegistro(
   nombreTabla: string,
-  idRegistro: number,
+  idRegistro: number | string,
   query: { page?: number; limit?: number } = {},
 ) {
   const paging = listParams(query.page, query.limit, MODULE_PAGE_SIZE);
@@ -111,7 +111,7 @@ export async function fetchAuditoriaPorUsuario(
   return mapAuditoriaList(res);
 }
 
-export async function fetchAuditoriaById(id: number) {
+export async function fetchAuditoriaById(id: number | string) {
   const res = await apiRequest<ApiItemResponse<AuditoriaRegistroApi>>(`/auditoria/${id}`);
   return res.data;
 }

@@ -57,7 +57,7 @@ export async function fetchDocumentos(query: DocumentosQuery = {}) {
   return mapDocumentosList(res);
 }
 
-export async function fetchDocumentoById(id: number) {
+export async function fetchDocumentoById(id: number | string) {
   const res = await apiRequest<ApiItemResponse<ApiDocumento>>(`/documentos/${id}`);
   if (!res.data) throw new Error('Respuesta vacía del API');
 

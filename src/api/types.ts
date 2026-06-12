@@ -69,7 +69,7 @@ export interface ApiCategoriaEspecifica {
 }
 
 export interface ApiDocumento {
-  id_doc: number;
+  id_doc: number | string;
   numero_documento?: string | null;
   nombre_proveedor?: string | null;
   forma_adquisicion?: string;
@@ -123,7 +123,7 @@ export interface ApiBien {
 export interface ApiVehiculo {
   codigo: number | string;
   descripcion?: string | null;
-  id_doc?: number | null;
+  id_doc?: number | string | null;
   fecha_egreso?: string | null;
   valor_adquisicion?: string | number | null;
   marca?: string | null;
@@ -157,7 +157,7 @@ export interface ApiPropiedad {
 }
 
 export interface ApiDocumentoPropiedad {
-  id_documento_propiedad: number;
+  id_documento_propiedad: number | string;
   numero_documento?: string | null;
   numero_propiedad: number;
   forma_adquisicion: string;
@@ -195,15 +195,15 @@ export interface ApiDesincorporacionTerreno {
 }
 
 export interface ApiParcela {
-  id_terreno: number;
+  id_terreno: number | string;
   codigo?: string | null;
   nombre?: string | null;
   zona?: string | null;
   /** Día en que se registró la parcela en el sistema (si el API lo expone). */
   fecha_ingreso?: string | null;
-  id_documento_propiedad: number;
-  id_desincorporada?: number | null;
-  id_comprometida?: number | null;
+  id_documento_propiedad: number | string;
+  id_desincorporada?: number | string | null;
+  id_comprometida?: number | string | null;
   ci_responsable?: string | null;
   zonificacion?: string | null;
   observaciones?: string | null;

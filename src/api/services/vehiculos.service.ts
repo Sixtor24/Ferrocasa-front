@@ -51,8 +51,8 @@ async function enrichVehiculosDocumento(rows: ApiVehiculo[]): Promise<ApiVehicul
   const ids = [
     ...new Set(
       rows
-        .filter((row) => row.id_doc && !row.documento?.numero_documento?.trim())
-        .map((row) => row.id_doc as number),
+        .filter((row) => row.id_doc != null && row.id_doc !== '' && !row.documento?.numero_documento?.trim())
+        .map((row) => String(row.id_doc)),
     ),
   ];
 
@@ -69,13 +69,13 @@ async function enrichVehiculosDocumento(rows: ApiVehiculo[]): Promise<ApiVehicul
   );
 
   const byId = new Map(
-    documentos.filter((entry): entry is { id: number; doc: Awaited<ReturnType<typeof fetchDocumentoById>> } => Boolean(entry))
+    documentos.filter((entry): entry is { id: string; doc: Awaited<ReturnType<typeof fetchDocumentoById>> } => Boolean(entry))
       .map((entry) => [entry.id, entry.doc]),
   );
 
   return rows.map((row) => {
-    if (!row.id_doc) return row;
-    const doc = byId.get(row.id_doc);
+    if (row.id_doc == null || row.id_doc === '') return row;
+    const doc = byId.get(String(row.id_doc));
     if (!doc) return row;
     return {
       ...row,

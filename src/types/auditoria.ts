@@ -3,10 +3,10 @@ import type { UsuarioSistema } from './auth';
 export type AuditoriaAccion = 'INSERT' | 'UPDATE' | 'DELETE';
 
 export interface AuditoriaRegistroApi {
-  id_auditoria: number;
+  id_auditoria: number | string;
   nombre_tabla: string;
-  id_registro: number;
-  id_usuario: number;
+  id_registro: number | string;
+  id_usuario: number | string;
   accion: AuditoriaAccion;
   fecha_cambio: string;
   datos_previos?: Record<string, unknown> | null;
@@ -21,7 +21,7 @@ export interface AuditoriaResumenApi {
   porAccion: Array<{ accion: string; total: number }>;
   porTabla: Array<{ nombre_tabla: string; total: number }>;
   usuariosMasActivos: Array<{
-    id_usuario: number;
+    id_usuario: number | string;
     total: number;
     usuario?: UsuarioSistema;
   }>;
@@ -30,13 +30,13 @@ export interface AuditoriaResumenApi {
 }
 
 export interface AuditoriaRegistroView {
-  id: number;
+  id: number | string;
   fecha: string;
   usuario: string;
   iniciales: string;
   tabla: string;
   tablaLabel: string;
-  idRegistro: number;
+  idRegistro: number | string;
   accion: AuditoriaAccion;
   descripcion: string;
   ip: string;
