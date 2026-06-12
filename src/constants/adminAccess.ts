@@ -1,14 +1,25 @@
 import type { RoleName } from '../types/auth';
+import {
+  getRolePermissions,
+  ROLE_ADMIN,
+  ROLE_SUPER_ADMIN,
+} from './rolePermissions';
 
-/** Roles con permisos de administración (usuarios, auditoría, tablas maestras). */
-export const ADMIN_ACCESS_ROLES: RoleName[] = ['Super Administrador', 'Administrador'];
+/** Roles con acceso al módulo de auditoría. */
+export const ADMIN_ACCESS_ROLES: RoleName[] = [ROLE_SUPER_ADMIN, ROLE_ADMIN];
 
 export function hasAdminAccess(rol: RoleName | undefined | null): boolean {
-  if (!rol) return false;
-  return ADMIN_ACCESS_ROLES.includes(rol);
+  return getRolePermissions(rol).canAccessAuditoria;
 }
 
-/** Configuración almacén → responsable (no aplica a Super Administrador). */
 export function hasAlmacenResponsableConfigAccess(rol: RoleName | undefined | null): boolean {
-  return rol === 'Administrador';
+  return getRolePermissions(rol).canConfigAlmacenResponsable;
+}
+
+export function hasUserManagementAccess(rol: RoleName | undefined | null): boolean {
+  return getRolePermissions(rol).canManageUsers;
+}
+
+export function hasMasterTablesAccess(rol: RoleName | undefined | null): boolean {
+  return getRolePermissions(rol).canManageMasterTables;
 }

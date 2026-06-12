@@ -2,15 +2,15 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
+  fetchAllBienesCementerio,
   fetchBienCementerioByCodigo,
   fetchBienesCementerio,
 } from '../api/services/bienes-sedes.service';
 import { fetchApiBienByCodigo, updateBien } from '../api/services/bienes.service';
 import { fetchAlmacenes } from '../api/services/almacenes.service';
 import { fetchSedes } from '../api/services/sedes.service';
-import { fetchBienesEstadisticas } from '../api/services/bienes.service';
 import { API_MAX_LIMIT } from '../api/pagination';
-import { parseBienesEstadisticas } from '../utils/bienesStats';
+import { aggregateBienesMetricsFromList } from '../utils/bienesStats';
 import { useApiQuery } from '../hooks/useApiQuery';
 import { toIsoDate } from '../api/mappers/enums';
 import { formatFecha, formatMoneda } from '../utils/formatters';
@@ -32,6 +32,7 @@ import {
 } from '../hooks/useBienInventarioActions';
 import type { ApiAlmacen } from '../api/types';
 import ModulePageHeader from '../components/module/ModulePageHeader';
+import { useRolePermissions } from '../hooks/useRolePermissions';
 import ModuleFilterBar from '../components/module/ModuleFilterBar';
 import SearchableSelect from '../components/forms/SearchableSelect';
 import { FILTROS_INVENTARIO_VACIOS } from '../constants/moduleFilters';
@@ -66,6 +67,7 @@ function CementerioBienDetail({
   onSaved?: () => void | Promise<void>;
   onInventarioAction?: (result: InventarioBienActionResult) => void;
 }) {
+  const { canWriteAssets, canTransferBien, canRetireBien } = useRolePermissions();
   const navigate = useNavigate();
   const [estadoUso, setEstadoUso] = useState(bien.estadoUso);
   const [saving, setSaving] = useState(false);
@@ -144,7 +146,7 @@ function CementerioBienDetail({
                   onChange={(value) => setEstadoUso(value as BienMueble['estadoUso'])}
                   options={ESTADOS_USO}
                   className="max-w-xs"
-                  disabled={inventario.retirado}
+                  disabled={inventario.retirado || !canWriteAssets}
                   disableSearch
                 />
               ),
@@ -174,30 +176,36 @@ function CementerioBienDetail({
             <ArrowLeft size={16} />
             Volver al listado
           </button>
-          <button
-            type="button"
-            onClick={guardarCambio}
-            disabled={saving}
-            className="px-5 py-2.5 bg-navy-900 text-white rounded-lg text-sm font-semibold hover:bg-navy-800 disabled:opacity-60"
-          >
-            {saving ? 'Guardando...' : 'Guardar cambio'}
-          </button>
-          <button
-            type="button"
-            onClick={() => inventario.setTransferOpen(true)}
-            disabled={inventario.retirado || inventario.transferLoading || inventario.retireLoading}
-            className="px-5 py-2.5 border border-navy-200 text-navy-800 rounded-lg text-sm font-semibold hover:bg-navy-50 disabled:opacity-50"
-          >
-            Transferir a otro almacén
-          </button>
-          <button
-            type="button"
-            onClick={() => inventario.setRetireOpen(true)}
-            disabled={inventario.retirado || inventario.transferLoading || inventario.retireLoading}
-            className="px-5 py-2.5 border border-red-200 text-red-700 rounded-lg text-sm font-semibold hover:bg-red-50 disabled:opacity-50"
-          >
-            Retirar de Inventario
-          </button>
+          {canWriteAssets && (
+            <button
+              type="button"
+              onClick={guardarCambio}
+              disabled={saving}
+              className="px-5 py-2.5 bg-navy-900 text-white rounded-lg text-sm font-semibold hover:bg-navy-800 disabled:opacity-60"
+            >
+              {saving ? 'Guardando...' : 'Guardar cambio'}
+            </button>
+          )}
+          {canTransferBien && (
+            <button
+              type="button"
+              onClick={() => inventario.setTransferOpen(true)}
+              disabled={inventario.retirado || inventario.transferLoading || inventario.retireLoading}
+              className="px-5 py-2.5 border border-navy-200 text-navy-800 rounded-lg text-sm font-semibold hover:bg-navy-50 disabled:opacity-50"
+            >
+              Transferir a otro almacén
+            </button>
+          )}
+          {canRetireBien && (
+            <button
+              type="button"
+              onClick={() => inventario.setRetireOpen(true)}
+              disabled={inventario.retirado || inventario.transferLoading || inventario.retireLoading}
+              className="px-5 py-2.5 border border-red-200 text-red-700 rounded-lg text-sm font-semibold hover:bg-red-50 disabled:opacity-50"
+            >
+              Retirar de Inventario
+            </button>
+          )}
         </>
       }
     />
@@ -229,6 +237,7 @@ function CementerioBienDetail({
 }
 
 export default function Cementerio() {
+  const { canWriteAssets, canExportInventory } = useRolePermissions();
   const { id } = useParams();
   const navigate = useNavigate();
   const [exportMsg, setExportMsg] = useState('');
@@ -248,7 +257,13 @@ export default function Cementerio() {
     () => fetchBienesCementerio({ page, limit: PER_PAGE, search: apiSearch }),
     [page, apiSearch],
   );
-  const statsQuery = useApiQuery(() => fetchBienesEstadisticas(), []);
+  const metricsQuery = useApiQuery(
+    async () => {
+      const bienes = await fetchAllBienesCementerio({ search: apiSearch });
+      return aggregateBienesMetricsFromList(bienes);
+    },
+    [apiSearch],
+  );
   const almacenesQuery = useApiQuery(
     () => fetchAlmacenes({ page: 1, limit: API_MAX_LIMIT }),
     [],
@@ -265,10 +280,12 @@ export default function Cementerio() {
   const bienes = bienesQuery.data?.data ?? [];
   const totalPages = bienesQuery.data?.meta.totalPages ?? 1;
 
-  const metricas = useMemo(
-    () => parseBienesEstadisticas(statsQuery.data),
-    [statsQuery.data],
-  );
+  const metricas = metricsQuery.data ?? {
+    total: 0,
+    enUso: 0,
+    enObsolescencia: 0,
+    obsoletos: 0,
+  };
 
   const almacenes = almacenesQuery.data?.data ?? [];
   const sedes = sedesQuery.data?.data ?? [];
@@ -379,8 +396,8 @@ export default function Cementerio() {
       <ModulePageHeader
         title="Bienes e Inmuebles: Cementerio"
         breadcrumb={[{ label: 'Dashboard', to: '/dashboard' }, { label: 'Cementerio' }]}
-        formatModule="cementerio"
-        onCreate={() => setModal('registro', true)}
+        formatModule={canExportInventory ? 'cementerio' : undefined}
+        onCreate={canWriteAssets ? () => setModal('registro', true) : undefined}
         createLabel="Crear Registro"
       />
 
@@ -442,9 +459,9 @@ export default function Cementerio() {
                 valueClassName="text-red-700"
               />
             </div>
-            {metricas.total === 0 && (
+            {metricas.total === 0 && !bienesQuery.loading && (
               <p className="mt-4 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                No hay bienes asociados a la sede Cementerio en el backend. Las métricas mostrarán valores cuando existan registros.
+                No hay bienes registrados en la sede Cementerio.
               </p>
             )}
           </>
@@ -507,17 +524,19 @@ export default function Cementerio() {
           },
         ]}
       >
-        <div className="flex flex-wrap items-center justify-end gap-3 mt-4 pt-4 border-t border-gray-100">
-          {exportMsg && <span className="text-sm text-green-600 font-medium">{exportMsg}</span>}
-          <button
-            type="button"
-            onClick={simularExportPdf}
-            className="inline-flex items-center gap-1.5 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50"
-          >
-            <FileText size={14} />
-            PDF
-          </button>
-        </div>
+        {canExportInventory && (
+          <div className="flex flex-wrap items-center justify-end gap-3 mt-4 pt-4 border-t border-gray-100">
+            {exportMsg && <span className="text-sm text-green-600 font-medium">{exportMsg}</span>}
+            <button
+              type="button"
+              onClick={simularExportPdf}
+              className="inline-flex items-center gap-1.5 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50"
+            >
+              <FileText size={14} />
+              PDF
+            </button>
+          </div>
+        )}
       </ModuleFilterBar>
 
       <ApiState
@@ -543,6 +562,7 @@ export default function Cementerio() {
         sedes={sedes}
         onSuccess={() => {
           bienesQuery.refetch();
+          metricsQuery.refetch();
         }}
         onError={() => {}}
       />
