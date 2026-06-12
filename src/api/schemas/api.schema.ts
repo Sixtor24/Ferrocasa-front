@@ -110,6 +110,20 @@ export const usuarioSchema = z.object({
   rol: rolSchema,
 }).passthrough();
 
+/** Perfil autenticado: el API a veces omite `rol.descripcion`. */
+export const usuarioPerfilSchema = z.object({
+  id_usuario: z.number(),
+  nombre_usuario: z.string(),
+  correo: z.string(),
+  id_rol: z.number(),
+  activo: z.boolean(),
+  rol: z.object({
+    id_rol: z.number(),
+    nombre_rol: z.string(),
+    descripcion: z.string().nullable().optional(),
+  }).passthrough(),
+}).passthrough();
+
 /** Usuario anidado en auditoría: el API a veces omite campos como `activo`. */
 export const usuarioAuditoriaSchema = z.object({
   id_usuario: z.number().optional(),

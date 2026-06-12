@@ -5,7 +5,12 @@ import {
   logoutRequest,
   refreshSessionRequest,
 } from '../api/services/auth.service';
-import { clearAuthSession, getRefreshToken, getStoredUser } from '../api/auth/session';
+import {
+  clearAuthSession,
+  getAccessToken,
+  getRefreshToken,
+  getStoredUser,
+} from '../api/auth/session';
 import type { RoleName, UsuarioSistema } from '../types/auth';
 import { useApiCacheStore } from '../stores/apiCacheStore';
 import { useModuleUiStore } from '../stores/moduleUiStore';
@@ -73,10 +78,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      try {
-        await refreshSessionRequest(refreshToken);
+      const syncUsuarioFromPerfil = async () => {
         const perfil = await fetchPerfil();
         if (mounted) setUsuario(perfil);
+      };
+
+      try {
+        if (getAccessToken()) {
+          try {
+            await syncUsuarioFromPerfil();
+            return;
+          } catch {
+            // Access token expirado o inválido; renovar con refresh token.
+          }
+        }
+
+        const session = await refreshSessionRequest(refreshToken);
+        if (mounted) setUsuario(session.usuario);
+
+        try {
+          await syncUsuarioFromPerfil();
+        } catch {
+          // Sesión válida tras refresh; conservar usuario del token.
+        }
       } catch {
         clearAuthSession();
         if (mounted) setUsuario(null);

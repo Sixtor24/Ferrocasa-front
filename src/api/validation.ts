@@ -30,6 +30,7 @@ import {
   rolSchema,
   sedeSchema,
   subcategoriaSchema,
+  usuarioPerfilSchema,
   usuarioSchema,
   vehiculoSchema,
   vehiculosStatsSchema,
@@ -73,7 +74,7 @@ export function getResponseSchema(path: string, method = 'GET') {
   const p = normalizePath(path);
 
   if (p === '/auth/login' || p === '/auth/refresh-token') return itemResponseSchema(authSessionSchema);
-  if (p === '/auth/perfil') return itemResponseSchema(usuarioSchema);
+  if (p === '/auth/perfil') return itemResponseSchema(usuarioPerfilSchema);
   if (p === '/auth/logout' || p === '/auth/cambiar-password') return z.object({
     success: z.literal(true),
     message: z.string().optional(),
