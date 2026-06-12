@@ -10,6 +10,7 @@ import {
 import { fetchVehiculosAll } from '../api/services/vehiculos.service';
 import type { BienMueble } from '../types/bien';
 import type { Vehiculo } from '../types/vehiculo';
+import { exportInternoBienesAdministrativos } from './exportInternoBienesAdministrativosExcel';
 import { fillExcelTemplate, type ExcelTemplateLayout } from './excelWorkbookExport';
 import {
   bienToInternoMueblesRow,
@@ -76,7 +77,7 @@ export async function exportInternoForModule(module: ModuleFormatKey): Promise<v
   switch (module) {
     case 'almacen': {
       const bienes = await fetchAllBienesBySedeAliases(SEDES_BIENES_ADMINISTRATIVOS);
-      await exportInternoMuebles(bienes, 'almacen', 'Inventario_Interno_Almacen.xlsx');
+      await exportInternoBienesAdministrativos(bienes);
       return;
     }
     case 'cementerio': {
