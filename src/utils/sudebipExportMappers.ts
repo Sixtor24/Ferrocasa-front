@@ -107,7 +107,6 @@ export function vehiculoToSudebipReportRow(index: number, vehiculo: Vehiculo): (
     vehiculo.codigoInterno,
     dashToEmpty(vehiculo.descripcion),
     formaAdquisicionSudebip(vehiculo.formaAdquisicion ?? 'Desconocida'),
-    sudebipFecha(vehiculo.fechaAdquisicion),
     dashToEmpty(vehiculo.numeroDocumento),
     sudebipMoneda(vehiculo.moneda),
     sudebipValor(vehiculo.valorAdquisicion),
