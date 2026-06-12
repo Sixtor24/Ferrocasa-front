@@ -16,7 +16,7 @@ export function sudebipFecha(iso: string): string {
   });
 }
 
-export function sudebipFechaEmision(fecha = new Date()): string {
+export function sudebipFechaEmision(fecha = new Date(), rol?: string): string {
   const fechaTexto = fecha.toLocaleString('es-VE', {
     day: '2-digit',
     month: '2-digit',
@@ -26,7 +26,8 @@ export function sudebipFechaEmision(fecha = new Date()): string {
     second: '2-digit',
     hour12: false,
   });
-  return `Rol: Responsable Patrimonial | Fecha de emisión: ${fechaTexto}`;
+  const rolLabel = rol?.trim() || 'Usuario';
+  return `Rol: ${rolLabel} | Fecha de emisión: ${fechaTexto}`;
 }
 
 export function formaAdquisicionSudebip(forma: FormaAdquisicion | string): string {
