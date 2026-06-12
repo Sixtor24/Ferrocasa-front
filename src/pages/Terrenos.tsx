@@ -36,7 +36,7 @@ import ModulePageHeader from '../components/module/ModulePageHeader';
 import ModuleFilterBar from '../components/module/ModuleFilterBar';
 import { FILTROS_TERRENOS_VACIOS } from '../constants/moduleFilters';
 import ModuleDataTable from '../components/module/ModuleDataTable';
-import ModulePagination from '../components/module/ModulePagination';
+import ModuleTablePaginationBar from '../components/module/ModuleTablePaginationBar';
 import AssetDetailView from '../components/module/AssetDetailView';
 import ApiState from '../components/ApiState';
 import { formatFecha, formatMoneda } from '../utils/formatters';
@@ -723,24 +723,16 @@ export default function Terrenos() {
           onDetails={(t) => navigate(`/terrenos/${t.id}`)}
         />
 
-        <div className="flex items-center justify-between flex-wrap gap-3 py-1">
-          <div className="flex items-center gap-2 text-sm text-gray-600">
-            <span>Filas por página:</span>
-            <select
-              value={perPage}
-              onChange={(e) => {
-                setPerPage(Number(e.target.value));
-                setPage(1);
-              }}
-              className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-navy-500"
-            >
-              <option value={50}>50</option>
-              <option value={100}>100</option>
-              <option value={200}>200</option>
-            </select>
-          </div>
-          <ModulePagination page={page} totalPages={totalPages} onPageChange={setPage} />
-        </div>
+        <ModuleTablePaginationBar
+          perPage={perPage}
+          onPerPageChange={(size) => {
+            setPerPage(size);
+            setPage(1);
+          }}
+          page={page}
+          totalPages={totalPages}
+          onPageChange={setPage}
+        />
       </ApiState>
 
       <RegistroParcelasModal
