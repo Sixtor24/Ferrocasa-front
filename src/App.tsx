@@ -12,6 +12,8 @@ import Cementerio from './pages/Cementerio';
 import Vehiculos from './pages/Vehiculos';
 import Terrenos from './pages/Terrenos';
 import Configuracion from './pages/Configuracion';
+import ModuleRoute from './components/ModuleRoute';
+import { useRolePermissions } from './hooks/useRolePermissions';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
@@ -31,6 +33,11 @@ function AuthLoading() {
   );
 }
 
+function HomeRedirect() {
+  const { defaultPath } = useRolePermissions();
+  return <Navigate to={defaultPath} replace />;
+}
+
 function AppRoutes() {
   const { isAuthenticated, isLoading } = useAuth();
 
@@ -40,7 +47,7 @@ function AppRoutes() {
     <Routes>
       <Route
         path="/"
-        element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <Login />}
+        element={isAuthenticated ? <HomeRedirect /> : <Login />}
       />
       <Route
         element={
@@ -49,22 +56,22 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       >
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/almacen" element={<Almacen />} />
-        <Route path="/almacen/proyectos" element={<Proyectos />} />
+        <Route path="/dashboard" element={<ModuleRoute module="dashboard"><Dashboard /></ModuleRoute>} />
+        <Route path="/almacen" element={<ModuleRoute module="almacen"><Almacen /></ModuleRoute>} />
+        <Route path="/almacen/proyectos" element={<ModuleRoute module="almacen"><Proyectos /></ModuleRoute>} />
         <Route path="/almacen/inmuebles" element={<Navigate to="/terrenos" replace />} />
-        <Route path="/almacen/:id" element={<Almacen />} />
-        <Route path="/cementerio" element={<Cementerio />} />
+        <Route path="/almacen/:id" element={<ModuleRoute module="almacen"><Almacen /></ModuleRoute>} />
+        <Route path="/cementerio" element={<ModuleRoute module="cementerio"><Cementerio /></ModuleRoute>} />
         <Route path="/cementerio/parcela/:id" element={<Navigate to="/terrenos" replace />} />
-        <Route path="/cementerio/:id" element={<Cementerio />} />
-        <Route path="/terrenos" element={<Terrenos />} />
-        <Route path="/terrenos/:id" element={<Terrenos />} />
-        <Route path="/vehiculos" element={<Vehiculos />} />
-        <Route path="/vehiculos/:id" element={<Vehiculos />} />
+        <Route path="/cementerio/:id" element={<ModuleRoute module="cementerio"><Cementerio /></ModuleRoute>} />
+        <Route path="/terrenos" element={<ModuleRoute module="terrenos"><Terrenos /></ModuleRoute>} />
+        <Route path="/terrenos/:id" element={<ModuleRoute module="terrenos"><Terrenos /></ModuleRoute>} />
+        <Route path="/vehiculos" element={<ModuleRoute module="vehiculos"><Vehiculos /></ModuleRoute>} />
+        <Route path="/vehiculos/:id" element={<ModuleRoute module="vehiculos"><Vehiculos /></ModuleRoute>} />
         <Route path="/ventas" element={<Navigate to="/dashboard" replace />} />
-        <Route path="/reportes" element={<Reportes />} />
-        <Route path="/auditoria" element={<Auditoria />} />
-        <Route path="/configuracion" element={<Configuracion />} />
+        <Route path="/reportes" element={<ModuleRoute module="reportes"><Reportes /></ModuleRoute>} />
+        <Route path="/auditoria" element={<ModuleRoute module="auditoria"><Auditoria /></ModuleRoute>} />
+        <Route path="/configuracion" element={<ModuleRoute module="configuracion"><Configuracion /></ModuleRoute>} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

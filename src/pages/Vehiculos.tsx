@@ -5,7 +5,7 @@ import {
   fetchApiVehiculoById,
   fetchVehiculoById,
   fetchVehiculos,
-  fetchVehiculosEstadisticas,
+  fetchVehiculosAll,
   updateVehiculo,
 } from '../api/services/vehiculos.service';
 import { fetchAlmacenes } from '../api/services/almacenes.service';
@@ -24,6 +24,7 @@ import type { ApiAlmacen } from '../api/types';
 import { CONDICIONES_VEHICULO, ESTADOS_USO_VEHICULO } from '../types/vehiculo';
 import type { Vehiculo } from '../types/vehiculo';
 import ModulePageHeader from '../components/module/ModulePageHeader';
+import { useRolePermissions } from '../hooks/useRolePermissions';
 import ModuleFilterBar from '../components/module/ModuleFilterBar';
 import ModuleMetricCard from '../components/module/ModuleMetricCard';
 import SearchableSelect from '../components/forms/SearchableSelect';
@@ -40,7 +41,7 @@ import {
   condicionVehiculoToApi,
   estadoUsoVehiculoToApi,
 } from '../utils/registroVehiculoMappers';
-import { parseVehiculosEstadisticas } from '../utils/vehiculosStats';
+import { aggregateVehiculosMetricsFromList } from '../utils/vehiculosStats';
 import { useModuleUiState } from '../stores/moduleUiStore';
 import type { Column } from '../components/DataTable';
 import { ArrowLeft, Car, Truck, Wrench, Users } from 'lucide-react';
@@ -67,6 +68,7 @@ function VehiculoDetail({
   onSaved?: () => void | Promise<void>;
   onInventarioAction?: (result: InventarioVehiculoActionResult) => void;
 }) {
+  const { canWriteAssets, canTransferBien, canRetireBien } = useRolePermissions();
   const navigate = useNavigate();
   const [estadoUso, setEstadoUso] = useState(vehiculo.estadoUso);
   const [condicionFisica, setCondicionFisica] = useState(vehiculo.condicionFisica);
@@ -139,7 +141,7 @@ function VehiculoDetail({
                     onChange={(value) => setEstadoUso(value as Vehiculo['estadoUso'])}
                     options={ESTADOS_USO_VEHICULO}
                     className="max-w-xs"
-                    disabled={inventario.retirado}
+                    disabled={inventario.retirado || !canWriteAssets}
                     disableSearch
                   />
                 ),
@@ -154,7 +156,7 @@ function VehiculoDetail({
                     onChange={(value) => setCondicionFisica(value as Vehiculo['condicionFisica'])}
                     options={CONDICIONES_VEHICULO}
                     className="max-w-xs"
-                    disabled={inventario.retirado}
+                    disabled={inventario.retirado || !canWriteAssets}
                     disableSearch
                   />
                 ),
@@ -206,30 +208,36 @@ function VehiculoDetail({
               <ArrowLeft size={16} />
               Volver al listado
             </button>
-            <button
-              type="button"
-              onClick={guardarCambio}
-              disabled={saving || inventario.retirado}
-              className="px-5 py-2.5 bg-navy-900 text-white rounded-lg text-sm font-semibold hover:bg-navy-800 disabled:opacity-60"
-            >
-              {saving ? 'Guardando...' : 'Guardar cambio'}
-            </button>
-            <button
-              type="button"
-              onClick={() => inventario.setTransferOpen(true)}
-              disabled={inventario.retirado || inventario.transferLoading || inventario.retireLoading}
-              className="px-5 py-2.5 border border-navy-200 text-navy-800 rounded-lg text-sm font-semibold hover:bg-navy-50 disabled:opacity-50"
-            >
-              Transferir a otro almacén
-            </button>
-            <button
-              type="button"
-              onClick={() => inventario.setRetireOpen(true)}
-              disabled={inventario.retirado || inventario.transferLoading || inventario.retireLoading}
-              className="px-5 py-2.5 border border-red-200 text-red-700 rounded-lg text-sm font-semibold hover:bg-red-50 disabled:opacity-50"
-            >
-              Retirar de Inventario
-            </button>
+            {canWriteAssets && (
+              <button
+                type="button"
+                onClick={guardarCambio}
+                disabled={saving || inventario.retirado}
+                className="px-5 py-2.5 bg-navy-900 text-white rounded-lg text-sm font-semibold hover:bg-navy-800 disabled:opacity-60"
+              >
+                {saving ? 'Guardando...' : 'Guardar cambio'}
+              </button>
+            )}
+            {canTransferBien && (
+              <button
+                type="button"
+                onClick={() => inventario.setTransferOpen(true)}
+                disabled={inventario.retirado || inventario.transferLoading || inventario.retireLoading}
+                className="px-5 py-2.5 border border-navy-200 text-navy-800 rounded-lg text-sm font-semibold hover:bg-navy-50 disabled:opacity-50"
+              >
+                Transferir a otro almacén
+              </button>
+            )}
+            {canRetireBien && (
+              <button
+                type="button"
+                onClick={() => inventario.setRetireOpen(true)}
+                disabled={inventario.retirado || inventario.transferLoading || inventario.retireLoading}
+                className="px-5 py-2.5 border border-red-200 text-red-700 rounded-lg text-sm font-semibold hover:bg-red-50 disabled:opacity-50"
+              >
+                Retirar de Inventario
+              </button>
+            )}
           </>
         }
       />
@@ -261,6 +269,7 @@ function VehiculoDetail({
 }
 
 export default function Vehiculos() {
+  const { canWriteAssets, canExportInventory } = useRolePermissions();
   const { id } = useParams();
   const navigate = useNavigate();
   const {
@@ -280,7 +289,13 @@ export default function Vehiculos() {
     () => fetchVehiculos({ page, limit: PER_PAGE, search: apiSearch }),
     [page, apiSearch],
   );
-  const statsQuery = useApiQuery(() => fetchVehiculosEstadisticas(), []);
+  const metricsQuery = useApiQuery(
+    async () => {
+      const { data } = await fetchVehiculosAll({ search: apiSearch });
+      return aggregateVehiculosMetricsFromList(data);
+    },
+    [apiSearch],
+  );
   const almacenesQuery = useApiQuery(
     () => fetchAlmacenes({ page: 1, limit: API_MAX_LIMIT }),
     [],
@@ -295,7 +310,16 @@ export default function Vehiculos() {
 
   const lista = listQuery.data?.data ?? [];
   const vehiculo = id ? detailQuery.data : null;
-  const metricas = useMemo(() => parseVehiculosEstadisticas(statsQuery.data), [statsQuery.data]);
+  const metricas = metricsQuery.data ?? {
+    total: 0,
+    disponibles: 0,
+    asignados: 0,
+    enMantenimiento: 0,
+    valorTotal: 0,
+    enUso: 0,
+    enObsolescencia: 0,
+    obsoletos: 0,
+  };
 
   const almacenOptions = useMemo(
     () => catalogOptions(lista.map((v) => v.almacen), 'Todos'),
@@ -343,7 +367,7 @@ export default function Vehiculos() {
 
   const refreshVehiculos = () => {
     listQuery.refetch();
-    statsQuery.refetch();
+    metricsQuery.refetch();
     detailQuery.refetch();
   };
 
@@ -390,8 +414,8 @@ export default function Vehiculos() {
       <ModulePageHeader
         title="Vehículos y Maquinaria"
         breadcrumb={[{ label: 'Dashboard', to: '/dashboard' }, { label: 'Vehículos' }]}
-        formatModule="vehiculos"
-        onCreate={() => setModal('registro', true)}
+        formatModule={canExportInventory ? 'vehiculos' : undefined}
+        onCreate={canWriteAssets ? () => setModal('registro', true) : undefined}
         createLabel="Crear Registro"
       />
 

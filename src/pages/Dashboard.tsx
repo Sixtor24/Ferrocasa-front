@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { pathToModule } from '../constants/rolePermissions';
+import { useRolePermissions } from '../hooks/useRolePermissions';
 import {
   fetchDashboardActividadReciente,
   fetchDashboardAlertas,
@@ -43,6 +45,7 @@ type PeriodoMovimiento = (typeof periodos)[number]['key'];
 
 export default function Dashboard() {
   const { user } = useAuth();
+  const { canAccessModule, canAccessAuditoria } = useRolePermissions();
   const navigate = useNavigate();
   const currentYear = new Date().getFullYear();
   const [periodo, setPeriodo] = useState<PeriodoMovimiento>('semanal');
@@ -112,14 +115,20 @@ export default function Dashboard() {
 
   const now = new Date().toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit', hour12: true });
 
-  const accionesRapidas = [
-    { nombre: 'Bienes Admin.', icon: Package, ruta: '/almacen' },
-    { nombre: 'Bienes en Cementerio', icon: Landmark, ruta: '/cementerio' },
-    { nombre: 'Terrenos', icon: Map, ruta: '/terrenos' },
-    { nombre: 'Vehículos y Maquinarias', icon: Truck, ruta: '/vehiculos' },
-    { nombre: 'Reportes', icon: FileText, ruta: '/reportes' },
-    { nombre: 'Auditoría', icon: Shield, ruta: '/auditoria' },
-  ];
+  const accionesRapidas = useMemo(() => {
+    const items = [
+      { nombre: 'Bienes Admin.', icon: Package, ruta: '/almacen' },
+      { nombre: 'Bienes en Cementerio', icon: Landmark, ruta: '/cementerio' },
+      { nombre: 'Terrenos', icon: Map, ruta: '/terrenos' },
+      { nombre: 'Vehículos y Maquinarias', icon: Truck, ruta: '/vehiculos' },
+      { nombre: 'Reportes', icon: FileText, ruta: '/reportes' },
+      { nombre: 'Auditoría', icon: Shield, ruta: '/auditoria' },
+    ];
+    return items.filter((item) => {
+      const module = pathToModule(item.ruta);
+      return module ? canAccessModule(module) : true;
+    });
+  }, [canAccessModule]);
 
   const chartData = useMemo(
     () => buildMovimientosFromGraficos({
@@ -218,16 +227,18 @@ export default function Dashboard() {
         <p className="text-sm text-white/60 mt-3">Sistema integral de gestión patrimonial — Ferrocasa</p>
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-3 min-w-0">
-          <RefreshCw size={18} className="text-navy-600 animate-spin shrink-0" style={{ animationDuration: '3s' }} />
-          <span className="text-sm font-medium text-navy-900 shrink-0">Auditoría:</span>
-          <span className="text-sm text-gray-600 truncate">{tickerMensaje}</span>
+      {canAccessAuditoria && (
+        <div className="bg-white rounded-xl border border-gray-200 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <RefreshCw size={18} className="text-navy-600 animate-spin shrink-0" style={{ animationDuration: '3s' }} />
+            <span className="text-sm font-medium text-navy-900 shrink-0">Auditoría:</span>
+            <span className="text-sm text-gray-600 truncate">{tickerMensaje}</span>
+          </div>
+          <button onClick={() => navigate('/auditoria')} className="flex items-center gap-1 text-sm font-medium text-navy-600 hover:text-navy-800 shrink-0">
+            Ver registro <ChevronRight size={16} />
+          </button>
         </div>
-        <button onClick={() => navigate('/auditoria')} className="flex items-center gap-1 text-sm font-medium text-navy-600 hover:text-navy-800 shrink-0">
-          Ver registro <ChevronRight size={16} />
-        </button>
-      </div>
+      )}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard icon={<Package size={22} className="text-navy-600" />} label={dashboardStats.totalBienesMuebles.label}
