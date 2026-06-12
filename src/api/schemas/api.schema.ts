@@ -327,7 +327,7 @@ export const parcelaSchema: z.ZodTypeAny = z.lazy(() => z.object({
 export const bienSchema = z.object({
   codigo_bien: z.union([z.number(), z.string()]),
   descripcion: z.string().nullable().optional(),
-  id_doc: z.string().nullable().optional(),
+  id_doc: nullableEntityId,
   fecha_ingreso: dateLike,
   fecha_egreso: dateLike,
   valor_adquisicion: numeric,
@@ -592,7 +592,7 @@ export const payloadSchemas = {
   bien: z.object({
     codigo_bien: z.string().trim().min(1),
     descripcion: z.string().min(1),
-    id_doc: z.number().int(),
+    id_doc: z.string().trim().min(1).max(20),
     fecha_ingreso: z.string().min(1),
     fecha_egreso: z.string().nullable().optional(),
     valor_adquisicion: z.number().nonnegative(),

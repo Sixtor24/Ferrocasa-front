@@ -6,7 +6,7 @@ import type { ItemRegistroDraft } from '../types/registroBienItem';
 import type { CondicionFisica, EstadoUso } from '../types/bien';
 import type { MonedaRegistro } from '../types/registroBienItem';
 import { isSinSerialBien, serialBienToApi } from './serialBien';
-import { ciResponsableForApi } from './vehiculoApiFields';
+import { ciResponsableForApi, entityIdForApi } from './vehiculoApiFields';
 
 export function monedaBienToDocumento(moneda: MonedaRegistro): MonedaDocumento {
   if (moneda === 'USD') return 'USD';
@@ -29,7 +29,7 @@ export function condicionFisicaToApi(condicion: CondicionFisica): CondicionFisic
 
 export function itemRegistroToBienPayload(
   item: ItemRegistroDraft,
-  params: { idDoc: number; fechaIngreso: string; idAlmacen: number },
+  params: { idDoc: string; fechaIngreso: string; idAlmacen: number },
 ): BienPayload {
   const sinSerial = item.sinSerial || isSinSerialBien(item.serial);
   const codigoBien = item.codigoInterno.trim();
@@ -39,7 +39,7 @@ export function itemRegistroToBienPayload(
   return {
     codigo_bien: codigoBien,
     descripcion: item.descripcion.trim(),
-    id_doc: params.idDoc,
+    id_doc: entityIdForApi(params.idDoc),
     fecha_ingreso: params.fechaIngreso,
     valor_adquisicion: item.valorAdquisicion,
     marca: item.marca.trim(),

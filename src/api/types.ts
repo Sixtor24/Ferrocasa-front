@@ -97,7 +97,7 @@ export interface ApiDocumentosTotalesPorMes {
 export interface ApiBien {
   codigo_bien: number | string;
   descripcion?: string | null;
-  id_doc?: number | null;
+  id_doc?: number | string | null;
   fecha_ingreso?: string | null;
   fecha_egreso?: string | null;
   valor_adquisicion?: string | number | null;

@@ -24,7 +24,7 @@ export type ConsumibilidadBienApi = 'Perecederos' | 'No_perecedero';
 export type BienPayload = {
   codigo_bien: string;
   descripcion: string;
-  id_doc: number;
+  id_doc: string;
   fecha_ingreso: string;
   fecha_egreso?: string | null;
   valor_adquisicion: number;

@@ -249,7 +249,14 @@ export function validateApiPayload(path: string, method: string, body: unknown) 
   if (method === 'POST' && p === '/responsables') return parseWithSchema(payloadSchemas.responsable, body);
   if (method === 'PUT' && p.startsWith('/responsables/')) return parseWithSchema(payloadSchemas.updateResponsable, body);
   if ((method === 'POST' || method === 'PUT') && p.startsWith('/almacenes')) return parseWithSchema(payloadSchemas.almacen, body);
-  if ((method === 'POST' || method === 'PUT') && p.startsWith('/bienes')) return parseWithSchema(payloadSchemas.bien, body);
+  if ((method === 'POST' || method === 'PUT') && p.startsWith('/bienes')) {
+    const source = (body ?? {}) as Record<string, unknown>;
+    const normalized = {
+      ...source,
+      id_doc: entityIdForApi(source.id_doc as string | number | null | undefined),
+    };
+    return parseWithSchema(payloadSchemas.bien, normalized);
+  }
   if (method === 'PATCH' && p.endsWith('/cambiar-estado') && p.startsWith('/bienes/')) return parseWithSchema(payloadSchemas.cambiarEstadoBien, body);
   if (method === 'POST' && p === '/vehiculos') {
     const source = (body ?? {}) as Record<string, unknown>;

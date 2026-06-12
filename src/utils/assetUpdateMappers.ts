@@ -56,6 +56,11 @@ function normalizeConsumibilidad(value?: string | null): ConsumibilidadBienApi {
   return 'No_perecedero';
 }
 
+/** El PUT de bienes exige id_doc como string (igual que vehículos). */
+function idDocBienForPayload(b: ApiBien): string {
+  return entityIdForApi(b.id_doc ?? b.documento?.id_doc);
+}
+
 export function apiBienToUpdatePayload(
   b: ApiBien,
   overrides: Partial<BienPayload> = {},
@@ -68,7 +73,7 @@ export function apiBienToUpdatePayload(
   const base: BienPayload = {
     codigo_bien: codigoBien,
     descripcion: b.descripcion?.trim() ?? '',
-    id_doc: b.id_doc ?? 0,
+    id_doc: idDocBienForPayload(b),
     fecha_ingreso: fechaIngreso,
     fecha_egreso: b.fecha_egreso ? toIsoDate(b.fecha_egreso) || null : undefined,
     valor_adquisicion: toNumber(b.valor_adquisicion) ?? 0,

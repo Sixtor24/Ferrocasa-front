@@ -7,6 +7,7 @@ import NuevoItemRegistroModal from './NuevoItemRegistroModal';
 import SearchableSelect from '../forms/SearchableSelect';
 import { createBien } from '../../api/services/bienes.service';
 import { createDocumento, type FormaAdquisicionDocumento } from '../../api/services/documentos.service';
+import { readDocumentoId } from '../../utils/vehiculoApiFields';
 import { buildRegistroBienesSuccessMessage } from '../../utils/assetNotify';
 import { rollbackRegistroBienes } from '../../utils/registroRollback';
 import { fetchSedes } from '../../api/services/sedes.service';
@@ -250,7 +251,7 @@ export default function RegistroBienesModal({
     }
 
     setSubmitting(true);
-    let idDoc: number | null = null;
+    let idDoc: string | null = null;
     const codigosBien: number[] = [];
 
     try {
@@ -262,7 +263,7 @@ export default function RegistroBienesModal({
         moneda: monedaBienToDocumento(documento.moneda),
       });
 
-      idDoc = documentoCreado.id_doc;
+      idDoc = readDocumentoId(documentoCreado);
       const fechaIngreso = documento.fechaAdquisicion;
 
       for (const item of items) {
