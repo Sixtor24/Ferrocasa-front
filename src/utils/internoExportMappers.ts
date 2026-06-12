@@ -95,3 +95,21 @@ export function vehiculoToInternoMueblesRow(vehiculo: Vehiculo): (string | numbe
     sudebipEstadoUso(vehiculo.estadoUso),
   ];
 }
+
+/** Formato interno inventario vehículos y maquinaria (12 columnas con logo institucional). */
+export function vehiculoToInternoInventarioRow(vehiculo: Vehiculo): (string | number)[] {
+  return [
+    vehiculo.codigoInterno,
+    dashToEmpty(vehiculo.descripcion),
+    vehiculo.sinPlaca ? 'S/P' : dashToEmpty(vehiculo.placa),
+    marcaInterno(vehiculo.marca),
+    modeloInterno(vehiculo.modelo),
+    dashToEmpty(vehiculo.color),
+    dashToEmpty(vehiculo.almacen),
+    dashToEmpty(vehiculo.sede),
+    fechaInterno(vehiculo.fechaAdquisicion || vehiculo.fechaIngreso),
+    vehiculo.estadoUso,
+    vehiculo.condicionFisica,
+    dashToEmpty(vehiculo.observaciones),
+  ];
+}
