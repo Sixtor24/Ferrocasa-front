@@ -1,5 +1,12 @@
 import { z } from 'zod';
 import type { ItemVehiculoRegistroDraft } from '../types/registroVehiculoItem';
+import { documentoRegistroFormSchema } from './registro.schema';
+
+export const documentoRegistroVehiculoFormSchema = documentoRegistroFormSchema.extend({
+  numeroDocumento: z.string().trim().min(1, 'Indique el número de documento de ingreso'),
+});
+
+export type DocumentoRegistroVehiculoForm = z.infer<typeof documentoRegistroVehiculoFormSchema>;
 
 export const itemVehiculoRegistroFormSchema = z.object({
   codigoInterno: z

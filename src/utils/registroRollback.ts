@@ -13,7 +13,7 @@ async function rollbackCodigos(codigos: number[], eliminar: (codigo: number) => 
 }
 
 export async function rollbackRegistroBienes(params: {
-  idDoc: number | null;
+  idDoc: number | string | null;
   codigosBien: number[];
 }) {
   await rollbackCodigos(params.codigosBien, deleteBien);
@@ -26,10 +26,16 @@ export async function rollbackRegistroBienes(params: {
 }
 
 export async function rollbackRegistroVehiculos(params: {
-  idDoc: number | null;
-  codigosVehiculo: number[];
+  idDoc: number | string | null;
+  codigosVehiculo: Array<number | string>;
 }) {
-  await rollbackCodigos(params.codigosVehiculo, deleteVehiculo);
+  for (const codigo of [...params.codigosVehiculo].reverse()) {
+    try {
+      await deleteVehiculo(codigo);
+    } catch {
+      // best-effort
+    }
+  }
   if (params.idDoc == null) return;
   try {
     await deleteDocumento(params.idDoc);

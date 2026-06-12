@@ -9,6 +9,16 @@ import type {
 } from '../types';
 import { mapApiBienToBienMueble } from '../mappers/bien.mapper';
 import { mapApiVehiculoToVehiculo } from '../mappers/vehiculo.mapper';
+import { readDocumentoId } from '../../utils/vehiculoApiFields';
+
+/** POST /documentos para registro de vehículos (CreateDocumento en OpenAPI). */
+export type DocumentoVehiculoPayload = {
+  id_doc: string;
+  nombre_proveedor?: string;
+  forma_adquisicion: FormaAdquisicionDocumento;
+  fecha_adquisicion?: string | null;
+  moneda: MonedaDocumento;
+};
 
 export type FormaAdquisicionDocumento = 'Compra' | 'Donacion' | 'Confiscacion';
 export type MonedaDocumento = 'VES' | 'USD' | 'EUR';
@@ -97,14 +107,14 @@ export async function fetchDocumentosByProveedor(nombre: string) {
 
 export async function fetchDocumentoBienes(id: number) {
   const res = await apiRequest<ApiItemResponse<ApiBien[]> | ApiListResponse<ApiBien>>(`/documentos/${id}/bienes`);
-  return (res.data ?? []).map(mapApiBienToBienMueble);
+  return (res.data ?? []).map((bien) => mapApiBienToBienMueble(bien));
 }
 
 export async function fetchDocumentoVehiculos(id: number) {
   const res = await apiRequest<ApiItemResponse<ApiVehiculo[]> | ApiListResponse<ApiVehiculo>>(
     `/documentos/${id}/vehiculos`
   );
-  return (res.data ?? []).map(mapApiVehiculoToVehiculo);
+  return (res.data ?? []).map((vehiculo) => mapApiVehiculoToVehiculo(vehiculo));
 }
 
 export async function createDocumento(body: DocumentoPayload) {
@@ -117,6 +127,17 @@ export async function createDocumento(body: DocumentoPayload) {
   return res.data;
 }
 
+export async function createDocumentoVehiculo(body: DocumentoVehiculoPayload) {
+  const res = await apiRequest<ApiItemResponse<ApiDocumento>>('/documentos', {
+    method: 'POST',
+    body,
+  });
+  if (!res.data) throw new Error('Respuesta vacía del API');
+
+  const idDoc = readDocumentoId(res.data);
+  return { ...res.data, id_doc: idDoc };
+}
+
 export async function updateDocumento(id: number, body: DocumentoPayload) {
   const res = await apiRequest<ApiItemResponse<ApiDocumento>>(`/documentos/${id}`, {
     method: 'PUT',
@@ -127,6 +148,6 @@ export async function updateDocumento(id: number, body: DocumentoPayload) {
   return res.data;
 }
 
-export async function deleteDocumento(id: number) {
+export async function deleteDocumento(id: number | string) {
   await apiRequest(`/documentos/${id}`, { method: 'DELETE' });
 }

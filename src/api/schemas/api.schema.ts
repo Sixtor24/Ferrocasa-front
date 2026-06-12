@@ -80,16 +80,27 @@ export const categoriaEspecificaSchema: z.ZodTypeAny = z.lazy(() => z.object({
   subcategoria: subcategoriaSchema.optional(),
 }).passthrough());
 
-export const documentoSchema = z.object({
-  id_doc: z.union([z.number(), z.string()]),
-  numero_documento: z.string().nullable().optional(),
-  nombre_proveedor: z.string().nullable().optional(),
-  forma_adquisicion: z.string().optional(),
-  fecha_adquisicion: dateLike,
-  moneda: z.string().optional(),
-  id_sede: z.number().nullable().optional(),
-  sede: sedeSchema.optional(),
-}).passthrough();
+export const documentoSchema = z
+  .object({
+    id_doc: z.union([z.number(), z.string()]).optional(),
+    id: z.union([z.number(), z.string()]).optional(),
+    numero_documento: z.string().nullable().optional(),
+    nombre_proveedor: z.string().nullable().optional(),
+    forma_adquisicion: z.string().optional(),
+    fecha_adquisicion: dateLike,
+    moneda: z.string().optional(),
+    id_sede: z.number().nullable().optional(),
+    sede: sedeSchema.optional(),
+  })
+  .passthrough()
+  .transform((data) => ({
+    ...data,
+    id_doc: data.id_doc ?? data.id,
+  }))
+  .refine((data) => data.id_doc != null && data.id_doc !== '', {
+    message: 'id_doc requerido',
+    path: ['id_doc'],
+  });
 
 export const rolSchema = z.object({
   id_rol: z.number(),
@@ -411,6 +422,70 @@ export const documentosTotalesPorMesSchema = z.object({
   }),
 }).passthrough();
 
+const estadoUsoVehiculoPayloadApi = z.enum(['En_Uso', 'En_Reparacion', 'Dado_de_Baja', 'Almacenado']);
+const condicionFisicaVehiculoPayloadApi = z.enum(['Bueno', 'Regular', 'Dañado']);
+const estadoVehiculoPayloadApi = z.enum(['Carga_Parcial', 'Carga_Completa', 'Disponible', 'Asignado', 'En_Mantenimiento']);
+const formaAdquisicionDocumentoPayloadApi = z.enum(['Compra', 'Donacion', 'Confiscacion']);
+const monedaDocumentoPayloadApi = z.enum(['VES', 'USD', 'EUR']);
+
+/** PUT /vehiculos/{codigo} — UpdateVehiculo (OpenAPI). */
+const vehiculoUpdatePayloadSchema = z.object({
+  descripcion: z.string().optional(),
+  id_doc: z.string().min(1).max(20).nullable().optional(),
+  fecha_egreso: z.string().nullable().optional(),
+  valor_adquisicion: z.number().nonnegative().optional(),
+  marca: z.string().optional(),
+  placa: z.string().min(1).optional(),
+  anio_fabricacion: z.number().int().min(1900).max(2100).optional(),
+  modelo: z.string().optional(),
+  color: z.string().optional(),
+  serial_motor: z.string().nullable().optional(),
+  serial_carroceria: z.string().nullable().optional(),
+  estado_uso: estadoUsoVehiculoPayloadApi.optional(),
+  condicion_fisica: condicionFisicaVehiculoPayloadApi.optional(),
+  id_categoria_especifica: z.number().int().positive().optional(),
+  estado_vehiculo: estadoVehiculoPayloadApi.optional(),
+  ci_responsable: z.string().nullable().optional(),
+  id_almacen: z.number().int().positive().optional(),
+  fecha_ingreso: z.string().nullable().optional(),
+  usuario_carga: z.string().optional(),
+  observaciones: z.string().nullable().optional(),
+}).strict();
+
+/** POST /vehiculos — CreateVehiculo (OpenAPI, additionalProperties: false). */
+const vehiculoCreatePayloadSchema = z.object({
+  codigo: z.string().trim().min(1).max(20),
+  descripcion: z.string().optional(),
+  id_doc: z.string().min(1).max(20).nullable().optional(),
+  fecha_egreso: z.string().nullable().optional(),
+  valor_adquisicion: z.number().nonnegative().optional(),
+  marca: z.string().optional(),
+  placa: z.string().min(1),
+  anio_fabricacion: z.number().int().min(1900).max(2100).optional(),
+  modelo: z.string().optional(),
+  color: z.string().optional(),
+  serial_motor: z.string().min(1),
+  serial_carroceria: z.string().min(1),
+  estado_uso: estadoUsoVehiculoPayloadApi.optional(),
+  condicion_fisica: condicionFisicaVehiculoPayloadApi.optional(),
+  id_categoria_especifica: z.number().int().positive(),
+  estado_vehiculo: estadoVehiculoPayloadApi.optional(),
+  ci_responsable: z.string().nullable().optional(),
+  id_almacen: z.number().int().positive(),
+  fecha_ingreso: z.string().nullable().optional(),
+  usuario_carga: z.string().optional(),
+  observaciones: z.string().optional(),
+}).strict();
+
+/** POST /documentos — CreateDocumento para registro de vehículos (OpenAPI). */
+const documentoVehiculoPayloadSchema = z.object({
+  id_doc: z.string().trim().min(1).max(20),
+  nombre_proveedor: z.string().max(200).optional(),
+  forma_adquisicion: formaAdquisicionDocumentoPayloadApi,
+  fecha_adquisicion: z.string().nullable().optional(),
+  moneda: monedaDocumentoPayloadApi,
+}).strict();
+
 export const payloadSchemas = {
   login: z.object({
     nombre_usuario: z.string().min(1),
@@ -535,28 +610,8 @@ export const payloadSchemas = {
     id_categoria_especifica: z.number().int(),
     observaciones: z.string().nullable().optional(),
   }),
-  vehiculo: z.object({
-    descripcion: z.string().optional(),
-    id_doc: z.number().int().nullable().optional(),
-    fecha_egreso: z.string().nullable().optional(),
-    valor_adquisicion: z.number().nonnegative().optional(),
-    marca: z.string().nullable().optional(),
-    placa: z.string().min(1),
-    anio_fabricacion: z.number().int().min(1900).max(2100).optional(),
-    modelo: z.string().nullable().optional(),
-    color: z.string().nullable().optional(),
-    serial_motor: z.string().nullable().optional(),
-    serial_carroceria: z.string().nullable().optional(),
-    estado_uso: z.enum(['En_Uso', 'En_Reparacion', 'Dado_de_Baja', 'Almacenado']).optional(),
-    condicion_fisica: z.enum(['Bueno', 'Regular', 'Dañado']).optional(),
-    id_categoria_especifica: z.number().int(),
-    estado_vehiculo: z.enum(['Carga_Parcial', 'Carga_Completa', 'Disponible', 'Asignado', 'En_Mantenimiento']).optional(),
-    ci_responsable: z.string().nullable().optional(),
-    id_almacen: z.number().int(),
-    fecha_ingreso: z.string().nullable().optional(),
-    usuario_carga: z.string().nullable().optional(),
-    observaciones: z.string().nullable().optional(),
-  }),
+  vehiculo: vehiculoUpdatePayloadSchema,
+  vehiculoCreate: vehiculoCreatePayloadSchema,
   asignarVehiculo: z.object({
     ci_responsable: z.string().min(1),
   }),
@@ -584,5 +639,6 @@ export const payloadSchemas = {
     moneda: z.enum(['VES', 'USD', 'EUR']),
     id_sede: z.number().int().positive().optional(),
   }),
+  documentoVehiculo: documentoVehiculoPayloadSchema,
   simpleName: z.object({ nombre: z.string().min(1) }),
 };
