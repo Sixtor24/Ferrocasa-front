@@ -1,5 +1,6 @@
 import { apiRequest } from '../client';
-import { listParams, MODULE_PAGE_SIZE, type PaginatedResult } from '../pagination';
+import { fetchAllPages, listParams, MODULE_PAGE_SIZE, type PaginatedResult } from '../pagination';
+import { toIsoFinDia, toIsoInicioDia } from '../../utils/auditoriaFormat';
 import type { ApiItemResponse, ApiListResponse } from '../types';
 import type {
   AuditoriaAccion,
@@ -64,6 +65,18 @@ export async function fetchAuditoriaPorFechas(query: AuditoriaFechasQuery) {
     },
   });
   return mapAuditoriaList(res);
+}
+
+/** Registros de auditoría en un rango YYYY-MM-DD (todas las páginas; uso en gráficos del dashboard). */
+export async function fetchAuditoriaMovimientosEnRango(desde: string, hasta: string) {
+  return fetchAllPages((page, limit) =>
+    fetchAuditoria({
+      page,
+      limit,
+      fecha_desde: toIsoInicioDia(desde),
+      fecha_hasta: toIsoFinDia(hasta),
+    }),
+  );
 }
 
 export async function fetchAuditoriaResumen() {

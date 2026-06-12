@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { pathToModule } from "../constants/rolePermissions";
 import { useRolePermissions } from "../hooks/useRolePermissions";
+import { fetchAuditoriaMovimientosEnRango } from "../api/services/auditoria.service";
 import {
   fetchDashboardActividadReciente,
   fetchDashboardAlertas,
@@ -14,7 +15,9 @@ import { useApiQuery } from "../hooks/useApiQuery";
 import SearchableSelect from "../components/forms/SearchableSelect";
 import { dashboardStats } from "../data/dashboard";
 import {
-  buildMovimientosFromGraficos,
+  buildMovimientosAnualesFromGraficos,
+  buildMovimientosChartSpec,
+  buildMovimientosFromAuditoria,
   findAlertaCantidad,
   formatActividadHora,
   formatActividadMensaje,
@@ -134,7 +137,38 @@ export default function Dashboard() {
     [],
   );
   const alertasQuery = useApiQuery(() => fetchDashboardAlertas(), []);
-  const graficosQuery = useApiQuery(() => fetchDashboardGraficos(year), [year]);
+  const graficosQuery = useApiQuery(
+    () => fetchDashboardGraficos(year),
+    [year],
+    periodo === "anual",
+    { key: `dashboard-graficos-${year}` },
+  );
+
+  const movimientosSpec = useMemo(() => {
+    if (periodo === "anual") return null;
+    return buildMovimientosChartSpec({
+      periodo,
+      year,
+      mes,
+      semanaMes,
+      semanasDelMes,
+    });
+  }, [periodo, year, mes, semanaMes, semanasDelMes]);
+
+  const auditoriaMovimientosQuery = useApiQuery(
+    () =>
+      fetchAuditoriaMovimientosEnRango(
+        movimientosSpec!.desde,
+        movimientosSpec!.hasta,
+      ),
+    [movimientosSpec?.desde, movimientosSpec?.hasta],
+    periodo !== "anual" && movimientosSpec !== null,
+    {
+      key: movimientosSpec
+        ? `dashboard-auditoria-${periodo}-${movimientosSpec.desde}-${movimientosSpec.hasta}`
+        : "dashboard-auditoria-idle",
+    },
+  );
 
   const stats = statsQuery.data;
   const inventario = stats?.inventario;
@@ -206,18 +240,22 @@ export default function Dashboard() {
     [canAccessModule],
   );
 
-  const chartData = useMemo(
-    () =>
-      buildMovimientosFromGraficos({
-        periodo,
-        year,
-        mes,
-        semanaMes,
-        semanasDelMes,
-        graficos,
-      }),
-    [periodo, year, mes, semanaMes, semanasDelMes, graficos],
-  );
+  const chartData = useMemo(() => {
+    if (periodo === "anual") {
+      return buildMovimientosAnualesFromGraficos(year, graficos);
+    }
+    if (!movimientosSpec) return [];
+    return buildMovimientosFromAuditoria(
+      auditoriaMovimientosQuery.data ?? [],
+      movimientosSpec.fechas,
+    );
+  }, [
+    periodo,
+    year,
+    graficos,
+    movimientosSpec,
+    auditoriaMovimientosQuery.data,
+  ]);
 
   const movimientoTotales = useMemo(
     () => ({
@@ -318,7 +356,10 @@ export default function Dashboard() {
     return { texto: "Sin cambios recientes registrados", hora: null };
   }, [actividadQuery.loading, ultimaActividad, alertas]);
 
-  const chartLoading = graficosQuery.loading;
+  const chartLoading =
+    periodo === "anual"
+      ? graficosQuery.loading
+      : auditoriaMovimientosQuery.loading;
   const donutVacio = totalParcelas === 0;
 
   return (
@@ -434,6 +475,7 @@ export default function Dashboard() {
         />
       </section>
 
+      {/* Gráfico de movimientos patrimoniales */}
       <section className="grid grid-cols-1 gap-4 lg:grid-cols-3 min-w-0">
         <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-200 p-4 sm:p-6 min-w-0 overflow-hidden">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-4">
@@ -734,7 +776,7 @@ export default function Dashboard() {
         </div>
       </section>
 
-      {/*   */}
+      {/* Distribución de Activos */}
       <section className="grid grid-cols-1 gap-4 lg:grid-cols-full">
         <div className="bg-white rounded-2xl border border-gray-200 p-6">
           <h2 className="text-lg font-semibold text-navy-900 mb-4">

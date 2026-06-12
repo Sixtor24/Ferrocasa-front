@@ -1,3 +1,4 @@
+import type { AuditoriaRegistroApi } from '../types/auditoria';
 import type {
   DashboardActividadItem,
   DashboardAlerta,
@@ -9,7 +10,7 @@ import {
   formatFechaAuditoria,
   labelTablaAuditoria,
 } from './auditoriaFormat';
-import { DIAS_SEMANA, MESES_CORTOS } from './calendar';
+import { DIAS_SEMANA, MESES_CORTOS, type SemanaDelMes } from './calendar';
 
 const ACCIONES_AUDITORIA = new Set(['INSERT', 'UPDATE', 'DELETE']);
 
@@ -20,20 +21,45 @@ function normalizeDateKey(label: string): string | null {
   const isoMatch = trimmed.match(/(\d{4}-\d{2}-\d{2})/);
   if (isoMatch) return isoMatch[1];
 
+  const slashMatch = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (slashMatch) {
+    const day = Number(slashMatch[1]);
+    const month = Number(slashMatch[2]);
+    const year = Number(slashMatch[3]);
+    if (day >= 1 && day <= 31 && month >= 1 && month <= 12) {
+      return toDateKey(year, month - 1, day);
+    }
+  }
+
   const parsed = new Date(trimmed);
   if (Number.isNaN(parsed.getTime())) return null;
-  return parsed.toISOString().slice(0, 10);
+  return formatLocalDateKey(parsed);
 }
 
 function mapAuditoriaPorFecha(series?: DashboardChartSeries): Map<string, number> {
   const map = new Map<string, number>();
   if (!series?.labels?.length) return map;
 
+  let parsedCount = 0;
   series.labels.forEach((label, index) => {
     const key = normalizeDateKey(label);
     if (!key) return;
+    parsedCount += 1;
     map.set(key, (map.get(key) ?? 0) + (series.values[index] ?? 0));
   });
+
+  if (parsedCount === 0 && series.labels.length > 0) {
+    const anchor = new Date();
+    anchor.setHours(12, 0, 0, 0);
+    const total = series.labels.length;
+    series.labels.forEach((_, index) => {
+      const date = new Date(anchor);
+      date.setDate(anchor.getDate() - (total - 1 - index));
+      const key = formatLocalDateKey(date);
+      map.set(key, (map.get(key) ?? 0) + (series.values[index] ?? 0));
+    });
+  }
+
   return map;
 }
 
@@ -81,6 +107,105 @@ export type MovimientoChartPoint = {
   bajas: number;
   detalle?: string;
 };
+
+export type MovimientosChartSpec = {
+  desde: string;
+  hasta: string;
+  fechas: Array<{ periodo: string; key: string }>;
+};
+
+export function fechaCambioToDateKey(iso: string): string | null {
+  const parsed = new Date(iso);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return formatLocalDateKey(parsed);
+}
+
+export function aggregateAuditoriaPorFecha(
+  registros: AuditoriaRegistroApi[],
+): Map<string, number> {
+  const map = new Map<string, number>();
+  for (const registro of registros) {
+    const key = fechaCambioToDateKey(registro.fecha_cambio);
+    if (!key) continue;
+    map.set(key, (map.get(key) ?? 0) + 1);
+  }
+  return map;
+}
+
+export function buildMovimientosChartSpec(input: {
+  periodo: 'semanal' | 'mensual';
+  year: number;
+  mes: number;
+  semanaMes: number;
+  semanasDelMes: SemanaDelMes[];
+}): MovimientosChartSpec | null {
+  if (input.periodo === 'semanal') {
+    const diasSemana = getLunesDomingoSemana(input.year);
+    const fechas = DIAS_SEMANA.map((nombre, index) => ({
+      periodo: nombre,
+      key: formatLocalDateKey(diasSemana[index]),
+    }));
+    return {
+      desde: fechas[0].key,
+      hasta: fechas[fechas.length - 1].key,
+      fechas,
+    };
+  }
+
+  const semana = input.semanasDelMes[input.semanaMes] ?? input.semanasDelMes[0];
+  if (!semana) return null;
+
+  const fechas = semana.dias.map((dia) => ({
+    periodo: dia.etiqueta,
+    key: toDateKey(input.year, input.mes, dia.dia),
+  }));
+
+  return {
+    desde: fechas[0].key,
+    hasta: fechas[fechas.length - 1].key,
+    fechas,
+  };
+}
+
+export function buildMovimientosFromAuditoria(
+  registros: AuditoriaRegistroApi[],
+  fechas: Array<{ periodo: string; key: string }>,
+): MovimientoChartPoint[] {
+  return buildPuntosPorFechas(fechas, aggregateAuditoriaPorFecha(registros));
+}
+
+export function buildMovimientosAnualesFromGraficos(
+  year: number,
+  graficos?: DashboardGraficosApi | null,
+): MovimientoChartPoint[] {
+  const protocolos = graficos?.protocolos_por_mes;
+  const valuesByMonth = new Map<number, number>();
+
+  if (protocolos?.labels?.length) {
+    protocolos.labels.forEach((label, index) => {
+      const match = label.match(/(\d{4})-(\d{2})/);
+      if (match) {
+        if (Number(match[1]) !== year) return;
+        valuesByMonth.set(Number(match[2]) - 1, protocolos.values[index] ?? 0);
+        return;
+      }
+
+      if ((graficos?.anio ?? year) === year) {
+        valuesByMonth.set(index, protocolos.values[index] ?? 0);
+      }
+    });
+  }
+
+  return MESES_CORTOS.map((periodo, monthIndex) => {
+    const raw = valuesByMonth.get(monthIndex) ?? 0;
+    return {
+      periodo,
+      altas: raw,
+      bajas: 0,
+      detalle: raw > 0 ? `${raw} protocolo(s)` : undefined,
+    };
+  });
+}
 
 export function seriesToChartPoints(series?: DashboardChartSeries) {
   if (!series?.labels?.length) return [];
