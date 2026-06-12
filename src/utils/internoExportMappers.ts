@@ -33,6 +33,34 @@ function estadoInternoCementerio(bien: BienMueble) {
   return bien.condicionFisica.toUpperCase();
 }
 
+function fechaInterno(fecha: string) {
+  if (!fecha || fecha === '—') return '';
+  const date = new Date(fecha);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleDateString('es-VE', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
+}
+
+/** Formato interno administrativo (11 columnas con logo institucional). */
+export function bienToInternoAdministrativoRow(bien: BienMueble): (string | number)[] {
+  return [
+    bien.sinCodigo ? 'S/C' : bien.codigoInterno,
+    dashToEmpty(bien.descripcion),
+    marcaInterno(bien.marca),
+    modeloInterno(bien.modelo),
+    bien.color?.trim() || '',
+    serialInternoBien(bien),
+    fechaInterno(bien.fechaAdquisicion || bien.fechaIngreso),
+    dashToEmpty(bien.sede),
+    dashToEmpty(bien.ubicacion),
+    bien.estadoUso,
+    dashToEmpty(bien.observaciones),
+  ];
+}
+
 export function bienToInternoMueblesRow(
   bien: BienMueble,
   modo: 'almacen' | 'cementerio' = 'almacen',
