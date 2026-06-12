@@ -1,48 +1,51 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import { toast } from 'sonner';
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { toast } from "sonner";
 import {
   fetchAllBienesCementerio,
   fetchBienCementerioByCodigo,
   fetchBienesCementerio,
-} from '../api/services/bienes-sedes.service';
-import { fetchApiBienByCodigo, updateBien } from '../api/services/bienes.service';
-import { fetchAlmacenes } from '../api/services/almacenes.service';
-import { fetchSedes } from '../api/services/sedes.service';
-import { API_MAX_LIMIT } from '../api/pagination';
-import { aggregateBienesMetricsFromList } from '../utils/bienesStats';
-import { useApiQuery } from '../hooks/useApiQuery';
-import { toIsoDate } from '../api/mappers/enums';
-import { formatFecha, formatMoneda } from '../utils/formatters';
-import { notifyBienActualizado } from '../utils/assetNotify';
-import { apiBienToUpdatePayload } from '../utils/assetUpdateMappers';
-import { bienCodigoPk } from '../utils/bienCodigo';
-import { estadoUsoToApi } from '../utils/registroBienMappers';
-import { useUnsavedChangesGuard } from '../hooks/useUnsavedChangesGuard';
-import UnsavedChangesModal from '../components/modals/UnsavedChangesModal';
-import type { Column } from '../components/DataTable';
-import StatusBadge from '../components/StatusBadge';
-import ApiState from '../components/ApiState';
-import { RegistroBienesCementerioModal } from '../components/modals';
-import RetirarInventarioModal from '../components/modals/RetirarInventarioModal';
-import TransferirAlmacenModal from '../components/modals/TransferirAlmacenModal';
+} from "../api/services/bienes-sedes.service";
+import {
+  fetchApiBienByCodigo,
+  updateBien,
+} from "../api/services/bienes.service";
+import { fetchAlmacenes } from "../api/services/almacenes.service";
+import { fetchSedes } from "../api/services/sedes.service";
+import { API_MAX_LIMIT } from "../api/pagination";
+import { aggregateBienesMetricsFromList } from "../utils/bienesStats";
+import { useApiQuery } from "../hooks/useApiQuery";
+import { toIsoDate } from "../api/mappers/enums";
+import { formatFecha, formatMoneda } from "../utils/formatters";
+import { notifyBienActualizado } from "../utils/assetNotify";
+import { apiBienToUpdatePayload } from "../utils/assetUpdateMappers";
+import { bienCodigoPk } from "../utils/bienCodigo";
+import { estadoUsoToApi } from "../utils/registroBienMappers";
+import { useUnsavedChangesGuard } from "../hooks/useUnsavedChangesGuard";
+import UnsavedChangesModal from "../components/modals/UnsavedChangesModal";
+import type { Column } from "../components/DataTable";
+import StatusBadge from "../components/StatusBadge";
+import ApiState from "../components/ApiState";
+import { RegistroBienesCementerioModal } from "../components/modals";
+import RetirarInventarioModal from "../components/modals/RetirarInventarioModal";
+import TransferirAlmacenModal from "../components/modals/TransferirAlmacenModal";
 import {
   useBienInventarioActions,
   type InventarioBienActionResult,
-} from '../hooks/useBienInventarioActions';
-import type { ApiAlmacen } from '../api/types';
-import ModulePageHeader from '../components/module/ModulePageHeader';
-import { useRolePermissions } from '../hooks/useRolePermissions';
-import ModuleFilterBar from '../components/module/ModuleFilterBar';
-import SearchableSelect from '../components/forms/SearchableSelect';
-import { FILTROS_INVENTARIO_VACIOS } from '../constants/moduleFilters';
-import ModuleDataTable from '../components/module/ModuleDataTable';
-import ModulePagination from '../components/module/ModulePagination';
-import AssetDetailView from '../components/module/AssetDetailView';
-import { useModuleUiState } from '../stores/moduleUiStore';
-import type { BienMueble } from '../types/bien';
-import { ESTADOS_USO } from '../types/bien';
-import { nombresAlmacenesCementerio } from '../utils/cementerioAlmacenes';
+} from "../hooks/useBienInventarioActions";
+import type { ApiAlmacen } from "../api/types";
+import ModulePageHeader from "../components/module/ModulePageHeader";
+import { useRolePermissions } from "../hooks/useRolePermissions";
+import ModuleFilterBar from "../components/module/ModuleFilterBar";
+import SearchableSelect from "../components/forms/SearchableSelect";
+import { FILTROS_INVENTARIO_VACIOS } from "../constants/moduleFilters";
+import ModuleDataTable from "../components/module/ModuleDataTable";
+import ModulePagination from "../components/module/ModulePagination";
+import AssetDetailView from "../components/module/AssetDetailView";
+import { useModuleUiState } from "../stores/moduleUiStore";
+import type { BienMueble } from "../types/bien";
+import { ESTADOS_USO } from "../types/bien";
+import { nombresAlmacenesCementerio } from "../utils/cementerioAlmacenes";
 import {
   ArrowLeft,
   FileText,
@@ -50,7 +53,7 @@ import {
   Package,
   AlertTriangle,
   AlertCircle,
-} from 'lucide-react';
+} from "lucide-react";
 
 const PER_PAGE = 10;
 
@@ -67,11 +70,16 @@ function CementerioBienDetail({
   onSaved?: () => void | Promise<void>;
   onInventarioAction?: (result: InventarioBienActionResult) => void;
 }) {
-  const { canWriteAssets, canTransferBien, canRetireBien } = useRolePermissions();
+  const { canWriteAssets, canTransferBien, canRetireBien } =
+    useRolePermissions();
   const navigate = useNavigate();
   const [estadoUso, setEstadoUso] = useState(bien.estadoUso);
   const [saving, setSaving] = useState(false);
-  const inventario = useBienInventarioActions({ bien, almacenes, onActionSuccess: onInventarioAction });
+  const inventario = useBienInventarioActions({
+    bien,
+    almacenes,
+    onActionSuccess: onInventarioAction,
+  });
 
   useEffect(() => {
     setEstadoUso(bien.estadoUso);
@@ -92,8 +100,8 @@ function CementerioBienDetail({
       notifyBienActualizado(bien, { estadoUso });
       await onSaved?.();
     } catch (err) {
-      toast.error('No se pudo guardar el cambio', {
-        description: err instanceof Error ? err.message : 'Intente nuevamente.',
+      toast.error("No se pudo guardar el cambio", {
+        description: err instanceof Error ? err.message : "Intente nuevamente.",
       });
     } finally {
       setSaving(false);
@@ -102,136 +110,170 @@ function CementerioBienDetail({
 
   return (
     <>
-    <AssetDetailView
-      title="Bienes e Inmuebles: Cementerio"
-      onNavigateTo={(to) =>
-        unsaved.requestLeave(() => (to === '/cementerio' ? onVolver() : navigate(to)))
-      }
-      breadcrumb={[
-        { label: 'Dashboard', to: '/dashboard' },
-        { label: 'Cementerio', to: '/cementerio' },
-        { label: bien.sinCodigo ? 'Sin código' : bien.codigoInterno },
-      ]}
-      categoryFields={[
-        { label: 'Categoría', value: bien.categoriaGeneral },
-        { label: 'Sub Categoría', value: bien.subcategoria },
-        { label: 'Categoría Específica', value: bien.categoriaEspecifica },
-      ]}
-      sections={[
-        {
-          title: 'Detalles',
-          fields: [
-            { label: 'Descripción', value: bien.descripcion },
-            { label: 'Fecha de Ingreso', value: formatFecha(bien.fechaIngreso || bien.fechaAdquisicion) },
-            { label: 'Color', value: bien.color || '—' },
-            { label: 'Marca', value: bien.marca || '—' },
-            { label: 'Modelo', value: bien.modelo || '—' },
-            { label: 'Valor de Adquisición', value: formatMoneda(bien.valorAdquisicion, bien.moneda) },
-            { label: 'Código', value: bien.sinCodigo ? 'Sin código' : bien.codigoInterno },
-            { label: 'Serial', value: bien.sinSerial ? 'Sin serial' : (bien.serial || '—') },
-            {
-              label: 'Responsable',
-              value: bien.responsable !== '—'
-                ? bien.responsable
-                : bien.ciResponsable
-                  ? `CI ${bien.ciResponsable}`
-                  : '—',
-            },
-            { label: 'Unidad Administrativa', value: bien.unidadAdministrativa },
-            {
-              label: 'Estado de uso',
-              value: (
-                <SearchableSelect
-                  value={estadoUso}
-                  onChange={(value) => setEstadoUso(value as BienMueble['estadoUso'])}
-                  options={ESTADOS_USO}
-                  className="max-w-xs"
-                  disabled={inventario.retirado || !canWriteAssets}
-                  disableSearch
-                />
-              ),
-            },
-            { label: 'Almacén', value: bien.ubicacion },
-            { label: 'Sede', value: bien.sede },
-          ],
-        },
-        {
-          title: 'Detalles del documento de Ingreso',
-          fields: [
-            { label: 'Nro de Documento', value: bien.numeroDocumento || '—' },
-            { label: 'Fecha Adquisición', value: formatFecha(bien.fechaAdquisicion) },
-            { label: 'Forma de Adquisición', value: bien.formaAdquisicion },
-            { label: 'Nombre de Proveedor', value: bien.nombreProveedor },
-            { label: 'Valor del Bien', value: formatMoneda(bien.valorAdquisicion, bien.moneda) },
-          ],
-        },
-      ]}
-      actions={
-        <>
-          <button
-            type="button"
-            onClick={() => unsaved.requestLeave(onVolver)}
-            className="inline-flex items-center gap-2 px-4 py-2.5 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50"
-          >
-            <ArrowLeft size={16} />
-            Volver al listado
-          </button>
-          {canWriteAssets && (
+      <AssetDetailView
+        title="Bienes e Inmuebles: Cementerio"
+        onNavigateTo={(to) =>
+          unsaved.requestLeave(() =>
+            to === "/cementerio" ? onVolver() : navigate(to),
+          )
+        }
+        breadcrumb={[
+          { label: "Dashboard", to: "/dashboard" },
+          { label: "Cementerio", to: "/cementerio" },
+          { label: bien.sinCodigo ? "Sin código" : bien.codigoInterno },
+        ]}
+        categoryFields={[
+          { label: "Categoría", value: bien.categoriaGeneral },
+          { label: "Sub Categoría", value: bien.subcategoria },
+          { label: "Categoría Específica", value: bien.categoriaEspecifica },
+        ]}
+        sections={[
+          {
+            title: "Detalles",
+            fields: [
+              { label: "Descripción", value: bien.descripcion },
+              {
+                label: "Fecha de Ingreso",
+                value: formatFecha(bien.fechaIngreso || bien.fechaAdquisicion),
+              },
+              { label: "Color", value: bien.color || "—" },
+              { label: "Marca", value: bien.marca || "—" },
+              { label: "Modelo", value: bien.modelo || "—" },
+              {
+                label: "Valor de Adquisición",
+                value: formatMoneda(bien.valorAdquisicion, bien.moneda),
+              },
+              {
+                label: "Código",
+                value: bien.sinCodigo ? "Sin código" : bien.codigoInterno,
+              },
+              {
+                label: "Serial",
+                value: bien.sinSerial ? "Sin serial" : bien.serial || "—",
+              },
+              {
+                label: "Responsable",
+                value:
+                  bien.responsable !== "—"
+                    ? bien.responsable
+                    : bien.ciResponsable
+                      ? `CI ${bien.ciResponsable}`
+                      : "—",
+              },
+              {
+                label: "Unidad Administrativa",
+                value: bien.unidadAdministrativa,
+              },
+              {
+                label: "Estado de uso",
+                value: (
+                  <SearchableSelect
+                    value={estadoUso}
+                    onChange={(value) =>
+                      setEstadoUso(value as BienMueble["estadoUso"])
+                    }
+                    options={ESTADOS_USO}
+                    className="max-w-xs"
+                    disabled={inventario.retirado || !canWriteAssets}
+                    disableSearch
+                  />
+                ),
+              },
+              { label: "Almacén", value: bien.ubicacion },
+              { label: "Sede", value: bien.sede },
+            ],
+          },
+          {
+            title: "Detalles del documento de Ingreso",
+            fields: [
+              { label: "Nro de Documento", value: bien.numeroDocumento || "—" },
+              {
+                label: "Fecha Adquisición",
+                value: formatFecha(bien.fechaAdquisicion),
+              },
+              { label: "Forma de Adquisición", value: bien.formaAdquisicion },
+              { label: "Nombre de Proveedor", value: bien.nombreProveedor },
+              {
+                label: "Valor del Bien",
+                value: formatMoneda(bien.valorAdquisicion, bien.moneda),
+              },
+            ],
+          },
+        ]}
+        actions={
+          <>
             <button
               type="button"
-              onClick={guardarCambio}
-              disabled={saving}
-              className="px-5 py-2.5 bg-navy-900 text-white rounded-lg text-sm font-semibold hover:bg-navy-800 disabled:opacity-60"
+              onClick={() => unsaved.requestLeave(onVolver)}
+              className="inline-flex items-center gap-2 px-4 py-2.5 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50"
             >
-              {saving ? 'Guardando...' : 'Guardar cambio'}
+              <ArrowLeft size={16} />
+              Volver al listado
             </button>
-          )}
-          {canTransferBien && (
-            <button
-              type="button"
-              onClick={() => inventario.setTransferOpen(true)}
-              disabled={inventario.retirado || inventario.transferLoading || inventario.retireLoading}
-              className="px-5 py-2.5 border border-navy-200 text-navy-800 rounded-lg text-sm font-semibold hover:bg-navy-50 disabled:opacity-50"
-            >
-              Transferir a otro almacén
-            </button>
-          )}
-          {canRetireBien && (
-            <button
-              type="button"
-              onClick={() => inventario.setRetireOpen(true)}
-              disabled={inventario.retirado || inventario.transferLoading || inventario.retireLoading}
-              className="px-5 py-2.5 border border-red-200 text-red-700 rounded-lg text-sm font-semibold hover:bg-red-50 disabled:opacity-50"
-            >
-              Retirar de Inventario
-            </button>
-          )}
-        </>
-      }
-    />
-    <TransferirAlmacenModal
-      open={inventario.transferOpen}
-      onClose={() => inventario.setTransferOpen(false)}
-      assetLabel={inventario.assetLabel}
-      sedeActual={inventario.sedeActual}
-      almacenActual={inventario.almacenActual}
-      almacenes={inventario.almacenes}
-      onConfirm={inventario.handleTransfer}
-      loading={inventario.transferLoading}
-    />
-    <RetirarInventarioModal
-      open={inventario.retireOpen}
-      onClose={() => inventario.setRetireOpen(false)}
-      assetLabel={inventario.assetLabel}
-      onConfirm={inventario.handleRetire}
-      loading={inventario.retireLoading}
-    />
-    <UnsavedChangesModal
-      open={unsaved.modalOpen}
-      onClose={unsaved.cancelLeave}
-      onConfirm={unsaved.confirmLeave}
-      subject="del bien"
-    />
+            {canWriteAssets && (
+              <button
+                type="button"
+                onClick={guardarCambio}
+                disabled={saving}
+                className="px-5 py-2.5 bg-navy-900 text-white rounded-lg text-sm font-semibold hover:bg-navy-800 disabled:opacity-60"
+              >
+                {saving ? "Guardando..." : "Guardar cambio"}
+              </button>
+            )}
+            {canTransferBien && (
+              <button
+                type="button"
+                onClick={() => inventario.setTransferOpen(true)}
+                disabled={
+                  inventario.retirado ||
+                  inventario.transferLoading ||
+                  inventario.retireLoading
+                }
+                className="px-5 py-2.5 border border-navy-200 text-navy-800 rounded-lg text-sm font-semibold hover:bg-navy-50 disabled:opacity-50"
+              >
+                Transferir a otro almacén
+              </button>
+            )}
+            {canRetireBien && (
+              <button
+                type="button"
+                onClick={() => inventario.setRetireOpen(true)}
+                disabled={
+                  inventario.retirado ||
+                  inventario.transferLoading ||
+                  inventario.retireLoading
+                }
+                className="px-5 py-2.5 border border-red-200 text-red-700 rounded-lg text-sm font-semibold hover:bg-red-50 disabled:opacity-50"
+              >
+                Retirar de Inventario
+              </button>
+            )}
+          </>
+        }
+      />
+      <TransferirAlmacenModal
+        open={inventario.transferOpen}
+        onClose={() => inventario.setTransferOpen(false)}
+        assetLabel={inventario.assetLabel}
+        sedeActual={inventario.sedeActual}
+        almacenActual={inventario.almacenActual}
+        almacenes={inventario.almacenes}
+        onConfirm={inventario.handleTransfer}
+        loading={inventario.transferLoading}
+      />
+      <RetirarInventarioModal
+        open={inventario.retireOpen}
+        onClose={() => inventario.setRetireOpen(false)}
+        assetLabel={inventario.assetLabel}
+        onConfirm={inventario.handleRetire}
+        loading={inventario.retireLoading}
+      />
+      <UnsavedChangesModal
+        open={unsaved.modalOpen}
+        onClose={unsaved.cancelLeave}
+        onConfirm={unsaved.confirmLeave}
+        subject="del bien"
+      />
     </>
   );
 }
@@ -240,7 +282,7 @@ export default function Cementerio() {
   const { canWriteAssets, canExportInventory } = useRolePermissions();
   const { id } = useParams();
   const navigate = useNavigate();
-  const [exportMsg, setExportMsg] = useState('');
+  const [exportMsg, setExportMsg] = useState("");
   const {
     page,
     filters: filtros,
@@ -249,21 +291,21 @@ export default function Cementerio() {
     setFilter: setModuleFilter,
     resetFilters,
     setModal,
-  } = useModuleUiState('cementerio', FILTROS_INVENTARIO_VACIOS);
+  } = useModuleUiState("cementerio", FILTROS_INVENTARIO_VACIOS);
   const showRegistro = modals.registro ?? false;
-  const apiSearch = useMemo(() => filtros.buscar.trim() || undefined, [filtros.buscar]);
+  const apiSearch = useMemo(
+    () => filtros.buscar.trim() || undefined,
+    [filtros.buscar],
+  );
 
   const bienesQuery = useApiQuery(
     () => fetchBienesCementerio({ page, limit: PER_PAGE, search: apiSearch }),
     [page, apiSearch],
   );
-  const metricsQuery = useApiQuery(
-    async () => {
-      const bienes = await fetchAllBienesCementerio({ search: apiSearch });
-      return aggregateBienesMetricsFromList(bienes);
-    },
-    [apiSearch],
-  );
+  const metricsQuery = useApiQuery(async () => {
+    const bienes = await fetchAllBienesCementerio({ search: apiSearch });
+    return aggregateBienesMetricsFromList(bienes);
+  }, [apiSearch]);
   const almacenesQuery = useApiQuery(
     () => fetchAlmacenes({ page: 1, limit: API_MAX_LIMIT }),
     [],
@@ -295,16 +337,39 @@ export default function Cementerio() {
   );
   const departamentoOptions = almacenOptions;
 
+  // Filtrar bienes
   const filteredBienes = useMemo(() => {
     const q = filtros.buscar.toLowerCase();
     return bienes.filter((b) => {
-      if (filtros.codigo && !b.codigoInterno.toLowerCase().includes(filtros.codigo.toLowerCase())) return false;
-      if (filtros.descripcion && !b.descripcion.toLowerCase().includes(filtros.descripcion.toLowerCase())) return false;
+      if (
+        filtros.codigo &&
+        !b.codigoInterno.toLowerCase().includes(filtros.codigo.toLowerCase())
+      )
+        return false;
+      if (
+        filtros.descripcion &&
+        !b.descripcion.toLowerCase().includes(filtros.descripcion.toLowerCase())
+      )
+        return false;
       if (filtros.almacen && b.ubicacion !== filtros.almacen) return false;
-      if (filtros.departamento && b.unidadAdministrativa !== filtros.departamento) return false;
-      if (filtros.numeroDocumento && !b.numeroDocumento.includes(filtros.numeroDocumento)) return false;
-      if (filtros.fecha && toIsoDate(b.fechaAdquisicion) !== filtros.fecha) return false;
-      if (filtros.estadoUso && filtros.estadoUso !== 'Todos' && b.estadoUso !== filtros.estadoUso) return false;
+      if (
+        filtros.departamento &&
+        b.unidadAdministrativa !== filtros.departamento
+      )
+        return false;
+      if (
+        filtros.numeroDocumento &&
+        !b.numeroDocumento.includes(filtros.numeroDocumento)
+      )
+        return false;
+      if (filtros.fecha && toIsoDate(b.fechaAdquisicion) !== filtros.fecha)
+        return false;
+      if (
+        filtros.estadoUso &&
+        filtros.estadoUso !== "Todos" &&
+        b.estadoUso !== filtros.estadoUso
+      )
+        return false;
       if (q) {
         const hay =
           b.codigoInterno.toLowerCase().includes(q) ||
@@ -325,60 +390,87 @@ export default function Cementerio() {
     setPage(1);
   };
 
-  const simularExportPdf = () => {
-    setExportMsg('Generando PDF...');
-    setTimeout(() => setExportMsg('PDF generado'), 1500);
-    setTimeout(() => setExportMsg(''), 4000);
-  };
-
+  // Columnas de la tabla
   const columns: Column<BienMueble>[] = [
     {
-      key: 'codigoInterno',
-      label: 'Código',
-      render: (b) => <span className="font-mono font-bold text-navy-900">{b.codigoInterno}</span>,
+      key: "codigoInterno",
+      label: "Código",
+      render: (b) => (
+        <span className="font-mono font-bold text-navy-900">
+          {b.codigoInterno}
+        </span>
+      ),
     },
     {
-      key: 'descripcion',
-      label: 'Descripción',
-      render: (b) => <span className="max-w-[220px] truncate block">{b.descripcion}</span>,
+      key: "descripcion",
+      label: "Descripción",
+      render: (b) => (
+        <span className="max-w-[220px] truncate block">{b.descripcion}</span>
+      ),
     },
-    { key: 'marca', label: 'Marca', render: (b) => <span>{b.marca || '—'}</span> },
-    { key: 'modelo', label: 'Modelo', render: (b) => <span>{b.modelo || '—'}</span> },
-    { key: 'color', label: 'Color', render: (b) => <span>{b.color || '—'}</span> },
-    { key: 'serial', label: 'Serial', render: (b) => <span className="font-mono text-sm">{b.serial || '—'}</span> },
     {
-      key: 'fechaAdquisicion',
-      label: 'Fecha',
+      key: "marca",
+      label: "Marca",
+      render: (b) => <span>{b.marca || "—"}</span>,
+    },
+    {
+      key: "modelo",
+      label: "Modelo",
+      render: (b) => <span>{b.modelo || "—"}</span>,
+    },
+    {
+      key: "color",
+      label: "Color",
+      render: (b) => <span>{b.color || "—"}</span>,
+    },
+    {
+      key: "serial",
+      label: "Serial",
+      render: (b) => (
+        <span className="font-mono text-sm">{b.serial || "—"}</span>
+      ),
+    },
+    {
+      key: "fechaAdquisicion",
+      label: "Fecha",
       render: (b) => <span>{formatFecha(b.fechaAdquisicion)}</span>,
     },
-    { key: 'sede', label: 'Sede' },
-    { key: 'ubicacion', label: 'Almacén' },
-    { key: 'estadoUso', label: 'Estado de uso', render: (b) => <StatusBadge status={b.estadoUso} size="sm" /> },
+    { key: "sede", label: "Sede" },
+    { key: "ubicacion", label: "Almacén" },
+    {
+      key: "estadoUso",
+      label: "Estado de uso",
+      render: (b) => <StatusBadge status={b.estadoUso} size="sm" />,
+    },
   ];
 
   if (id) {
     return (
-      <ApiState loading={detailQuery.loading && !detailQuery.data} error={detailQuery.error} onRetry={detailQuery.refetch}>
+      <ApiState
+        loading={detailQuery.loading && !detailQuery.data}
+        error={detailQuery.error}
+        onRetry={detailQuery.refetch}
+      >
         {detailQuery.data && (
           <CementerioBienDetail
             bien={detailQuery.data}
             almacenes={almacenes}
             onVolver={() => {
               void bienesQuery.refetch();
-              navigate('/cementerio');
+              navigate("/cementerio");
             }}
             onSaved={async () => {
               await Promise.all([bienesQuery.refetch(), detailQuery.refetch()]);
             }}
             onInventarioAction={async (result) => {
-              if (result.type === 'transfer') {
+              if (result.type === "transfer") {
                 void bienesQuery.refetch();
-                setModuleFilter('almacen', result.almacenDestino);
+                setModuleFilter("almacen", result.almacenDestino);
                 try {
                   await fetchBienCementerioByCodigo(id);
                   await detailQuery.refetch();
                 } catch {
-                  navigate('/cementerio');
+                  navigate("/cementerio");
                 }
                 return;
               }
@@ -393,14 +485,19 @@ export default function Cementerio() {
 
   return (
     <div className="p-4 md:p-6 space-y-6 max-w-[1600px]">
+      {/* Header */}
       <ModulePageHeader
         title="Bienes e Inmuebles: Cementerio"
-        breadcrumb={[{ label: 'Dashboard', to: '/dashboard' }, { label: 'Cementerio' }]}
-        formatModule={canExportInventory ? 'cementerio' : undefined}
-        onCreate={canWriteAssets ? () => setModal('registro', true) : undefined}
+        breadcrumb={[
+          { label: "Dashboard", to: "/dashboard" },
+          { label: "Cementerio" },
+        ]}
+        formatModule={canExportInventory ? "cementerio" : undefined}
+        onCreate={canWriteAssets ? () => setModal("registro", true) : undefined}
         createLabel="Crear Registro"
       />
 
+      {/* Resumen de inventario */}
       <section
         aria-label="Métricas del cementerio"
         className="rounded-xl border-2 border-navy-100 bg-linear-to-br from-slate-50 via-white to-slate-50 p-4 sm:p-5 shadow-sm"
@@ -473,71 +570,69 @@ export default function Cementerio() {
           resetFilters();
         }}
         fields={[
-          { key: 'codigo', label: 'Código', type: 'text', value: filtros.codigo, onChange: (v) => setFiltro('codigo', v) },
-          { key: 'descripcion', label: 'Descripción', type: 'text', value: filtros.descripcion, onChange: (v) => setFiltro('descripcion', v) },
           {
-            key: 'almacen',
-            label: 'Almacén',
-            type: 'select',
+            key: "codigo",
+            label: "Código",
+            type: "text",
+            value: filtros.codigo,
+            onChange: (v) => setFiltro("codigo", v),
+          },
+          {
+            key: "descripcion",
+            label: "Descripción",
+            type: "text",
+            value: filtros.descripcion,
+            onChange: (v) => setFiltro("descripcion", v),
+          },
+          {
+            key: "almacen",
+            label: "Almacén",
+            type: "select",
             value: filtros.almacen,
-            onChange: (v) => setFiltro('almacen', v),
+            onChange: (v) => setFiltro("almacen", v),
             options: almacenOptions,
           },
           {
-            key: 'departamento',
-            label: 'Unidad Administrativa',
-            type: 'select',
+            key: "departamento",
+            label: "Unidad Administrativa",
+            type: "select",
             value: filtros.departamento,
-            onChange: (v) => setFiltro('departamento', v),
+            onChange: (v) => setFiltro("departamento", v),
             options: departamentoOptions,
           },
           {
-            key: 'documento',
-            label: 'Número de documento',
-            type: 'text',
+            key: "documento",
+            label: "Número de documento",
+            type: "text",
             value: filtros.numeroDocumento,
-            onChange: (v) => setFiltro('numeroDocumento', v),
+            onChange: (v) => setFiltro("numeroDocumento", v),
           },
           {
-            key: 'fecha',
-            label: 'Fecha',
-            type: 'date',
+            key: "fecha",
+            label: "Fecha",
+            type: "date",
             value: filtros.fecha,
-            onChange: (v) => setFiltro('fecha', v),
+            onChange: (v) => setFiltro("fecha", v),
           },
           {
-            key: 'estadoUso',
-            label: 'Estado de uso',
-            type: 'select',
+            key: "estadoUso",
+            label: "Estado de uso",
+            type: "select",
             value: filtros.estadoUso,
-            onChange: (v) => setFiltro('estadoUso', v),
-            options: ['Todos', ...ESTADOS_USO],
+            onChange: (v) => setFiltro("estadoUso", v),
+            options: ["Todos", ...ESTADOS_USO],
           },
           {
-            key: 'buscar',
-            label: 'Buscar',
-            type: 'search',
+            key: "buscar",
+            label: "Buscar",
+            type: "search",
             value: filtros.buscar,
-            onChange: (v) => setFiltro('buscar', v),
-            placeholder: 'Buscar por código, descripción, marca, serial...',
-            className: 'sm:col-span-2 lg:col-span-1',
+            onChange: (v) => setFiltro("buscar", v),
+            placeholder: "Buscar por código, descripción, marca, serial...",
+            className: "sm:col-span-2 lg:col-span-1",
           },
         ]}
-      >
-        {canExportInventory && (
-          <div className="flex flex-wrap items-center justify-end gap-3 mt-4 pt-4 border-t border-gray-100">
-            {exportMsg && <span className="text-sm text-green-600 font-medium">{exportMsg}</span>}
-            <button
-              type="button"
-              onClick={simularExportPdf}
-              className="inline-flex items-center gap-1.5 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50"
-            >
-              <FileText size={14} />
-              PDF
-            </button>
-          </div>
-        )}
-      </ModuleFilterBar>
+      ></ModuleFilterBar>
 
       <ApiState
         loading={bienesQuery.loading && !bienesQuery.data}
@@ -550,15 +645,21 @@ export default function Cementerio() {
           data={paginatedBienes}
           columns={columns}
           loading={bienesQuery.loading && Boolean(bienesQuery.data)}
-          onDetails={(b) => navigate(`/cementerio/${encodeURIComponent(b.codigoInterno)}`)}
+          onDetails={(b) =>
+            navigate(`/cementerio/${encodeURIComponent(b.codigoInterno)}`)
+          }
           emptyMessage="No hay registros del cementerio."
         />
-        <ModulePagination page={page} totalPages={totalPages} onPageChange={setPage} />
+        <ModulePagination
+          page={page}
+          totalPages={totalPages}
+          onPageChange={setPage}
+        />
       </ApiState>
 
       <RegistroBienesCementerioModal
         open={showRegistro}
-        onClose={() => setModal('registro', false)}
+        onClose={() => setModal("registro", false)}
         sedes={sedes}
         onSuccess={() => {
           bienesQuery.refetch();
@@ -566,7 +667,6 @@ export default function Cementerio() {
         }}
         onError={() => {}}
       />
-
     </div>
   );
 }
@@ -576,8 +676,8 @@ function CementerioMetricCard({
   value,
   icon,
   iconClassName,
-  borderClassName = 'border-gray-200',
-  valueClassName = 'text-navy-900',
+  borderClassName = "border-gray-200",
+  valueClassName = "text-navy-900",
 }: {
   label: string;
   value: number;
@@ -587,14 +687,20 @@ function CementerioMetricCard({
   valueClassName?: string;
 }) {
   return (
-    <div className={`bg-white rounded-xl border p-5 flex items-center gap-4 shadow-sm ${borderClassName}`}>
-      <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${iconClassName}`}>
+    <div
+      className={`bg-white rounded-xl border p-5 flex items-center gap-4 shadow-sm ${borderClassName}`}
+    >
+      <div
+        className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${iconClassName}`}
+      >
         {icon}
       </div>
       <div className="min-w-0">
         <p className="text-sm font-medium text-gray-600">{label}</p>
-        <p className={`text-3xl font-bold tabular-nums leading-tight ${valueClassName}`}>
-          {value.toLocaleString('es-VE')}
+        <p
+          className={`text-3xl font-bold tabular-nums leading-tight ${valueClassName}`}
+        >
+          {value.toLocaleString("es-VE")}
         </p>
       </div>
     </div>

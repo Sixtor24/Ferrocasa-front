@@ -3,8 +3,6 @@ import type { BienMueble } from '../types/bien';
 import type { Alignment, Borders, Workbook, Worksheet } from 'exceljs';
 import { bienToInternoAdministrativoRow } from './internoExportMappers';
 
-type CellValue = string | number;
-
 const COLUMN_COUNT = 11;
 const COLUMN_HEADERS = [
   'Código',
@@ -20,7 +18,6 @@ const COLUMN_HEADERS = [
   'Observaciones',
 ] as const;
 
-const TITLE = 'Bienes administrativos';
 const TITLE_ROW = 5;
 const HEADER_ROW = 7;
 const DATA_START_ROW = 8;
@@ -29,11 +26,28 @@ const COLOR_TITLE_BG = 'FFB8CCE4';
 const COLOR_HEADER_BG = 'FF365F91';
 const COLOR_HEADER_TEXT = 'FFFFFFFF';
 
-/** Dimensiones finales del logo según plantilla Excel (cm). */
 const LOGO_WIDTH_CM = 9.5;
 const LOGO_HEIGHT_CM = 3.1;
 const LOGO_AREA_ROWS = 4;
 const EMU_PER_PIXEL = 9525;
+
+type InternoInventarioConfig = {
+  title: string;
+  sheetName: string;
+  filenamePrefix: string;
+};
+
+const INTERNO_ALMACEN_CONFIG: InternoInventarioConfig = {
+  title: 'Bienes administrativos',
+  sheetName: 'Bienes administrativos',
+  filenamePrefix: 'Bienes_Administrativos',
+};
+
+const INTERNO_CEMENTERIO_CONFIG: InternoInventarioConfig = {
+  title: 'Inventario Cementerio',
+  sheetName: 'Inventario Cementerio',
+  filenamePrefix: 'Inventario_Cementerio',
+};
 
 const BORDER_THIN: Partial<Borders> = {
   top: { style: 'thin', color: { argb: 'FF000000' } },
@@ -88,6 +102,13 @@ function triggerBlobDownload(blob: Blob, filename: string) {
   URL.revokeObjectURL(url);
 }
 
+function uniqueExportFilename(prefix: string, date = new Date()) {
+  const pad = (value: number) => String(value).padStart(2, '0');
+  const day = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+  const time = `${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}`;
+  return `${prefix}_${day}_${time}.xlsx`;
+}
+
 async function loadLogoBase64() {
   const response = await fetch(logoUrl);
   if (!response.ok) throw new Error(`No se pudo cargar el logo (${response.status})`);
@@ -118,7 +139,7 @@ function setColumnWidths(worksheet: Worksheet) {
 }
 
 function styleLogoArea(worksheet: Worksheet) {
-  worksheet.mergeCells(1, 1, 4, COLUMN_COUNT);
+  worksheet.mergeCells(1, 1, LOGO_AREA_ROWS, COLUMN_COUNT);
   const logoCell = worksheet.getCell(1, 1);
   logoCell.fill = {
     type: 'pattern',
@@ -128,10 +149,10 @@ function styleLogoArea(worksheet: Worksheet) {
   logoCell.border = BORDER_THIN;
 }
 
-function styleTitle(worksheet: Worksheet) {
+function styleTitle(worksheet: Worksheet, title: string) {
   worksheet.mergeCells(TITLE_ROW, 1, TITLE_ROW, COLUMN_COUNT);
   const cell = worksheet.getCell(TITLE_ROW, 1);
-  cell.value = TITLE;
+  cell.value = title;
   cell.font = { bold: true, size: 12, color: { argb: 'FF000000' } };
   cell.alignment = CENTER;
   cell.fill = {
@@ -166,11 +187,10 @@ function styleDataRows(worksheet: Worksheet, bienes: BienMueble[]) {
       const colNumber = colIndex + 1;
       const cell = worksheet.getCell(rowNumber, colNumber);
       cell.value = value;
-
-      const isLongTextCol = colNumber === 2 || colNumber === 8 || colNumber === 9 || colNumber === 11;
-      cell.alignment = isLongTextCol
-        ? { vertical: 'middle', horizontal: 'left', wrapText: true }
-        : CENTER;
+      cell.alignment =
+        colNumber === 2 || colNumber === 8 || colNumber === 9 || colNumber === 11
+          ? { vertical: 'middle', horizontal: 'left', wrapText: true }
+          : CENTER;
       cell.border = BORDER_THIN;
       cell.fill = {
         type: 'pattern',
@@ -189,7 +209,6 @@ async function addLogo(workbook: Workbook, worksheet: Worksheet) {
 
   const logoWidthPx = cmToPixels(LOGO_WIDTH_CM);
   const logoHeightPx = cmToPixels(LOGO_HEIGHT_CM);
-
   const sheetWidthPx = getSheetContentWidthPixels(worksheet);
   const logoAreaHeightPx = pointsToPixels(getLogoAreaHeightPoints());
   const offsetXPx = Math.max(0, Math.round((sheetWidthPx - logoWidthPx) / 2));
@@ -207,16 +226,7 @@ async function addLogo(workbook: Workbook, worksheet: Worksheet) {
   });
 }
 
-function uniqueExportFilename(date = new Date()) {
-  const pad = (value: number) => String(value).padStart(2, '0');
-  const day = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-  const time = `${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}`;
-  return `Bienes_Administrativos_${day}_${time}.xlsx`;
-}
-
-export async function exportInternoBienesAdministrativos(
-  bienes: BienMueble[],
-): Promise<void> {
+async function exportInternoInventario(bienes: BienMueble[], config: InternoInventarioConfig) {
   const ExcelJS = await import('exceljs');
   const exportDate = new Date();
   const workbook = new ExcelJS.Workbook();
@@ -224,7 +234,7 @@ export async function exportInternoBienesAdministrativos(
   workbook.created = exportDate;
   workbook.modified = exportDate;
 
-  const worksheet = workbook.addWorksheet('Bienes administrativos', {
+  const worksheet = workbook.addWorksheet(config.sheetName, {
     views: [{ state: 'frozen', ySplit: HEADER_ROW }],
     pageSetup: {
       orientation: 'landscape',
@@ -237,7 +247,7 @@ export async function exportInternoBienesAdministrativos(
   setColumnWidths(worksheet);
   setRowHeights(worksheet);
   styleLogoArea(worksheet);
-  styleTitle(worksheet);
+  styleTitle(worksheet, config.title);
   styleColumnHeaders(worksheet);
   styleDataRows(worksheet, bienes);
   await addLogo(workbook, worksheet);
@@ -252,5 +262,13 @@ export async function exportInternoBienesAdministrativos(
   const blob = new Blob([output], {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   });
-  triggerBlobDownload(blob, uniqueExportFilename(exportDate));
+  triggerBlobDownload(blob, uniqueExportFilename(config.filenamePrefix, exportDate));
+}
+
+export async function exportInternoBienesAdministrativos(bienes: BienMueble[]): Promise<void> {
+  await exportInternoInventario(bienes, INTERNO_ALMACEN_CONFIG);
+}
+
+export async function exportInternoCementerio(bienes: BienMueble[]): Promise<void> {
+  await exportInternoInventario(bienes, INTERNO_CEMENTERIO_CONFIG);
 }

@@ -29,7 +29,19 @@ const COLUMN_HEADERS = [
   'Estatus de Carga',
 ] as const;
 
-const TITLE = 'Reporte Bienes muebles';
+const SUDEBIP_SCOPE_CONFIG: Record<string, { title: string; sheetName: string; filenamePrefix: string }> = {
+  Administrativos: {
+    title: 'Reporte Bienes muebles',
+    sheetName: 'Reporte Bienes muebles',
+    filenamePrefix: 'Bienes_Administrativos_SUDEBIP',
+  },
+  Cementerio: {
+    title: 'Reporte Cementerio',
+    sheetName: 'Reporte Cementerio',
+    filenamePrefix: 'Bienes_Cementerio_SUDEBIP',
+  },
+};
+
 const TITLE_ROW = 5;
 const META_ROW = 6;
 const HEADER_ROW = 8;
@@ -99,16 +111,15 @@ function triggerBlobDownload(blob: Blob, filename: string) {
   URL.revokeObjectURL(url);
 }
 
-const SUDEBIP_FILENAME_BY_SCOPE: Record<string, string> = {
-  Administrativos: 'Bienes_Administrativos_SUDEBIP',
-  Cementerio: 'Bienes_Cementerio_SUDEBIP',
-};
+function resolveScopeConfig(scope?: string) {
+  return (scope && SUDEBIP_SCOPE_CONFIG[scope]) || SUDEBIP_SCOPE_CONFIG.Administrativos;
+}
 
 function uniqueExportFilename(scope?: string, date = new Date()) {
   const pad = (value: number) => String(value).padStart(2, '0');
   const day = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
   const time = `${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}`;
-  const baseName = (scope && SUDEBIP_FILENAME_BY_SCOPE[scope]) || 'Bienes_Administrativos_SUDEBIP';
+  const baseName = resolveScopeConfig(scope).filenamePrefix;
   return `${baseName}_${day}_${time}.xlsx`;
 }
 
@@ -155,10 +166,10 @@ function styleLogoArea(worksheet: Worksheet) {
   logoCell.border = BORDER_THIN;
 }
 
-function styleTitle(worksheet: Worksheet) {
+function styleTitle(worksheet: Worksheet, title: string) {
   worksheet.mergeCells(TITLE_ROW, 1, TITLE_ROW, COLUMN_COUNT);
   const cell = worksheet.getCell(TITLE_ROW, 1);
-  cell.value = TITLE;
+  cell.value = title;
   cell.font = { bold: true, size: 12, color: { argb: 'FF000000' } };
   cell.alignment = CENTER;
   cell.fill = {
@@ -249,6 +260,7 @@ export async function exportSudebipBienesMuebles(
   bienes: BienMueble[],
   scope?: string,
 ): Promise<void> {
+  const config = resolveScopeConfig(scope);
   const ExcelJS = await import('exceljs');
   const exportDate = new Date();
   const rol = getStoredUser()?.rol.nombre_rol ?? 'Usuario';
@@ -257,7 +269,7 @@ export async function exportSudebipBienesMuebles(
   workbook.created = exportDate;
   workbook.modified = exportDate;
 
-  const worksheet = workbook.addWorksheet('Reporte Bienes muebles', {
+  const worksheet = workbook.addWorksheet(config.sheetName, {
     views: [{ state: 'frozen', ySplit: HEADER_ROW }],
     pageSetup: {
       orientation: 'landscape',
@@ -270,7 +282,7 @@ export async function exportSudebipBienesMuebles(
   setColumnWidths(worksheet);
   setRowHeights(worksheet);
   styleLogoArea(worksheet);
-  styleTitle(worksheet);
+  styleTitle(worksheet, config.title);
   styleMetaRow(worksheet, exportDate, rol);
   styleColumnHeaders(worksheet);
   styleDataRows(worksheet, bienes);

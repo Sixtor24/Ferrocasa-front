@@ -79,6 +79,6 @@ export const MODULE_EXCEL_FORMATS: Record<
   cementerio: {
     sudebip: 'sudebip-muebles',
     interno: 'interno-area-patio',
-    internoLabel: 'Formato Área Patio',
+    internoLabel: 'Formato Interno',
   },
 };

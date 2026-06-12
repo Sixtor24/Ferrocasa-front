@@ -1,5 +1,4 @@
 import type { ModuleFormatKey } from '../constants/excelFormats';
-import { EXCEL_FORMATS } from '../constants/excelFormats';
 import { fetchAllPages } from '../api/pagination';
 import { fetchBienes } from '../api/services/bienes.service';
 import {
@@ -9,60 +8,12 @@ import {
 } from '../api/services/bienes-sedes.service';
 import { fetchVehiculosAll } from '../api/services/vehiculos.service';
 import type { BienMueble } from '../types/bien';
-import type { Vehiculo } from '../types/vehiculo';
-import { exportInternoBienesAdministrativos } from './exportInternoBienesAdministrativosExcel';
+import { exportInternoBienesAdministrativos, exportInternoCementerio } from './exportInternoBienesAdministrativosExcel';
 import { exportInternoVehiculosMaquinaria } from './exportInternoVehiculosExcel';
-import { fillExcelTemplate, type ExcelTemplateLayout } from './excelWorkbookExport';
-import {
-  bienToInternoMueblesRow,
-} from './internoExportMappers';
-
-const INTERNO_MUEBLES_LAYOUT: ExcelTemplateLayout = {
-  assetPath: EXCEL_FORMATS['interno-inventario-muebles'].assetPath,
-  downloadName: EXCEL_FORMATS['interno-inventario-muebles'].downloadName,
-  headerRow: 8,
-  dataStartRow: 9,
-  minCols: 6,
-};
-
-const INTERNO_PATIO_LAYOUT: ExcelTemplateLayout = {
-  assetPath: EXCEL_FORMATS['interno-area-patio'].assetPath,
-  downloadName: EXCEL_FORMATS['interno-area-patio'].downloadName,
-  headerRow: 8,
-  dataStartRow: 9,
-  minCols: 7,
-};
 
 async function fetchAllBienesBySedeAliases(aliases: readonly string[]): Promise<BienMueble[]> {
   const all = await fetchAllPages((page, limit) => fetchBienes({ page, limit }));
   return all.filter((bien) => matchesSede(bien.sede, aliases));
-}
-
-export async function exportInternoMuebles(
-  bienes: BienMueble[],
-  modo: 'almacen' | 'cementerio',
-  downloadName?: string,
-): Promise<void> {
-  const rows = bienes.map((bien) => bienToInternoMueblesRow(bien, modo));
-  const layout =
-    modo === 'cementerio'
-      ? INTERNO_PATIO_LAYOUT
-      : {
-          ...INTERNO_MUEBLES_LAYOUT,
-          staticCells: [
-            {
-              row: 6,
-              col: 0,
-              value: 'INVENTARIO  (EDIFICIO ADMINISTRATIVO) (MUEBLES)',
-            },
-          ],
-        };
-
-  await fillExcelTemplate(layout, rows, downloadName);
-}
-
-export async function exportInternoVehiculos(vehiculos: Vehiculo[]): Promise<void> {
-  await exportInternoVehiculosMaquinaria(vehiculos);
 }
 
 export async function exportInternoForModule(module: ModuleFormatKey): Promise<void> {
@@ -74,12 +25,12 @@ export async function exportInternoForModule(module: ModuleFormatKey): Promise<v
     }
     case 'cementerio': {
       const bienes = await fetchAllBienesBySedeAliases(SEDES_CEMENTERIO);
-      await exportInternoMuebles(bienes, 'cementerio', 'Inventario_Interno_Cementerio_Patio.xlsx');
+      await exportInternoCementerio(bienes);
       return;
     }
     case 'vehiculos': {
       const { data } = await fetchVehiculosAll();
-      await exportInternoVehiculos(data);
+      await exportInternoVehiculosMaquinaria(data);
       return;
     }
     default:
