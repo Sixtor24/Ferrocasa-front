@@ -1,7 +1,11 @@
 import { z } from 'zod';
 
 export const documentoParcelaFormSchema = z.object({
-  numeroDocumento: z.string(),
+  numeroDocumento: z
+    .string()
+    .trim()
+    .min(1, 'Indique el nro de documento')
+    .max(20, 'El nro de documento no puede superar 20 caracteres'),
   numeroPropiedad: z.number().int().min(0, 'Indique el nro de propiedad'),
   nombrePropiedad: z.string().trim().min(1, 'Indique el nombre de la propiedad'),
   ubicacionPropiedad: z.string().trim().min(1, 'Indique la ubicación'),

@@ -3,7 +3,11 @@ import type { ItemVehiculoRegistroDraft } from '../types/registroVehiculoItem';
 import { documentoRegistroFormSchema } from './registro.schema';
 
 export const documentoRegistroVehiculoFormSchema = documentoRegistroFormSchema.extend({
-  numeroDocumento: z.string().trim().min(1, 'Indique el número de documento de ingreso'),
+  numeroDocumento: z
+    .string()
+    .trim()
+    .min(1, 'Indique el número de documento de ingreso')
+    .max(20, 'El nro de documento no puede superar 20 caracteres'),
 });
 
 export type DocumentoRegistroVehiculoForm = z.infer<typeof documentoRegistroVehiculoFormSchema>;
@@ -13,7 +17,7 @@ export const itemVehiculoRegistroFormSchema = z.object({
     .string()
     .trim()
     .min(1, 'El código es obligatorio')
-    .regex(/^\d+$/, 'Indique un código numérico válido'),
+    .max(20, 'El código no puede superar 20 caracteres'),
   placa: z.string().trim().min(1, 'La placa es obligatoria'),
   descripcion: z.string().trim().min(1, 'La descripción es obligatoria'),
   marca: z.string().optional().default(''),

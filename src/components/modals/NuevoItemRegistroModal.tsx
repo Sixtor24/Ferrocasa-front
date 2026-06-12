@@ -279,7 +279,6 @@ export default function NuevoItemRegistroModal({
             <input
               {...register('codigoInterno')}
               className="input-field font-mono"
-              inputMode="numeric"
               autoComplete="off"
             />
           </ModalField>

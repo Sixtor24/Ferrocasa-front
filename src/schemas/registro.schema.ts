@@ -9,7 +9,12 @@ function normalizeCondicionFisica(condicion: CondicionFisica): 'Bueno' | 'Regula
 }
 
 export const documentoRegistroFormSchema = z.object({
-  numeroDocumento: z.string().optional().default(''),
+  numeroDocumento: z
+    .string()
+    .trim()
+    .max(20, 'El nro de documento no puede superar 20 caracteres')
+    .optional()
+    .default(''),
   nombreProveedor: z.string().trim().min(1, 'Indique el nombre del proveedor'),
   fechaAdquisicion: z.string().min(1, 'Indique la fecha de adquisición'),
   formaAdquisicion: z.enum(['Compra', 'Donacion', 'Confiscacion']),
@@ -25,7 +30,7 @@ export const itemRegistroFormSchema = z
       .string()
       .trim()
       .min(1, 'El código es obligatorio')
-      .regex(/^\d+$/, 'Indique un código numérico válido'),
+      .max(50, 'El código no puede superar 50 caracteres'),
     descripcion: z.string().trim().min(1, 'La descripción es obligatoria'),
     color: z.string().optional().default(''),
     cantidad: z.coerce
