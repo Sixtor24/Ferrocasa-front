@@ -8,6 +8,7 @@ import {
   fetchVehiculosAll,
   updateVehiculo,
 } from '../api/services/vehiculos.service';
+import { fetchAllDepartamentos } from '../api/services/departamentos.service';
 import { fetchAlmacenes } from '../api/services/almacenes.service';
 import { API_MAX_LIMIT } from '../api/pagination';
 import { useApiQuery } from '../hooks/useApiQuery';
@@ -301,6 +302,7 @@ export default function Vehiculos() {
     [],
     showRegistro || Boolean(id),
   );
+  const departamentosQuery = useApiQuery(() => fetchAllDepartamentos(), []);
 
   const detailQuery = useApiQuery(
     () => fetchVehiculoById(Number(id)),
@@ -327,8 +329,16 @@ export default function Vehiculos() {
   );
 
   const unidadAdministrativaOptions = useMemo(
-    () => catalogOptions(lista.map((v) => v.unidadAdministrativa), 'Todos'),
-    [lista],
+    () => {
+      const departamentos = departamentosQuery.data?.map((departamento) => departamento.nombre);
+      return catalogOptions(
+        departamentos && departamentos.length > 0
+          ? departamentos
+          : lista.map((v) => v.unidadAdministrativa),
+        'Todos',
+      );
+    },
+    [departamentosQuery.data, lista],
   );
 
   const filtered = useMemo(() => {

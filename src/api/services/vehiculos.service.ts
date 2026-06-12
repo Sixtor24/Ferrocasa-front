@@ -12,6 +12,7 @@ import { fetchAlmacenesCatalog } from './almacenes.service';
 import { fetchDocumentoById } from './documentos.service';
 import { fetchResponsableByCi } from './responsables.service';
 import type { Vehiculo } from '../../types/vehiculo';
+import { entityIdForApi, vehiculoCodigoForApi, vehiculoSerialCreateForApi } from '../../utils/vehiculoApiFields';
 
 export type VehiculosQuery = {
   page?: number;
@@ -23,10 +24,11 @@ export type EstadoUsoVehiculoApi = 'En_Uso' | 'En_Reparacion' | 'Dado_de_Baja' |
 export type CondicionFisicaVehiculoApi = 'Bueno' | 'Regular' | 'Dañado';
 export type { EstadoVehiculoApi } from '../mappers/enums';
 
-/** Cuerpo POST/PUT /vehiculos según OpenAPI (sin `codigo`; va en la URL en PUT). */
+/** Cuerpo PUT /vehiculos/{codigo} (el código va en la URL). */
 export type VehiculoBody = {
   descripcion?: string;
-  id_doc?: number | null;
+  /** Obligatorio: vínculo al documento de ingreso. */
+  id_doc: string;
   fecha_egreso?: string | null;
   valor_adquisicion?: number;
   marca?: string | null;
@@ -45,6 +47,31 @@ export type VehiculoBody = {
   fecha_ingreso?: string | null;
   usuario_carga?: string | null;
   observaciones?: string | null;
+};
+
+/** Cuerpo POST /vehiculos — CreateVehiculo en [OpenAPI](https://ferrocasa.edwinguarisma.com/api-docs). */
+export type VehiculoCreateBody = {
+  codigo: string;
+  descripcion?: string;
+  id_doc?: string | null;
+  fecha_egreso?: string | null;
+  valor_adquisicion?: number;
+  marca?: string;
+  placa: string;
+  anio_fabricacion?: number;
+  modelo?: string;
+  color?: string;
+  serial_motor: string;
+  serial_carroceria: string;
+  estado_uso?: EstadoUsoVehiculoApi;
+  condicion_fisica?: CondicionFisicaVehiculoApi;
+  id_categoria_especifica: number;
+  estado_vehiculo?: EstadoVehiculoApi;
+  ci_responsable?: string | null;
+  id_almacen: number;
+  fecha_ingreso?: string | null;
+  usuario_carga?: string;
+  observaciones?: string;
 };
 
 async function enrichVehiculosDocumento(rows: ApiVehiculo[]): Promise<ApiVehiculo[]> {
@@ -192,10 +219,29 @@ export async function fetchVehiculosByAlmacen(idAlmacen: number) {
   return mapVehiculosArray(res.data ?? []);
 }
 
-export async function createVehiculo(body: VehiculoBody) {
+function normalizeVehiculoWriteBody(body: VehiculoBody): VehiculoBody {
+  return {
+    ...body,
+    id_doc: entityIdForApi(body.id_doc),
+  };
+}
+
+function normalizeVehiculoCreateBody(body: VehiculoCreateBody): VehiculoCreateBody {
+  const codigo = vehiculoCodigoForApi(body.codigo);
+  return {
+    ...body,
+    codigo,
+    id_doc: body.id_doc != null && body.id_doc !== '' ? entityIdForApi(body.id_doc) : body.id_doc,
+    serial_motor: vehiculoSerialCreateForApi(body.serial_motor, 'motor', codigo),
+    serial_carroceria: vehiculoSerialCreateForApi(body.serial_carroceria, 'carroceria', codigo),
+  };
+}
+
+export async function createVehiculo(body: VehiculoCreateBody) {
+  const payload = normalizeVehiculoCreateBody(body);
   const res = await apiRequest<ApiItemResponse<ApiVehiculo>>('/vehiculos', {
     method: 'POST',
-    body,
+    body: payload,
   });
   if (!res.data) throw new Error('Respuesta vacía del API');
 
@@ -203,16 +249,17 @@ export async function createVehiculo(body: VehiculoBody) {
 }
 
 export async function updateVehiculo(codigo: number, body: VehiculoBody) {
+  const payload = normalizeVehiculoWriteBody(body);
   const res = await apiRequest<ApiItemResponse<ApiVehiculo>>(`/vehiculos/${codigo}`, {
     method: 'PUT',
-    body,
+    body: payload,
   });
   if (!res.data) throw new Error('Respuesta vacía del API');
 
   return mapApiVehiculoToVehiculo(res.data);
 }
 
-export async function deleteVehiculo(codigo: number) {
+export async function deleteVehiculo(codigo: number | string) {
   await apiRequest(`/vehiculos/${codigo}`, { method: 'DELETE' });
 }
 
