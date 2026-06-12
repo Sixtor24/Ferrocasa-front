@@ -1,5 +1,5 @@
 import { fetchBienByCodigo, fetchBienes } from './bienes.service';
-import { clampLimit } from '../pagination';
+import { clampLimit, fetchAllPages } from '../pagination';
 import type { ApiSede } from '../types';
 
 export type BienesSedeQuery = {
@@ -78,4 +78,17 @@ export function fetchBienesCementerio(query: BienesSedeQuery = {}) {
 
 export function fetchBienCementerioByCodigo(codigo: number | string) {
   return fetchBienByCodigoInSedes(codigo, SEDES_CEMENTERIO);
+}
+
+/** Todos los bienes del módulo (paginación completa + filtro de sede en cliente). */
+export async function fetchAllBienesAdministrativos(
+  query: Omit<BienesSedeQuery, 'page' | 'limit'> = {},
+) {
+  return fetchAllPages((page, limit) => fetchBienesAdministrativos({ ...query, page, limit }));
+}
+
+export async function fetchAllBienesCementerio(
+  query: Omit<BienesSedeQuery, 'page' | 'limit'> = {},
+) {
+  return fetchAllPages((page, limit) => fetchBienesCementerio({ ...query, page, limit }));
 }

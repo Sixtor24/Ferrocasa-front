@@ -1,6 +1,14 @@
+<<<<<<< HEAD
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+=======
+import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { pathToModule } from '../constants/rolePermissions';
+import { useRolePermissions } from '../hooks/useRolePermissions';
+>>>>>>> 9f253c988a728935ae7f3cb33a8c7e55ee08232f
 import {
   fetchDashboardActividadReciente,
   fetchDashboardAlertas,
@@ -90,6 +98,7 @@ function capitalizar(texto: string): string {
 
 export default function Dashboard() {
   const { user } = useAuth();
+  const { canAccessModule, canAccessAuditoria } = useRolePermissions();
   const navigate = useNavigate();
   const currentYear = new Date().getFullYear();
   const [periodo, setPeriodo] = useState<PeriodoMovimiento>("semanal");
@@ -194,7 +203,26 @@ export default function Dashboard() {
   const loadingKpis = statsQuery.loading;
   const loadingEstados = statsQuery.loading || alertasQuery.loading;
 
+<<<<<<< HEAD
   const accionesRapidas = ACCIONES_RAPIDAS;
+=======
+  const now = new Date().toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit', hour12: true });
+
+  const accionesRapidas = useMemo(() => {
+    const items = [
+      { nombre: 'Bienes Admin.', icon: Package, ruta: '/almacen' },
+      { nombre: 'Bienes en Cementerio', icon: Landmark, ruta: '/cementerio' },
+      { nombre: 'Terrenos', icon: Map, ruta: '/terrenos' },
+      { nombre: 'Vehículos y Maquinarias', icon: Truck, ruta: '/vehiculos' },
+      { nombre: 'Reportes', icon: FileText, ruta: '/reportes' },
+      { nombre: 'Auditoría', icon: Shield, ruta: '/auditoria' },
+    ];
+    return items.filter((item) => {
+      const module = pathToModule(item.ruta);
+      return module ? canAccessModule(module) : true;
+    });
+  }, [canAccessModule]);
+>>>>>>> 9f253c988a728935ae7f3cb33a8c7e55ee08232f
 
   const chartData = useMemo(
     () =>
@@ -313,6 +341,7 @@ export default function Dashboard() {
 
   return (
     <div className="p-4 md:p-6 space-y-6 min-w-0 overflow-x-hidden">
+<<<<<<< HEAD
       <header className="relative overflow-hidden rounded-2xl bg-navy-900 px-6 py-7 text-white sm:px-8">
         <Building2
           className="pointer-events-none absolute -right-6 -top-6 h-44 w-44 text-white/5"
@@ -332,6 +361,64 @@ export default function Dashboard() {
                 {user.rol}
               </span>
             )}
+=======
+      <div className="bg-navy-900 rounded-xl p-6 text-white relative overflow-hidden">
+        <div className="absolute right-0 top-0 w-64 h-full opacity-10">
+          <div className="w-full h-full bg-linear-to-l from-white/20 to-transparent" />
+        </div>
+        <h2 className="text-lg font-semibold">Bienvenido, {user?.nombre}</h2>
+        <div className="flex flex-wrap items-center gap-3 mt-2">
+          <span className="bg-white/20 border border-white/30 text-sm px-3 py-1 rounded-full">Rol: {user?.rol}</span>
+          <span className="flex items-center gap-1 text-sm text-white/70"><Clock size={14} />{now}</span>
+        </div>
+        <p className="text-sm text-white/60 mt-3">Sistema integral de gestión patrimonial — Ferrocasa</p>
+      </div>
+
+      {canAccessAuditoria && (
+        <div className="bg-white rounded-xl border border-gray-200 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <RefreshCw size={18} className="text-navy-600 animate-spin shrink-0" style={{ animationDuration: '3s' }} />
+            <span className="text-sm font-medium text-navy-900 shrink-0">Auditoría:</span>
+            <span className="text-sm text-gray-600 truncate">{tickerMensaje}</span>
+          </div>
+          <button onClick={() => navigate('/auditoria')} className="flex items-center gap-1 text-sm font-medium text-navy-600 hover:text-navy-800 shrink-0">
+            Ver registro <ChevronRight size={16} />
+          </button>
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard icon={<Package size={22} className="text-navy-600" />} label={dashboardStats.totalBienesMuebles.label}
+          value={totalBienes.toLocaleString()}
+          badge={loadingKpis ? <span className="text-gray-400 text-xs">...</span> : undefined}
+          onClick={() => navigate('/almacen')} />
+        <StatCard icon={<Landmark size={22} className="text-blue-600" />} label={dashboardStats.inventarioCementerio.label}
+          value={totalCementerio.toLocaleString()}
+          badge={loadingKpis ? <span className="text-gray-400 text-xs">...</span> : undefined}
+          onClick={() => navigate('/cementerio')} />
+        <StatCard icon={<Building2 size={22} className="text-navy-600" />} label={dashboardStats.totalInmuebles.label}
+          value={totalParcelas.toString()}
+          badge={loadingKpis ? <span className="text-gray-400 text-xs">...</span> : undefined}
+          onClick={() => navigate('/terrenos')} />
+        <StatCard icon={<Truck size={22} className="text-amber-600" />} label={dashboardStats.totalVehiculos.label}
+          value={totalVehiculos.toString()}
+          badge={loadingKpis ? <span className="text-gray-400 text-xs">...</span> : undefined}
+          onClick={() => navigate('/vehiculos')} />
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        {[
+          { label: 'Bienes en uso', value: bienesEnUso, color: 'text-green-700' },
+          { label: 'Bienes en obsolescencia', value: bienesEnObsolescencia, color: 'text-amber-700' },
+          { label: 'Bienes obsoletos', value: bienesObsoletos, color: 'text-red-600' },
+          { label: 'Parcelas libres', value: parcelasDisponibles, color: 'text-green-700' },
+          { label: 'Parcelas parcialmente ocupadas', value: parcelasComprometidas, color: 'text-navy-800' },
+          { label: 'Parcelas ocupadas', value: parcelasDesincorporadas, color: 'text-amber-700' },
+        ].map((item) => (
+          <div key={item.label} className="bg-white rounded-xl border border-gray-200 p-4 text-center">
+            <p className={`text-xl font-bold ${item.color}`}>{loadingKpis && alertasQuery.loading ? '…' : item.value}</p>
+            <p className="text-xs text-gray-500 mt-1">{item.label}</p>
+>>>>>>> 9f253c988a728935ae7f3cb33a8c7e55ee08232f
           </div>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-navy-200">
             <span>{fechaHoy}</span>

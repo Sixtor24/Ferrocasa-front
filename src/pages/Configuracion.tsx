@@ -19,7 +19,11 @@ import { useApiQuery } from '../hooks/useApiQuery';
 import { useAuth } from '../context/AuthContext';
 import SearchableSelect from '../components/forms/SearchableSelect';
 import AlmacenResponsableConfigSection from '../components/config/AlmacenResponsableConfigSection';
-import { hasAdminAccess, hasAlmacenResponsableConfigAccess } from '../constants/adminAccess';
+import {
+  hasAlmacenResponsableConfigAccess,
+  hasMasterTablesAccess,
+  hasUserManagementAccess,
+} from '../constants/adminAccess';
 import type { RolPayload, RolSistema, UpdateUsuarioPayload, UsuarioPayload, UsuarioSistema } from '../types/auth';
 import {
   CheckCircle2,
@@ -77,7 +81,8 @@ function roleDescription(rol?: RolSistema) {
 export default function Configuracion() {
   const { usuario, logout } = useAuth();
   const navigate = useNavigate();
-  const isAdmin = hasAdminAccess(usuario?.rol.nombre_rol);
+  const canManageUsers = hasUserManagementAccess(usuario?.rol.nombre_rol);
+  const canManageMasterTables = hasMasterTablesAccess(usuario?.rol.nombre_rol);
   const canConfigAlmacenResponsable = hasAlmacenResponsableConfigAccess(usuario?.rol.nombre_rol);
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
@@ -94,12 +99,12 @@ export default function Configuracion() {
   const rolesQuery = useApiQuery(
     () => fetchRoles({ page: 1, limit: PAGE_LIMIT, search: roleSearch || undefined }),
     [roleSearch],
-    isAdmin,
+    canManageMasterTables,
   );
   const usuariosQuery = useApiQuery(
     () => fetchUsuarios({ page: 1, limit: PAGE_LIMIT, search: userSearch || undefined }),
     [userSearch],
-    isAdmin,
+    canManageUsers,
   );
 
   const roles = rolesQuery.data?.data ?? [];
@@ -278,11 +283,11 @@ export default function Configuracion() {
             Administra tu cuenta, contraseña y —si tienes permisos— usuarios, roles y responsables de almacén.
           </p>
         </div>
-        {isAdmin && (
+        {(canManageUsers || canManageMasterTables) && (
           <div className="flex flex-wrap gap-2">
-            <StatPill label="Usuarios" value={String(usuarios.length)} />
-            <StatPill label="Activos" value={String(usuariosActivos)} />
-            <StatPill label="Roles" value={String(roles.length)} />
+            {canManageUsers && <StatPill label="Usuarios" value={String(usuarios.length)} />}
+            {canManageUsers && <StatPill label="Activos" value={String(usuariosActivos)} />}
+            {canManageMasterTables && <StatPill label="Roles" value={String(roles.length)} />}
           </div>
         )}
       </header>
@@ -374,48 +379,48 @@ export default function Configuracion() {
         <AlmacenResponsableConfigSection onSuccess={setSuccess} onError={setError} />
       )}
 
-      {!isAdmin ? (
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
-          <p className="text-sm text-gray-600">
-            La gestión de usuarios y roles está disponible solo para perfiles Administrador o Super Administrador.
-          </p>
-        </div>
-      ) : (
+      {(canManageUsers || canManageMasterTables) && (
         <div className="space-y-4">
           <div>
             <h2 className="text-lg font-bold text-navy-900">Administración del sistema</h2>
-            <p className="text-sm text-gray-500 mt-1">Cree usuarios, defina roles y controle el acceso al inventario.</p>
+            <p className="text-sm text-gray-500 mt-1">
+              Gestión de cuentas y tablas maestras reservada al perfil Super Administrador (TI).
+            </p>
           </div>
           <div className="grid grid-cols-1 2xl:grid-cols-2 gap-6">
-          <AdminUsersSection
-            usuarios={usuarios}
-            roles={roles}
-            queryLoading={usuariosQuery.loading}
-            queryError={usuariosQuery.error}
-            search={userSearch}
-            onSearch={setUserSearch}
-            form={userForm}
-            onFormChange={setUserForm}
-            onSubmit={handleUserSubmit}
-            onEdit={editUser}
-            onToggle={handleToggleUser}
-            onDelete={handleDeleteUser}
-            onCancel={resetUserForm}
-            usuariosActivos={usuariosActivos}
-          />
-          <AdminRolesSection
-            roles={roles}
-            queryLoading={rolesQuery.loading}
-            queryError={rolesQuery.error}
-            search={roleSearch}
-            onSearch={setRoleSearch}
-            form={roleForm}
-            onFormChange={setRoleForm}
-            onSubmit={handleRoleSubmit}
-            onEdit={editRole}
-            onDelete={handleDeleteRole}
-            onCancel={resetRoleForm}
-          />
+            {canManageUsers && (
+              <AdminUsersSection
+                usuarios={usuarios}
+                roles={roles}
+                queryLoading={usuariosQuery.loading}
+                queryError={usuariosQuery.error}
+                search={userSearch}
+                onSearch={setUserSearch}
+                form={userForm}
+                onFormChange={setUserForm}
+                onSubmit={handleUserSubmit}
+                onEdit={editUser}
+                onToggle={handleToggleUser}
+                onDelete={handleDeleteUser}
+                onCancel={resetUserForm}
+                usuariosActivos={usuariosActivos}
+              />
+            )}
+            {canManageMasterTables && (
+              <AdminRolesSection
+                roles={roles}
+                queryLoading={rolesQuery.loading}
+                queryError={rolesQuery.error}
+                search={roleSearch}
+                onSearch={setRoleSearch}
+                form={roleForm}
+                onFormChange={setRoleForm}
+                onSubmit={handleRoleSubmit}
+                onEdit={editRole}
+                onDelete={handleDeleteRole}
+                onCancel={resetRoleForm}
+              />
+            )}
           </div>
         </div>
       )}

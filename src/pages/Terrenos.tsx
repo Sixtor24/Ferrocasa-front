@@ -43,6 +43,7 @@ import { formatFecha, formatMoneda } from '../utils/formatters';
 import { aggregateTerrenoMetricas } from '../utils/parcelasStats';
 import { exportInventarioParcelas } from '../utils/exportInventarioParcelasExcel';
 import { useModuleUiState } from '../stores/moduleUiStore';
+import { useRolePermissions } from '../hooks/useRolePermissions';
 import type { Column } from '../components/DataTable';
 import { AlertTriangle, ArrowLeft, Map, MapPin, Layers, MinusCircle } from 'lucide-react';
 
@@ -117,6 +118,7 @@ function TerrenoParcelaDetail({
 }) {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { canWriteAssets } = useRolePermissions();
   const [acreditacion, setAcreditacion] = useState(terreno.acreditacionTecnicaAmbiental);
   const [levantamiento, setLevantamiento] = useState(terreno.levantamientoTopografico);
   const [protocolModalOpen, setProtocolModalOpen] = useState(false);
@@ -218,26 +220,30 @@ function TerrenoParcelaDetail({
               { label: 'Código', value: terreno.codigo },
               {
                 label: 'Acreditación Técnica Ambiental',
-                value: (
+                value: canWriteAssets ? (
                   <SearchableSelect
                     value={acreditacion}
                     onChange={(value) => setAcreditacion(value as Terreno['acreditacionTecnicaAmbiental'])}
                     options={ESTADOS_TRAMITE}
                     className="max-w-xs"
                   />
+                ) : (
+                  acreditacion
                 ),
               },
               { label: 'Fecha de Ingreso', value: formatFecha(terreno.fechaIngreso) },
               { label: 'Ubicación Adicional', value: terreno.ubicacionAdicional || '—' },
               {
                 label: 'Levantamiento topográfico',
-                value: (
+                value: canWriteAssets ? (
                   <SearchableSelect
                     value={levantamiento}
                     onChange={(value) => setLevantamiento(value as Terreno['levantamientoTopografico'])}
                     options={LEVANTAMIENTO_TOPOGRAFICO_OPCIONES}
                     className="max-w-xs"
                   />
+                ) : (
+                  levantamiento
                 ),
               },
               { label: 'Número de Propiedad', value: terreno.nroPropiedad },
@@ -283,41 +289,47 @@ function TerrenoParcelaDetail({
               <ArrowLeft size={16} />
               Volver al listado
             </button>
-            <button
-              type="button"
-              onClick={() => {
-                setProtocolTipo('Compromiso');
-                setProtocolLockTipo(false);
-                setProtocolModalOpen(true);
-              }}
-              disabled={terreno.areaDisponible === 0}
-              className="px-5 py-2.5 bg-navy-900 text-white rounded-lg text-sm font-semibold hover:bg-navy-800 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Agregar Protocolización
-            </button>
-            <button
-              type="button"
-              onClick={guardarCambio}
-              disabled={saving}
-              className="px-5 py-2.5 bg-navy-900 text-white rounded-lg text-sm font-semibold hover:bg-navy-800"
-            >
-              {saving ? 'Guardando...' : 'Guardar cambio'}
-            </button>
-            <button
-              type="button"
-              onClick={() => setRetiroConfirmOpen(true)}
-              disabled={yaDesincorporada || areaRetirable === 0}
-              title={
-                yaDesincorporada
-                  ? 'Esta parcela ya fue retirada del inventario'
-                  : areaRetirable === 0
-                    ? 'No hay área para retirar'
-                    : undefined
-              }
-              className="px-5 py-2.5 border border-red-200 text-red-700 rounded-lg text-sm font-semibold hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Retirar de Inventario
-            </button>
+            {canWriteAssets && (
+              <button
+                type="button"
+                onClick={() => {
+                  setProtocolTipo('Compromiso');
+                  setProtocolLockTipo(false);
+                  setProtocolModalOpen(true);
+                }}
+                disabled={terreno.areaDisponible === 0}
+                className="px-5 py-2.5 bg-navy-900 text-white rounded-lg text-sm font-semibold hover:bg-navy-800 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Agregar Protocolización
+              </button>
+            )}
+            {canWriteAssets && (
+              <button
+                type="button"
+                onClick={guardarCambio}
+                disabled={saving}
+                className="px-5 py-2.5 bg-navy-900 text-white rounded-lg text-sm font-semibold hover:bg-navy-800"
+              >
+                {saving ? 'Guardando...' : 'Guardar cambio'}
+              </button>
+            )}
+            {canWriteAssets && (
+              <button
+                type="button"
+                onClick={() => setRetiroConfirmOpen(true)}
+                disabled={yaDesincorporada || areaRetirable === 0}
+                title={
+                  yaDesincorporada
+                    ? 'Esta parcela ya fue retirada del inventario'
+                    : areaRetirable === 0
+                      ? 'No hay área para retirar'
+                      : undefined
+                }
+                className="px-5 py-2.5 border border-red-200 text-red-700 rounded-lg text-sm font-semibold hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Retirar de Inventario
+              </button>
+            )}
           </>
         }
       />
@@ -466,6 +478,7 @@ function TerrenoParcelaDetail({
 }
 
 export default function Terrenos() {
+  const { canWriteAssets, canExportInventory } = useRolePermissions();
   const { id } = useParams();
   const navigate = useNavigate();
   const {
@@ -600,8 +613,8 @@ export default function Terrenos() {
         title="Terrenos"
         breadcrumb={[{ label: 'Dashboard', to: '/dashboard' }, { label: 'Terrenos' }]}
         exportLabel="Inventario de Parcelas"
-        onExport={exportarInventarioParcelas}
-        onCreate={() => setModal('registro', true)}
+        onExport={canExportInventory ? exportarInventarioParcelas : undefined}
+        onCreate={canWriteAssets ? () => setModal('registro', true) : undefined}
         createLabel="Crear Registro"
       />
 

@@ -113,10 +113,6 @@ export default function Login() {
             </button>
           </form>
 
-          <p className="text-center text-sm text-navy-500 mt-4 cursor-pointer hover:text-navy-700">
-            ¿Olvidó su contraseña?
-          </p>
-
           {/* Footer */}
           <div className="flex items-center justify-between mt-6 pt-4 border-t border-gray-100 text-xs text-gray-400">
             <span>v1.0</span>

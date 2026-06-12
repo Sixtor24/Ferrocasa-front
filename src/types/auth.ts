@@ -1,4 +1,10 @@
-export type RoleName = 'Administrador' | 'Coordinador' | 'Analista' | 'Almacenista' | string;
+export type RoleName =
+  | 'Super Administrador'
+  | 'Administrador'
+  | 'Coordinador'
+  | 'Analista'
+  | 'Almacenista'
+  | string;
 
 export interface RolSistema {
   id_rol: number;

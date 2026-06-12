@@ -2,6 +2,8 @@ import { useState, useRef, useEffect } from 'react';
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { MODULOS_MENU } from '../data/modulosMenu';
+import { useRolePermissions } from '../hooks/useRolePermissions';
+import type { AppModule } from '../constants/rolePermissions';
 import logo from '../assets/logo.png';
 import {
   LayoutDashboard,
@@ -29,18 +31,20 @@ const mockNotifications = [
   { id: 3, text: 'Reporte mensual generado', time: 'Hace 1 hora', read: true },
 ];
 
-const navItems = [
-  { to: '/dashboard', label: MODULOS_MENU[0], icon: LayoutDashboard },
-  { to: '/almacen', label: MODULOS_MENU[1], icon: Package },
-  { to: '/cementerio', label: MODULOS_MENU[2], icon: Landmark },
-  { to: '/terrenos', label: MODULOS_MENU[3], icon: Map },
-  { to: '/vehiculos', label: MODULOS_MENU[4], icon: Truck },
-  { to: '/reportes', label: MODULOS_MENU[5], icon: FileText },
-  { to: '/auditoria', label: MODULOS_MENU[6], icon: Shield },
+const navItems: { to: string; label: string; icon: typeof LayoutDashboard; module: AppModule }[] = [
+  { to: '/dashboard', label: MODULOS_MENU[0], icon: LayoutDashboard, module: 'dashboard' },
+  { to: '/almacen', label: MODULOS_MENU[1], icon: Package, module: 'almacen' },
+  { to: '/cementerio', label: MODULOS_MENU[2], icon: Landmark, module: 'cementerio' },
+  { to: '/terrenos', label: MODULOS_MENU[3], icon: Map, module: 'terrenos' },
+  { to: '/vehiculos', label: MODULOS_MENU[4], icon: Truck, module: 'vehiculos' },
+  { to: '/reportes', label: MODULOS_MENU[5], icon: FileText, module: 'reportes' },
+  { to: '/auditoria', label: MODULOS_MENU[6], icon: Shield, module: 'auditoria' },
 ];
 
 export default function Layout() {
   const { user, logout } = useAuth();
+  const { canAccessModule } = useRolePermissions();
+  const visibleNavItems = navItems.filter((item) => canAccessModule(item.module));
   const navigate = useNavigate();
   const location = useLocation();
   const [showNotif, setShowNotif] = useState(false);
@@ -144,7 +148,7 @@ export default function Layout() {
         </div>
 
         <nav className="flex-1 px-2 py-2 space-y-0.5 overflow-y-auto overflow-x-hidden">
-          {navItems.map((item) => (
+          {visibleNavItems.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}

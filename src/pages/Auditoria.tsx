@@ -264,7 +264,7 @@ export default function Auditoria() {
           <ShieldAlert size={40} className="mx-auto text-amber-600 mb-3" />
           <h1 className="text-lg font-bold text-navy-900">Acceso restringido</h1>
           <p className="text-sm text-gray-500 mt-2">
-            La auditoría del sistema está disponible solo para perfiles Administrador o Super Administrador.
+            La auditoría del sistema está disponible solo para perfiles Super Administrador y Administrador.
           </p>
         </div>
       </div>
