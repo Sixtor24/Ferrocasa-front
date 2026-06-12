@@ -90,6 +90,7 @@ function capitalizar(texto: string): string {
 
 export default function Dashboard() {
   const { user } = useAuth();
+  const { canAccessModule } = useRolePermissions();
   const navigate = useNavigate();
   const currentYear = new Date().getFullYear();
   const [periodo, setPeriodo] = useState<PeriodoMovimiento>("semanal");
@@ -194,7 +195,14 @@ export default function Dashboard() {
   const loadingKpis = statsQuery.loading;
   const loadingEstados = statsQuery.loading || alertasQuery.loading;
 
-  const accionesRapidas = ACCIONES_RAPIDAS;
+  const accionesRapidas = useMemo(
+    () =>
+      ACCIONES_RAPIDAS.filter((item) => {
+        const module = pathToModule(item.ruta);
+        return module ? canAccessModule(module) : true;
+      }),
+    [canAccessModule],
+  );
 
   const chartData = useMemo(
     () =>

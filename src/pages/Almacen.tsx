@@ -2,11 +2,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { fetchAlmacenes } from '../api/services/almacenes.service';
-import { fetchBienesEstadisticas } from '../api/services/bienes.service';
 import { API_MAX_LIMIT } from '../api/pagination';
-import { parseBienesEstadisticas } from '../utils/bienesStats';
+import { aggregateBienesMetricsFromList } from '../utils/bienesStats';
 import { fetchApiBienByCodigo, updateBien } from '../api/services/bienes.service';
 import {
+  fetchAllBienesAdministrativos,
   fetchBienAdministrativoByCodigo,
   fetchBienesAdministrativos,
 } from '../api/services/bienes-sedes.service';
@@ -46,6 +46,7 @@ import {
 import type { ApiAlmacen } from '../api/types';
 import type { BienMueble } from '../types/bien';
 import ModulePageHeader from '../components/module/ModulePageHeader';
+import { useRolePermissions } from '../hooks/useRolePermissions';
 import {
   Package,
   AlertTriangle,
@@ -70,6 +71,7 @@ function AlmacenBienDetail({
   onSaved?: () => void | Promise<void>;
   onInventarioAction?: (result: InventarioBienActionResult) => void;
 }) {
+  const { canWriteAssets, canTransferBien, canRetireBien } = useRolePermissions();
   const navigate = useNavigate();
   const [estadoUso, setEstadoUso] = useState(bien.estadoUso);
   const [condicionFisica, setCondicionFisica] = useState(bien.condicionFisica);
@@ -137,7 +139,7 @@ function AlmacenBienDetail({
                   onChange={(value) => setEstadoUso(value as BienMueble['estadoUso'])}
                   options={ESTADOS_USO}
                   className="max-w-xs"
-                  disabled={inventario.retirado}
+                  disabled={inventario.retirado || !canWriteAssets}
                   disableSearch
                 />
               ),
@@ -152,7 +154,7 @@ function AlmacenBienDetail({
                   onChange={(value) => setCondicionFisica(value as BienMueble['condicionFisica'])}
                   options={CONDICIONES_FISICAS}
                   className="max-w-xs"
-                  disabled={inventario.retirado}
+                  disabled={inventario.retirado || !canWriteAssets}
                   disableSearch
                 />
               ),
@@ -195,30 +197,36 @@ function AlmacenBienDetail({
             <ArrowLeft size={16} />
             Volver al listado
           </button>
-          <button
-            type="button"
-            onClick={guardarCambio}
-            disabled={saving}
-            className="px-5 py-2.5 bg-navy-900 text-white rounded-lg text-sm font-semibold hover:bg-navy-800 disabled:opacity-60"
-          >
-            {saving ? 'Guardando...' : 'Guardar cambio'}
-          </button>
-          <button
-            type="button"
-            onClick={() => inventario.setTransferOpen(true)}
-            disabled={inventario.retirado || inventario.transferLoading || inventario.retireLoading}
-            className="px-5 py-2.5 border border-navy-200 text-navy-800 rounded-lg text-sm font-semibold hover:bg-navy-50 disabled:opacity-50"
-          >
-            Transferir a otro almacén
-          </button>
-          <button
-            type="button"
-            onClick={() => inventario.setRetireOpen(true)}
-            disabled={inventario.retirado || inventario.transferLoading || inventario.retireLoading}
-            className="px-5 py-2.5 border border-red-200 text-red-700 rounded-lg text-sm font-semibold hover:bg-red-50 disabled:opacity-50"
-          >
-            Retirar de Inventario
-          </button>
+          {canWriteAssets && (
+            <button
+              type="button"
+              onClick={guardarCambio}
+              disabled={saving}
+              className="px-5 py-2.5 bg-navy-900 text-white rounded-lg text-sm font-semibold hover:bg-navy-800 disabled:opacity-60"
+            >
+              {saving ? 'Guardando...' : 'Guardar cambio'}
+            </button>
+          )}
+          {canTransferBien && (
+            <button
+              type="button"
+              onClick={() => inventario.setTransferOpen(true)}
+              disabled={inventario.retirado || inventario.transferLoading || inventario.retireLoading}
+              className="px-5 py-2.5 border border-navy-200 text-navy-800 rounded-lg text-sm font-semibold hover:bg-navy-50 disabled:opacity-50"
+            >
+              Transferir a otro almacén
+            </button>
+          )}
+          {canRetireBien && (
+            <button
+              type="button"
+              onClick={() => inventario.setRetireOpen(true)}
+              disabled={inventario.retirado || inventario.transferLoading || inventario.retireLoading}
+              className="px-5 py-2.5 border border-red-200 text-red-700 rounded-lg text-sm font-semibold hover:bg-red-50 disabled:opacity-50"
+            >
+              Retirar de Inventario
+            </button>
+          )}
         </>
       }
     />
@@ -250,6 +258,7 @@ function AlmacenBienDetail({
 }
 
 export default function Almacen() {
+  const { canWriteAssets, canExportInventory } = useRolePermissions();
   const { id } = useParams();
   const navigate = useNavigate();
   const [exportMsg, setExportMsg] = useState('');
@@ -270,7 +279,13 @@ export default function Almacen() {
     () => fetchBienesAdministrativos({ page, limit: PER_PAGE, search: apiSearch }),
     [page, apiSearch],
   );
-  const statsQuery = useApiQuery(() => fetchBienesEstadisticas(), []);
+  const metricsQuery = useApiQuery(
+    async () => {
+      const bienes = await fetchAllBienesAdministrativos({ search: apiSearch });
+      return aggregateBienesMetricsFromList(bienes);
+    },
+    [apiSearch],
+  );
   const almacenesQuery = useApiQuery(
     () => fetchAlmacenes({ page: 1, limit: API_MAX_LIMIT }),
     [],
@@ -282,10 +297,12 @@ export default function Almacen() {
     Boolean(id),
   );
   const lista = bienesQuery.data?.data ?? [];
-  const bienesStats = useMemo(
-    () => parseBienesEstadisticas(statsQuery.data),
-    [statsQuery.data],
-  );
+  const bienesStats = metricsQuery.data ?? {
+    total: 0,
+    enUso: 0,
+    enObsolescencia: 0,
+    obsoletos: 0,
+  };
   const totalPages = bienesQuery.data?.meta.totalPages ?? 1;
 
   const almacenOptions = useMemo(() => ['Todas', ...ALMACENES_BIENES_ADMINISTRATIVOS], []);
@@ -382,16 +399,16 @@ export default function Almacen() {
             almacenes={almacenesQuery.data?.data ?? []}
             onVolver={() => {
               void bienesQuery.refetch();
-              void statsQuery.refetch();
+              void metricsQuery.refetch();
               navigate('/almacen');
             }}
             onSaved={async () => {
-              await Promise.all([bienesQuery.refetch(), detailQuery.refetch(), statsQuery.refetch()]);
+              await Promise.all([bienesQuery.refetch(), detailQuery.refetch(), metricsQuery.refetch()]);
             }}
             onInventarioAction={async (result) => {
               if (result.type === 'transfer') {
                 void bienesQuery.refetch();
-                void statsQuery.refetch();
+                void metricsQuery.refetch();
                 setModuleFilter('almacen', result.almacenDestino);
                 try {
                   await fetchBienAdministrativoByCodigo(id);
@@ -415,8 +432,8 @@ export default function Almacen() {
       <ModulePageHeader
         title="Bienes e Inmuebles Administrativos"
         breadcrumb={[{ label: 'Dashboard', to: '/dashboard' }, { label: 'Bienes en Edificio Administrativo' }]}
-        formatModule="almacen"
-        onCreate={() => setModal('registro', true)}
+        formatModule={canExportInventory ? 'almacen' : undefined}
+        onCreate={canWriteAssets ? () => setModal('registro', true) : undefined}
       />
 
       {/* Stats */}
@@ -515,17 +532,19 @@ export default function Almacen() {
           },
         ]}
       >
-        <div className="flex flex-wrap items-center justify-end gap-3 mt-4 pt-4 border-t border-gray-100">
-          {exportMsg && <span className="text-sm text-green-600 font-medium">{exportMsg}</span>}
-          <button
-            type="button"
-            onClick={simularExportPdf}
-            className="inline-flex items-center gap-1.5 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50"
-          >
-            <FileText size={14} />
-            PDF
-          </button>
-        </div>
+        {canExportInventory && (
+          <div className="flex flex-wrap items-center justify-end gap-3 mt-4 pt-4 border-t border-gray-100">
+            {exportMsg && <span className="text-sm text-green-600 font-medium">{exportMsg}</span>}
+            <button
+              type="button"
+              onClick={simularExportPdf}
+              className="inline-flex items-center gap-1.5 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50"
+            >
+              <FileText size={14} />
+              PDF
+            </button>
+          </div>
+        )}
       </ModuleFilterBar>
 
       <ApiState
@@ -549,7 +568,7 @@ export default function Almacen() {
         onClose={() => setModal('registro', false)}
         onSuccess={() => {
           bienesQuery.refetch();
-          statsQuery.refetch();
+          metricsQuery.refetch();
         }}
         onError={() => {}}
       />
