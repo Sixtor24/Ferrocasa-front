@@ -20,7 +20,8 @@ export type ProtocolosQuery = {
 
 export type ProtocoloPayload = {
   motivo: MotivoProtocolo;
-  id_beneficiado?: number | null;
+  /** Cédula `V-12345678` o código `BEN-0001` del beneficiario registrado en el API. */
+  id_beneficiado?: string | null;
   fecha_protocolo: string;
 };
 

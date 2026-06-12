@@ -6,6 +6,7 @@ import { createDesincorporacion } from '../../api/services/desincorporaciones.se
 import { createProtocolo, type MotivoProtocolo } from '../../api/services/protocolos.service';
 import {
   protocolizacionFormSchema,
+  protocolizacionFormSchemaLocked,
   type ProtocolizacionForm,
 } from '../../schemas/protocolizacion.schema';
 import { parseMontoInput, sanitizeMontoDraft } from '../../utils/formatters';
@@ -78,7 +79,9 @@ export default function NuevaProtocolizacionModal({
     reset,
     formState: { errors },
   } = useForm<ProtocolizacionForm>({
-    resolver: zodResolver(protocolizacionFormSchema) as Resolver<ProtocolizacionForm>,
+    resolver: zodResolver(
+      lockTipo ? protocolizacionFormSchemaLocked : protocolizacionFormSchema,
+    ) as Resolver<ProtocolizacionForm>,
     defaultValues: defaultValues(tipo),
   });
 
@@ -112,12 +115,7 @@ export default function NuevaProtocolizacionModal({
       return;
     }
 
-    const idBeneficiado = lockTipo
-      ? null
-      : (() => {
-          const parsed = parseInt(form.beneficiario.replace(/\D/g, ''), 10);
-          return parsed > 0 ? parsed : null;
-        })();
+    const idBeneficiado = lockTipo ? null : form.beneficiario;
 
     setSubmitting(true);
     try {
@@ -212,6 +210,11 @@ export default function NuevaProtocolizacionModal({
             readOnly={lockTipo}
             placeholder={!lockTipo ? 'V-12345678 o BEN-0001' : undefined}
           />
+          {!lockTipo && (
+            <p className="text-xs text-gray-500 mt-1">
+              Puede ingresar solo la cédula (ej. 12345678); se enviará como V-12345678.
+            </p>
+          )}
           {lockTipo && (
             <p className="text-xs text-gray-500 mt-1">
               Registrado automáticamente con el usuario activo.

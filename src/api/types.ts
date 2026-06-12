@@ -172,7 +172,7 @@ export interface ApiDocumentoPropiedad {
 export interface ApiProtocolo {
   id_protocolo: number;
   motivo: string;
-  id_beneficiado?: number | null;
+  id_beneficiado?: string | null;
   fecha_protocolo: string;
 }
 

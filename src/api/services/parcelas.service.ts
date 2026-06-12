@@ -23,7 +23,6 @@ import {
 } from './desincorporaciones.service';
 import { fetchProtocoloById } from './protocolos.service';
 import { fetchResponsableByCi } from './responsables.service';
-import { fetchUsuarioById } from './usuarios.service';
 
 export type ParcelasQuery = {
   page?: number;
@@ -170,14 +169,23 @@ async function enrichProtocolosBeneficiario(
 ): Promise<ProtocolizacionTerreno[]> {
   return Promise.all(
     protocolos.map(async (item) => {
-      const id = Number(item.beneficiario);
-      if (!Number.isFinite(id) || id <= 0) return item;
-      try {
-        const usuario = await fetchUsuarioById(id);
-        return { ...item, beneficiario: usuario.nombre_usuario };
-      } catch {
-        return item;
+      const ref = item.beneficiario;
+      if (!ref || ref === '—' || ref.startsWith('BEN-')) return item;
+
+      const ciCandidates = ref.startsWith('V-')
+        ? [ref, ref.slice(2)]
+        : [ref, `V-${ref.replace(/\D/g, '')}`];
+
+      for (const ci of ciCandidates) {
+        try {
+          const responsable = await fetchResponsableByCi(ci);
+          return { ...item, beneficiario: responsable.nombre };
+        } catch {
+          // Intentar siguiente formato de cédula.
+        }
       }
+
+      return item;
     }),
   );
 }

@@ -256,7 +256,7 @@ export const documentoPropiedadSchema: z.ZodTypeAny = z.lazy(() => z.object({
 export const protocoloSchema: z.ZodTypeAny = z.lazy(() => z.object({
   id_protocolo: z.number(),
   motivo: z.string(),
-  id_beneficiado: z.number().nullable().optional(),
+  id_beneficiado: z.string().nullable().optional(),
   fecha_protocolo: z.string(),
 }).passthrough());
 
@@ -462,7 +462,7 @@ export const payloadSchemas = {
   }),
   protocolo: z.object({
     motivo: z.enum(['Venta', 'Ejecucion_de_obras', 'Afectado_por_bienhechurias_de_FMO']),
-    id_beneficiado: z.number().int().nullable().optional(),
+    id_beneficiado: z.string().nullable().optional(),
     fecha_protocolo: z.string().min(1),
   }),
   desincorporacion: z.object({
