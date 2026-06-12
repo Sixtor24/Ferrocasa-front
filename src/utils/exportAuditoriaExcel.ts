@@ -1,26 +1,20 @@
 import logoUrl from '../assets/imagen1-logo-exel.png';
-import type { BienMueble } from '../types/bien';
-import type { Alignment, Borders, Workbook, Worksheet } from 'exceljs';
-import { bienToInternoAdministrativoRow } from './internoExportMappers';
+import type { AuditoriaRegistroView } from '../types/auditoria';
+import { accionAuditoriaLabel } from './auditoriaFormat';
+import type { Alignment, Borders, IAnchor, Workbook, Worksheet } from 'exceljs';
 
-type CellValue = string | number;
-
-const COLUMN_COUNT = 11;
+const COLUMN_COUNT = 7;
 const COLUMN_HEADERS = [
-  'Código',
+  'Fecha / Hora',
+  'Usuario',
+  'Tabla',
+  'ID',
+  'Acción',
   'Descripción',
-  'Marca',
-  'Modelo',
-  'Color',
-  'Serial',
-  'Fecha',
-  'Sede',
-  'Almacén',
-  'Estado de uso',
-  'Observaciones',
+  'IP',
 ] as const;
 
-const TITLE = 'Bienes administrativos';
+const TITLE = 'REPORTE DE AUDITORÍA DEL SISTEMA';
 const TITLE_ROW = 5;
 const HEADER_ROW = 7;
 const DATA_START_ROW = 8;
@@ -29,11 +23,15 @@ const COLOR_TITLE_BG = 'FFB8CCE4';
 const COLOR_HEADER_BG = 'FF365F91';
 const COLOR_HEADER_TEXT = 'FFFFFFFF';
 
-/** Dimensiones finales del logo según plantilla Excel (cm). */
-const LOGO_WIDTH_CM = 9.5;
 const LOGO_HEIGHT_CM = 3.1;
 const LOGO_AREA_ROWS = 4;
-const EMU_PER_PIXEL = 9525;
+const COLUMN_WIDTHS = [20, 24, 22, 10, 14, 52, 16] as const;
+const LOGO_WIDTH_PX = 359;
+const LOGO_HEIGHT_PX = 117;
+/** Posición calibrada manualmente en Excel (Formato imagen → Posición). */
+const LOGO_OFFSET_X_PT = 321;
+const LOGO_OFFSET_Y_PT = 0;
+const EMU_PER_POINT = 914400 / 72;
 
 const BORDER_THIN: Partial<Borders> = {
   top: { style: 'thin', color: { argb: 'FF000000' } },
@@ -48,32 +46,16 @@ const CENTER: Partial<Alignment> = {
   wrapText: true,
 };
 
-function cmToPixels(cm: number) {
-  return Math.round((cm / 2.54) * 96);
-}
-
 function cmToPoints(cm: number) {
   return (cm / 2.54) * 72;
-}
-
-function columnWidthToPixels(width: number) {
-  return Math.trunc(width * 7 + 5);
-}
-
-function pointsToPixels(points: number) {
-  return Math.trunc((points * 96) / 72);
 }
 
 function getLogoAreaHeightPoints() {
   return cmToPoints(LOGO_HEIGHT_CM);
 }
 
-function getSheetContentWidthPixels(worksheet: Worksheet) {
-  let total = 0;
-  for (let column = 1; column <= COLUMN_COUNT; column += 1) {
-    total += columnWidthToPixels(worksheet.getColumn(column).width ?? 8.43);
-  }
-  return total;
+function pointsToEmu(points: number) {
+  return Math.round(points * EMU_PER_POINT);
 }
 
 function triggerBlobDownload(blob: Blob, filename: string) {
@@ -101,6 +83,18 @@ async function loadLogoBase64() {
   });
 }
 
+function auditoriaToRow(registro: AuditoriaRegistroView): (string | number)[] {
+  return [
+    registro.fecha,
+    registro.usuario,
+    registro.tablaLabel,
+    registro.idRegistro,
+    accionAuditoriaLabel(registro.accion),
+    registro.descripcion,
+    registro.ip,
+  ];
+}
+
 function setRowHeights(worksheet: Worksheet) {
   const logoRowHeight = getLogoAreaHeightPoints() / LOGO_AREA_ROWS;
   for (let row = 1; row <= LOGO_AREA_ROWS; row += 1) {
@@ -112,7 +106,7 @@ function setRowHeights(worksheet: Worksheet) {
 }
 
 function setColumnWidths(worksheet: Worksheet) {
-  [14, 34, 14, 14, 12, 18, 12, 28, 22, 16, 36].forEach((width, index) => {
+  COLUMN_WIDTHS.forEach((width, index) => {
     worksheet.getColumn(index + 1).width = width;
   });
 }
@@ -157,17 +151,17 @@ function styleColumnHeaders(worksheet: Worksheet) {
   });
 }
 
-function styleDataRows(worksheet: Worksheet, bienes: BienMueble[]) {
-  bienes.forEach((bien, index) => {
+function styleDataRows(worksheet: Worksheet, registros: AuditoriaRegistroView[]) {
+  registros.forEach((registro, index) => {
     const rowNumber = DATA_START_ROW + index;
-    const values = bienToInternoAdministrativoRow(bien);
+    const values = auditoriaToRow(registro);
 
     values.forEach((value, colIndex) => {
       const colNumber = colIndex + 1;
       const cell = worksheet.getCell(rowNumber, colNumber);
       cell.value = value;
 
-      const isLongTextCol = colNumber === 2 || colNumber === 8 || colNumber === 9 || colNumber === 11;
+      const isLongTextCol = colNumber === 2 || colNumber === 6;
       cell.alignment = isLongTextCol
         ? { vertical: 'middle', horizontal: 'left', wrapText: true }
         : CENTER;
@@ -187,22 +181,15 @@ async function addLogo(workbook: Workbook, worksheet: Worksheet) {
     extension: 'png',
   });
 
-  const logoWidthPx = cmToPixels(LOGO_WIDTH_CM);
-  const logoHeightPx = cmToPixels(LOGO_HEIGHT_CM);
-
-  const sheetWidthPx = getSheetContentWidthPixels(worksheet);
-  const logoAreaHeightPx = pointsToPixels(getLogoAreaHeightPoints());
-  const offsetXPx = Math.max(0, Math.round((sheetWidthPx - logoWidthPx) / 2));
-  const offsetYPx = Math.max(0, Math.round((logoAreaHeightPx - logoHeightPx) / 2));
-
+  // Usar nativeCol/nativeRow: si se pasa `col`, ExcelJS ignora nativeColOff y queda en A1.
   worksheet.addImage(imageId, {
     tl: {
       nativeCol: 0,
       nativeRow: 0,
-      nativeColOff: offsetXPx * EMU_PER_PIXEL,
-      nativeRowOff: offsetYPx * EMU_PER_PIXEL,
-    },
-    ext: { width: logoWidthPx, height: logoHeightPx },
+      nativeColOff: pointsToEmu(LOGO_OFFSET_X_PT),
+      nativeRowOff: pointsToEmu(LOGO_OFFSET_Y_PT),
+    } as IAnchor,
+    ext: { width: LOGO_WIDTH_PX, height: LOGO_HEIGHT_PX },
     editAs: 'absolute',
   });
 }
@@ -211,12 +198,10 @@ function uniqueExportFilename(date = new Date()) {
   const pad = (value: number) => String(value).padStart(2, '0');
   const day = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
   const time = `${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}`;
-  return `Bienes_Administrativos_${day}_${time}.xlsx`;
+  return `Auditoria_${day}_${time}.xlsx`;
 }
 
-export async function exportInternoBienesAdministrativos(
-  bienes: BienMueble[],
-): Promise<void> {
+export async function exportAuditoriaExcel(registros: AuditoriaRegistroView[]): Promise<void> {
   const ExcelJS = await import('exceljs');
   const exportDate = new Date();
   const workbook = new ExcelJS.Workbook();
@@ -224,7 +209,7 @@ export async function exportInternoBienesAdministrativos(
   workbook.created = exportDate;
   workbook.modified = exportDate;
 
-  const worksheet = workbook.addWorksheet('Bienes administrativos', {
+  const worksheet = workbook.addWorksheet('Auditoría', {
     views: [{ state: 'frozen', ySplit: HEADER_ROW }],
     pageSetup: {
       orientation: 'landscape',
@@ -239,14 +224,16 @@ export async function exportInternoBienesAdministrativos(
   styleLogoArea(worksheet);
   styleTitle(worksheet);
   styleColumnHeaders(worksheet);
-  styleDataRows(worksheet, bienes);
+  styleDataRows(worksheet, registros);
   await addLogo(workbook, worksheet);
 
-  const lastDataRow = Math.max(HEADER_ROW, DATA_START_ROW + bienes.length - 1);
-  worksheet.autoFilter = {
-    from: { row: HEADER_ROW, column: 1 },
-    to: { row: lastDataRow, column: COLUMN_COUNT },
-  };
+  const lastDataRow = Math.max(HEADER_ROW, DATA_START_ROW + registros.length - 1);
+  if (registros.length > 0) {
+    worksheet.autoFilter = {
+      from: { row: HEADER_ROW, column: 1 },
+      to: { row: lastDataRow, column: COLUMN_COUNT },
+    };
+  }
 
   const output = await workbook.xlsx.writeBuffer();
   const blob = new Blob([output], {

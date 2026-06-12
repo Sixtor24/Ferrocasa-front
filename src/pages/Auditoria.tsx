@@ -24,6 +24,7 @@ import {
   toIsoFinDia,
   toIsoInicioDia,
 } from '../utils/auditoriaFormat';
+import { exportAuditoriaExcel } from '../utils/exportAuditoriaExcel';
 import {
   ChevronLeft,
   ChevronRight,
@@ -207,7 +208,7 @@ export default function Auditoria() {
     setPagina(1);
   };
 
-  const exportarCsv = async () => {
+  const exportarExcel = async () => {
     setExportando(true);
     try {
       const query = buildAuditoriaQuery({
@@ -225,29 +226,9 @@ export default function Auditoria() {
         100,
       );
 
-      const header = ['Fecha', 'Usuario', 'Tabla', 'ID registro', 'Acción', 'Descripción', 'IP', 'User-Agent'];
-      const lines = rows.map((row) => {
-        const view = mapRegistroView(row);
-        return [
-          view.fecha,
-          view.usuario,
-          view.tablaLabel,
-          String(view.idRegistro),
-          view.accion,
-          view.descripcion.replace(/"/g, '""'),
-          view.ip,
-          (row.user_agent ?? '—').replace(/"/g, '""'),
-        ].map((cell) => `"${cell}"`).join(',');
-      });
-
-      const blob = new Blob([[header.join(','), ...lines].join('\n')], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `auditoria-${new Date().toISOString().slice(0, 10)}.csv`;
-      link.click();
-      URL.revokeObjectURL(url);
-      toast.success('Exportación completada', { description: `${rows.length} registros descargados` });
+      const exportRows = rows.map(mapRegistroView);
+      await exportAuditoriaExcel(exportRows);
+      toast.success('Exportación completada', { description: `${exportRows.length} registros descargados` });
     } catch (err) {
       toast.error('No se pudo exportar', {
         description: err instanceof Error ? err.message : 'Error desconocido',
@@ -287,12 +268,12 @@ export default function Auditoria() {
         </div>
         <button
           type="button"
-          onClick={exportarCsv}
+          onClick={exportarExcel}
           disabled={exportando}
           className="flex items-center gap-2 px-4 py-2 bg-navy-900 text-white rounded-lg text-sm font-medium hover:bg-navy-800 disabled:opacity-60 shrink-0"
         >
           <FileSpreadsheet size={16} />
-          {exportando ? 'Exportando…' : 'Exportar CSV'}
+          {exportando ? 'Exportando…' : 'Exportar Excel'}
         </button>
       </div>
 
