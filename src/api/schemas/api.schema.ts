@@ -78,7 +78,7 @@ export const categoriaEspecificaSchema: z.ZodTypeAny = z.lazy(() => z.object({
 }).passthrough());
 
 export const documentoSchema = z.object({
-  id_doc: z.number(),
+  id_doc: z.union([z.number(), z.string()]),
   numero_documento: z.string().nullable().optional(),
   nombre_proveedor: z.string().nullable().optional(),
   forma_adquisicion: z.string().optional(),
@@ -299,7 +299,7 @@ export const parcelaSchema: z.ZodTypeAny = z.lazy(() => z.object({
 export const bienSchema = z.object({
   codigo_bien: z.union([z.number(), z.string()]),
   descripcion: z.string().nullable().optional(),
-  id_doc: z.number().nullable().optional(),
+  id_doc: z.string().nullable().optional(),
   fecha_ingreso: dateLike,
   fecha_egreso: dateLike,
   valor_adquisicion: numeric,

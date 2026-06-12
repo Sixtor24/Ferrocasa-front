@@ -18,6 +18,7 @@ import SearchableSelect from '../components/forms/SearchableSelect';
 import { FILTROS_INVENTARIO_VACIOS } from '../constants/moduleFilters';
 import ModuleDataTable from '../components/module/ModuleDataTable';
 import ModulePagination from '../components/module/ModulePagination';
+import ModuleMetricCard from '../components/module/ModuleMetricCard';
 import {
   CONDICIONES_FISICAS,
   ESTADOS_USO,
@@ -53,10 +54,70 @@ import {
   BarChart3,
   AlertCircle,
   ArrowLeft,
-  FileText,
+  Loader2,
 } from 'lucide-react';
 
 const PER_PAGE = 10;
+
+const ACTION_BTN =
+  'inline-flex items-center justify-center gap-2 rounded-lg text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed';
+
+const ALMACEN_COLUMNS: Column<BienMueble>[] = [
+  {
+    key: 'codigoInterno',
+    label: 'Código',
+    render: (b) => (
+      <div className="flex items-center gap-2">
+        <span className="font-mono font-bold text-navy-900">{b.codigoInterno}</span>
+        {b.sinCodigo && (
+          <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-bold">S/C</span>
+        )}
+      </div>
+    ),
+  },
+  {
+    key: 'descripcion',
+    label: 'Descripción',
+    render: (b) => (
+      <span className="max-w-[200px] truncate block" title={b.descripcion}>
+        {b.descripcion}
+      </span>
+    ),
+  },
+  { key: 'marca', label: 'Marca', render: (b) => <span>{b.marca || '—'}</span> },
+  { key: 'modelo', label: 'Modelo', render: (b) => <span>{b.modelo || '—'}</span> },
+  { key: 'color', label: 'Color', render: (b) => <span>{b.color || '—'}</span> },
+  {
+    key: 'serial',
+    label: 'Serial',
+    render: (b) =>
+      b.sinSerial ? (
+        <span className="text-amber-600 text-xs font-semibold">S/S</span>
+      ) : (
+        <span className="font-mono text-sm">{b.serial || '—'}</span>
+      ),
+  },
+  { key: 'sede', label: 'Sede' },
+  { key: 'ubicacion', label: 'Almacén' },
+  { key: 'estadoUso', label: 'Estado de uso', render: (b) => <StatusBadge status={b.estadoUso} size="sm" /> },
+  {
+    key: 'condicionFisica',
+    label: 'Condición Física',
+    render: (b) => <StatusBadge status={b.condicionFisica} showDot size="sm" />,
+  },
+];
+
+function hasActiveInventoryFilters(filtros: typeof FILTROS_INVENTARIO_VACIOS) {
+  return Object.entries(filtros).some(([key, value]) => {
+    const trimmed = value.trim();
+    if (!trimmed) return false;
+    if (key === 'almacen' && trimmed === 'Todas') return false;
+    if (key === 'departamento' && trimmed === 'Todos') return false;
+    if (key === 'condicionFisica' && trimmed === 'Todas') return false;
+    if (key === 'estadoUso' && trimmed === 'Todos') return false;
+    return true;
+  });
+}
 
 function AlmacenBienDetail({
   bien,
@@ -88,6 +149,8 @@ function AlmacenBienDetail({
   const unsaved = useUnsavedChangesGuard(isDirty);
 
   const guardarCambio = async () => {
+    if (!isDirty || saving) return;
+
     setSaving(true);
     try {
       const codigo = bienCodigoPk(bien);
@@ -192,19 +255,27 @@ function AlmacenBienDetail({
           <button
             type="button"
             onClick={() => unsaved.requestLeave(onVolver)}
-            className="inline-flex items-center gap-2 px-4 py-2.5 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50"
+            className={`${ACTION_BTN} px-4 py-2.5 border border-gray-200 text-gray-700 hover:bg-gray-50`}
           >
-            <ArrowLeft size={16} />
+            <ArrowLeft size={16} aria-hidden />
             Volver al listado
           </button>
           {canWriteAssets && (
             <button
               type="button"
               onClick={guardarCambio}
-              disabled={saving}
-              className="px-5 py-2.5 bg-navy-900 text-white rounded-lg text-sm font-semibold hover:bg-navy-800 disabled:opacity-60"
+              disabled={saving || !isDirty || inventario.retirado}
+              aria-busy={saving}
+              className={`${ACTION_BTN} px-5 py-2.5 bg-navy-900 text-white hover:bg-navy-800 disabled:opacity-60`}
             >
-              {saving ? 'Guardando...' : 'Guardar cambio'}
+              {saving ? (
+                <>
+                  <Loader2 size={16} className="animate-spin" aria-hidden />
+                  Guardando...
+                </>
+              ) : (
+                'Guardar cambio'
+              )}
             </button>
           )}
           {canTransferBien && (
@@ -212,7 +283,7 @@ function AlmacenBienDetail({
               type="button"
               onClick={() => inventario.setTransferOpen(true)}
               disabled={inventario.retirado || inventario.transferLoading || inventario.retireLoading}
-              className="px-5 py-2.5 border border-navy-200 text-navy-800 rounded-lg text-sm font-semibold hover:bg-navy-50 disabled:opacity-50"
+              className={`${ACTION_BTN} px-5 py-2.5 border border-navy-200 text-navy-800 hover:bg-navy-50 disabled:opacity-50`}
             >
               Transferir a otro almacén
             </button>
@@ -222,7 +293,7 @@ function AlmacenBienDetail({
               type="button"
               onClick={() => inventario.setRetireOpen(true)}
               disabled={inventario.retirado || inventario.transferLoading || inventario.retireLoading}
-              className="px-5 py-2.5 border border-red-200 text-red-700 rounded-lg text-sm font-semibold hover:bg-red-50 disabled:opacity-50"
+              className={`${ACTION_BTN} px-5 py-2.5 border border-red-200 text-red-700 hover:bg-red-50 disabled:opacity-50`}
             >
               Retirar de Inventario
             </button>
@@ -261,7 +332,6 @@ export default function Almacen() {
   const { canWriteAssets, canExportInventory } = useRolePermissions();
   const { id } = useParams();
   const navigate = useNavigate();
-  const [exportMsg, setExportMsg] = useState('');
   const {
     page,
     filters: filtros,
@@ -296,6 +366,7 @@ export default function Almacen() {
     [id],
     Boolean(id),
   );
+
   const lista = bienesQuery.data?.data ?? [];
   const bienesStats = metricsQuery.data ?? {
     total: 0,
@@ -304,6 +375,8 @@ export default function Almacen() {
     obsoletos: 0,
   };
   const totalPages = bienesQuery.data?.meta.totalPages ?? 1;
+  const metricsLoading = metricsQuery.loading && !metricsQuery.data;
+  const filtersActive = useMemo(() => hasActiveInventoryFilters(filtros), [filtros]);
 
   const almacenOptions = useMemo(() => ['Todas', ...ALMACENES_BIENES_ADMINISTRATIVOS], []);
 
@@ -331,59 +404,20 @@ export default function Almacen() {
     });
   }, [lista, filtros]);
 
-  const paginated = filtered;
-
   const setFiltro = (key: keyof typeof filtros, value: string) => {
     setModuleFilter(key, value);
     setPage(1);
   };
 
-  const simularExportPdf = () => {
-    setExportMsg('Generando PDF...');
-    setTimeout(() => setExportMsg('PDF generado'), 1500);
-    setTimeout(() => setExportMsg(''), 4000);
+  const refreshBienes = () => {
+    void bienesQuery.refetch();
+    void metricsQuery.refetch();
+    if (id) void detailQuery.refetch();
   };
 
-  const columns: Column<BienMueble>[] = [
-    {
-      key: 'codigoInterno',
-      label: 'Código',
-      render: (b) => (
-        <div className="flex items-center gap-2">
-          <span className="font-mono font-bold text-navy-900">{b.codigoInterno}</span>
-          {b.sinCodigo && (
-            <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-bold">S/C</span>
-          )}
-        </div>
-      ),
-    },
-    {
-      key: 'descripcion',
-      label: 'Descripción',
-      render: (b) => <span className="max-w-[200px] truncate block">{b.descripcion}</span>,
-    },
-    { key: 'marca', label: 'Marca', render: (b) => <span>{b.marca || '—'}</span> },
-    { key: 'modelo', label: 'Modelo', render: (b) => <span>{b.modelo || '—'}</span> },
-    { key: 'color', label: 'Color', render: (b) => <span>{b.color || '—'}</span> },
-    {
-      key: 'serial',
-      label: 'Serial',
-      render: (b) =>
-        b.sinSerial ? (
-          <span className="text-amber-600 text-xs font-semibold">S/S</span>
-        ) : (
-          <span className="font-mono text-sm">{b.serial || '—'}</span>
-        ),
-    },
-    { key: 'sede', label: 'Sede' },
-    { key: 'ubicacion', label: 'Almacén' },
-    { key: 'estadoUso', label: 'Estado de uso', render: (b) => <StatusBadge status={b.estadoUso} size="sm" /> },
-    {
-      key: 'condicionFisica',
-      label: 'Condición Física',
-      render: (b) => <StatusBadge status={b.condicionFisica} showDot size="sm" />,
-    },
-  ];
+  const emptyMessage = filtersActive
+    ? 'No hay bienes que coincidan con los filtros aplicados. Ajuste los criterios o limpie los filtros.'
+    : 'No hay bienes registrados. Los registros nuevos requieren almacén y categoría en la base de datos.';
 
   if (id) {
     const bien =
@@ -398,28 +432,22 @@ export default function Almacen() {
             bien={bien}
             almacenes={almacenesQuery.data?.data ?? []}
             onVolver={() => {
-              void bienesQuery.refetch();
-              void metricsQuery.refetch();
+              refreshBienes();
               navigate('/almacen');
             }}
-            onSaved={async () => {
-              await Promise.all([bienesQuery.refetch(), detailQuery.refetch(), metricsQuery.refetch()]);
-            }}
+            onSaved={refreshBienes}
             onInventarioAction={async (result) => {
               if (result.type === 'transfer') {
-                void bienesQuery.refetch();
-                void metricsQuery.refetch();
                 setModuleFilter('almacen', result.almacenDestino);
                 try {
                   await fetchBienAdministrativoByCodigo(id);
-                  await detailQuery.refetch();
+                  refreshBienes();
                 } catch {
                   navigate('/almacen');
                 }
                 return;
               }
-              void bienesQuery.refetch();
-              await detailQuery.refetch();
+              refreshBienes();
             }}
           />
         )}
@@ -429,45 +457,53 @@ export default function Almacen() {
 
   return (
     <div className="p-4 md:p-6 space-y-6 max-w-[1600px]">
+      {/* Header */}
       <ModulePageHeader
         title="Bienes e Inmuebles Administrativos"
         breadcrumb={[{ label: 'Dashboard', to: '/dashboard' }, { label: 'Bienes en Edificio Administrativo' }]}
         formatModule={canExportInventory ? 'almacen' : undefined}
         onCreate={canWriteAssets ? () => setModal('registro', true) : undefined}
+        createLabel="Crear Registro"
       />
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white rounded-xl border border-gray-200 p-5 flex items-center gap-4">
-          <div className="w-11 h-11 bg-navy-100 rounded-xl flex items-center justify-center"><Package size={22} className="text-navy-600" /></div>
-          <div>
-            <p className="text-sm text-gray-500">Total Bienes</p>
-            <p className="text-2xl font-bold text-navy-900">{(bienesStats.total ?? 0).toLocaleString()}</p>
-          </div>
-        </div>
-        <div className="bg-white rounded-xl border border-gray-200 p-5 flex items-center gap-4">
-          <div className="w-11 h-11 bg-green-100 rounded-xl flex items-center justify-center"><BarChart3 size={22} className="text-green-600" /></div>
-          <div>
-            <p className="text-sm text-gray-500">Bienes en uso</p>
-            <p className="text-2xl font-bold text-green-700">{(bienesStats.enUso ?? 0).toLocaleString()}</p>
-          </div>
-        </div>
-        <div className="bg-white rounded-xl border border-amber-200 p-5 flex items-center gap-4">
-          <div className="w-11 h-11 bg-amber-100 rounded-xl flex items-center justify-center"><AlertTriangle size={22} className="text-amber-500" /></div>
-          <div>
-            <p className="text-sm text-gray-500">Bienes en obsolescencia</p>
-            <p className="text-2xl font-bold text-amber-700">{(bienesStats.enObsolescencia ?? 0).toLocaleString()}</p>
-          </div>
-        </div>
-        <div className="bg-white rounded-xl border border-red-200 p-5 flex items-center gap-4">
-          <div className="w-11 h-11 bg-red-100 rounded-xl flex items-center justify-center"><AlertCircle size={22} className="text-red-500" /></div>
-          <div>
-            <p className="text-sm text-gray-500">Bienes Obsoletos</p>
-            <p className="text-2xl font-bold text-red-700">{(bienesStats.obsoletos ?? 0).toLocaleString()}</p>
-          </div>
-        </div>
-      </div>
+      {/* Resumen de inventario */}
+      <section aria-label="Resumen de inventario" className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <ModuleMetricCard
+          label="Total Bienes"
+          value={(bienesStats.total ?? 0).toLocaleString('es-VE')}
+          icon={<Package size={22} className="text-navy-600" />}
+          iconWrapClassName="bg-navy-100"
+          loading={metricsLoading}
+        />
+        <ModuleMetricCard
+          label="Bienes en uso"
+          value={(bienesStats.enUso ?? 0).toLocaleString('es-VE')}
+          icon={<BarChart3 size={22} className="text-green-600" />}
+          iconWrapClassName="bg-green-100"
+          valueClassName="text-green-700"
+          loading={metricsLoading}
+        />
+        <ModuleMetricCard
+          label="Bienes en obsolescencia"
+          value={(bienesStats.enObsolescencia ?? 0).toLocaleString('es-VE')}
+          icon={<AlertTriangle size={22} className="text-amber-500" />}
+          iconWrapClassName="bg-amber-100"
+          borderClassName="border-amber-200"
+          valueClassName="text-amber-700"
+          loading={metricsLoading}
+        />
+        <ModuleMetricCard
+          label="Bienes Obsoletos"
+          value={(bienesStats.obsoletos ?? 0).toLocaleString('es-VE')}
+          icon={<AlertCircle size={22} className="text-red-500" />}
+          iconWrapClassName="bg-red-100"
+          borderClassName="border-red-200"
+          valueClassName="text-red-700"
+          loading={metricsLoading}
+        />
+      </section>
 
+      {/* Filtros */}
       <ModuleFilterBar
         onClearFilters={() => {
           resetFilters();
@@ -532,47 +568,38 @@ export default function Almacen() {
           },
         ]}
       >
-        {canExportInventory && (
-          <div className="flex flex-wrap items-center justify-end gap-3 mt-4 pt-4 border-t border-gray-100">
-            {exportMsg && <span className="text-sm text-green-600 font-medium">{exportMsg}</span>}
-            <button
-              type="button"
-              onClick={simularExportPdf}
-              className="inline-flex items-center gap-1.5 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50"
-            >
-              <FileText size={14} />
-              PDF
-            </button>
-          </div>
-        )}
+        <p className="text-sm text-gray-500 tabular-nums" aria-live="polite">
+          {filtered.length === lista.length
+            ? `${lista.length} registro${lista.length === 1 ? '' : 's'} en esta página`
+            : `${filtered.length} de ${lista.length} en esta página`}
+          {filtersActive ? ' · filtros activos' : ''}
+        </p>
       </ModuleFilterBar>
 
+      {/* Tabla de bienes */}
       <ApiState
         loading={bienesQuery.loading && !bienesQuery.data}
         error={bienesQuery.error}
         onRetry={bienesQuery.refetch}
         empty={!bienesQuery.loading && filtered.length === 0}
-        emptyMessage="No hay bienes registrados. Los registros nuevos requieren almacén y categoría en la base de datos."
+        emptyMessage={emptyMessage}
       >
         <ModuleDataTable
-          data={paginated}
-          columns={columns}
+          data={filtered}
+          columns={ALMACEN_COLUMNS}
           loading={bienesQuery.loading && Boolean(bienesQuery.data)}
           onDetails={(b) => navigate(`/almacen/${encodeURIComponent(b.codigoInterno)}`)}
         />
         <ModulePagination page={page} totalPages={totalPages} onPageChange={setPage} />
       </ApiState>
 
+      {/* Modal de registro de bienes */}
       <RegistroBienesAdministrativosModal
         open={showModal}
         onClose={() => setModal('registro', false)}
-        onSuccess={() => {
-          bienesQuery.refetch();
-          metricsQuery.refetch();
-        }}
+        onSuccess={refreshBienes}
         onError={() => {}}
       />
-
     </div>
   );
 }

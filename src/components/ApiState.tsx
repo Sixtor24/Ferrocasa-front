@@ -49,11 +49,7 @@ export default function ApiState({
       <div className="rounded-xl border border-red-200 bg-red-50 p-6 flex flex-col items-center gap-3 text-center">
         <AlertCircle className="text-red-500" size={28} />
         <p className="text-sm text-red-800 font-medium">{error}</p>
-        <p className="text-xs text-red-600 max-w-md">
-          {error.includes('502')
-            ? 'El proxy no alcanza el backend. En local: terminal 1 → docker compose up -d db; terminal 2 → cd cvg-ferrocasa-sc && pnpm dev (puerto 4000).'
-            : 'Verifica que el backend esté en ejecución (pnpm dev en cvg-ferrocasa-sc) y que Docker/PostgreSQL estén activos.'}
-        </p>
+        
         {onRetry && (
           <button
             type="button"
