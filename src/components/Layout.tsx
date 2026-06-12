@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
+import { Outlet, NavLink, Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { MODULOS_MENU } from '../data/modulosMenu';
 import { useRolePermissions } from '../hooks/useRolePermissions';
@@ -300,7 +300,7 @@ export default function Layout() {
         <footer className="bg-white border-t border-gray-200/90 px-4 sm:px-6 py-2 flex items-center justify-between text-xs text-gray-400 shrink-0">
           <span className="truncate">© 2026 C.V.G. FERROCASA</span>
           <div className="hidden sm:flex gap-4">
-            <span className="hover:text-navy-600 cursor-pointer">Privacidad</span>
+            <Link to="/privacidad" className="hover:text-navy-600 transition-colors">Privacidad</Link>
             <span className="hover:text-navy-600 cursor-pointer">Soporte Técnico</span>
           </div>
         </footer>

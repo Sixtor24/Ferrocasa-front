@@ -12,6 +12,7 @@ import Cementerio from './pages/Cementerio';
 import Vehiculos from './pages/Vehiculos';
 import Terrenos from './pages/Terrenos';
 import Configuracion from './pages/Configuracion';
+import Privacidad from './pages/Privacidad';
 import ModuleRoute from './components/ModuleRoute';
 import { useRolePermissions } from './hooks/useRolePermissions';
 
@@ -73,6 +74,7 @@ function AppRoutes() {
         <Route path="/auditoria" element={<ModuleRoute module="auditoria"><Auditoria /></ModuleRoute>} />
         <Route path="/configuracion" element={<ModuleRoute module="configuracion"><Configuracion /></ModuleRoute>} />
       </Route>
+      <Route path="/privacidad" element={<Privacidad />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
