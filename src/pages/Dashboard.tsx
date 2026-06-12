@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { pathToModule } from "../constants/rolePermissions";
+import { useRolePermissions } from "../hooks/useRolePermissions";
 import {
   fetchDashboardActividadReciente,
   fetchDashboardAlertas,
