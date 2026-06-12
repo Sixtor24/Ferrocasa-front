@@ -146,12 +146,10 @@ export const dashboardChartSeriesSchema = z.object({
 
 export const dashboardStatsSchema = z.object({
   inventario: z.object({
+    bienes_edificio_administrativo: z.number(),
+    bienes_cementerio: z.number(),
     parcelas: z.number(),
-    bienes: z.number(),
-    vehiculos: z.number(),
-    propiedades: z.number(),
-    almacenes: z.number(),
-    protocolos: z.number(),
+    vehiculos_maquinarias: z.number(),
   }),
   valoracion_total: z.number(),
   actividad: z.object({

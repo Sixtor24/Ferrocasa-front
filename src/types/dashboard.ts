@@ -7,12 +7,10 @@ export type DashboardChartSeries = {
 
 export type DashboardStatsApi = {
   inventario: {
+    bienes_edificio_administrativo: number;
+    bienes_cementerio: number;
     parcelas: number;
-    bienes: number;
-    vehiculos: number;
-    propiedades: number;
-    almacenes: number;
-    protocolos: number;
+    vehiculos_maquinarias: number;
   };
   valoracion_total: number;
   actividad: {
