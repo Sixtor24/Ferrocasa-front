@@ -6,8 +6,8 @@ import Modal from './Modal';
 import NuevoItemRegistroModal from './NuevoItemRegistroModal';
 import SearchableSelect from '../forms/SearchableSelect';
 import { createBien } from '../../api/services/bienes.service';
-import { createDocumento, type FormaAdquisicionDocumento } from '../../api/services/documentos.service';
-import { readDocumentoId } from '../../utils/vehiculoApiFields';
+import { createDocumentoVehiculo, type FormaAdquisicionDocumento } from '../../api/services/documentos.service';
+import { toApiDateTime } from '../../api/mappers/enums';
 import { buildRegistroBienesSuccessMessage } from '../../utils/assetNotify';
 import { rollbackRegistroBienes } from '../../utils/registroRollback';
 import { fetchSedes } from '../../api/services/sedes.service';
@@ -17,10 +17,10 @@ import type { ItemRegistroDraft, RegistroBienesModulo } from '../../types/regist
 import { MONEDAS_REGISTRO } from '../../types/registroBienItem';
 import { formatMoneda } from '../../utils/formatters';
 import {
-  documentoRegistroFormSchema,
+  documentoRegistroBienFormSchema,
   itemDraftToFormInput,
   registroItemsListSchema,
-  type DocumentoRegistroForm,
+  type DocumentoRegistroBienForm,
 } from '../../schemas/registro.schema';
 import { validarConZod } from '../../utils/validators';
 import {
@@ -29,6 +29,7 @@ import {
   monedaBienToDocumento,
   normalizeCatalogValue,
 } from '../../utils/registroBienMappers';
+import { buildDocumentoVehiculoPayload } from '../../utils/registroVehiculoMappers';
 import { useAlmacenesRegistro } from '../../hooks/useAlmacenesRegistro';
 import {
   extractRegistroError,
@@ -74,7 +75,7 @@ function sedeLabel(value: string) {
   return SEDE_LABELS[value] ?? value;
 }
 
-function documentoDefaultValues(sede: string): DocumentoRegistroForm {
+function documentoDefaultValues(sede: string): DocumentoRegistroBienForm {
   return {
     numeroDocumento: '',
     nombreProveedor: '',
@@ -125,8 +126,8 @@ export default function RegistroBienesModal({
     reset,
     watch,
     formState: { errors: documentoErrors },
-  } = useForm<DocumentoRegistroForm>({
-    resolver: zodResolver(documentoRegistroFormSchema),
+  } = useForm<DocumentoRegistroBienForm>({
+    resolver: zodResolver(documentoRegistroBienFormSchema),
     defaultValues: documentoDefaultValues(sedeInicial),
   });
 
@@ -255,15 +256,16 @@ export default function RegistroBienesModal({
     const codigosBien: number[] = [];
 
     try {
-      const documentoCreado = await createDocumento({
-        numero_documento: documento.numeroDocumento?.trim() || undefined,
-        nombre_proveedor: documento.nombreProveedor.trim(),
-        forma_adquisicion: documento.formaAdquisicion,
-        fecha_adquisicion: documento.fechaAdquisicion,
+      const documentoPayload = buildDocumentoVehiculoPayload({
+        numeroDocumento: documento.numeroDocumento,
+        nombreProveedor: documento.nombreProveedor,
+        formaAdquisicion: documento.formaAdquisicion,
+        fechaAdquisicion: toApiDateTime(documento.fechaAdquisicion),
         moneda: monedaBienToDocumento(documento.moneda),
       });
 
-      idDoc = readDocumentoId(documentoCreado);
+      await createDocumentoVehiculo(documentoPayload);
+      idDoc = documentoPayload.id_doc;
       const fechaIngreso = documento.fechaAdquisicion;
 
       for (const item of items) {
@@ -330,8 +332,11 @@ export default function RegistroBienesModal({
                   type="text"
                   {...register('numeroDocumento')}
                   placeholder="Ingrese nro de documento"
-                  className="input-field"
+                  className={`input-field ${documentoErrors.numeroDocumento ? 'border-red-400' : ''}`}
                 />
+                {documentoErrors.numeroDocumento && (
+                  <p className="text-xs text-red-600 mt-1">{documentoErrors.numeroDocumento.message}</p>
+                )}
               </Field>
             <Field label="Nombre de Proveedor">
               <input

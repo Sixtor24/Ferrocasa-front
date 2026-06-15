@@ -28,6 +28,9 @@ export function extractRegistroError(err: unknown, fallback: string): string {
   }
   if (err instanceof ApiError) {
     const message = formatApiErrorMessage(err.body, err.message);
+    if (/id_doc/i.test(message) && PAYLOAD_FIELD_MESSAGES.id_doc) {
+      return PAYLOAD_FIELD_MESSAGES.id_doc;
+    }
     if (/Unique constraint failed on the fields:\s*\(`placa`\)/i.test(message)) {
       return 'La placa ya está registrada en otro vehículo. Use una placa distinta.';
     }

@@ -307,8 +307,17 @@ export function validateApiPayload(path: string, method: string, body: unknown) 
   if ((method === 'POST' || method === 'PUT') && p.startsWith('/categorias/especifica')) return parseWithSchema(payloadSchemas.categoriaEspecifica, body);
   if ((method === 'POST' || method === 'PUT') && p.startsWith('/documentos')) {
     const source = (body ?? {}) as Record<string, unknown>;
-    if (method === 'POST' && typeof source.id_doc === 'string' && source.id_doc.trim()) {
-      return parseWithSchema(payloadSchemas.documentoVehiculo, body);
+    const idDocFromBody =
+      typeof source.id_doc === 'string' && source.id_doc.trim()
+        ? source.id_doc.trim()
+        : typeof source.numero_documento === 'string' && source.numero_documento.trim()
+          ? source.numero_documento.trim()
+          : null;
+    if (method === 'POST' && idDocFromBody) {
+      return parseWithSchema(payloadSchemas.documentoVehiculo, {
+        ...source,
+        id_doc: idDocFromBody,
+      });
     }
     return parseWithSchema(payloadSchemas.documento, body);
   }

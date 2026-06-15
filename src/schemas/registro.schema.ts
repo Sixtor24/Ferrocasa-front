@@ -24,6 +24,16 @@ export const documentoRegistroFormSchema = z.object({
 
 export type DocumentoRegistroForm = z.infer<typeof documentoRegistroFormSchema>;
 
+export const documentoRegistroBienFormSchema = documentoRegistroFormSchema.extend({
+  numeroDocumento: z
+    .string()
+    .trim()
+    .min(1, 'Indique el número de documento de ingreso')
+    .max(20, 'El nro de documento no puede superar 20 caracteres'),
+});
+
+export type DocumentoRegistroBienForm = z.infer<typeof documentoRegistroBienFormSchema>;
+
 export const itemRegistroFormSchema = z
   .object({
     codigoInterno: z
