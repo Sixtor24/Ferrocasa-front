@@ -336,7 +336,7 @@ export default function Auditoria() {
               />
             </div>
             <div>
-              <label className="text-xs text-gray-500 mb-1 block">Acción</label>
+              <label className="text-xs text-gray-500 mb-1 block">Modulo</label>
               <SearchableSelect
                 value={accion}
                 onChange={(value) => { setAccion(value); setPagina(1); }}
@@ -425,7 +425,7 @@ export default function Auditoria() {
                 <th className="text-left text-xs font-semibold text-gray-500 uppercase px-6 py-3">Usuario</th>
                 <th className="text-left text-xs font-semibold text-gray-500 uppercase px-6 py-3">Tabla</th>
                 <th className="text-left text-xs font-semibold text-gray-500 uppercase px-6 py-3">ID</th>
-                <th className="text-left text-xs font-semibold text-gray-500 uppercase px-6 py-3">Acción</th>
+                <th className="text-left text-xs font-semibold text-gray-500 uppercase px-6 py-3">Modulo</th>
                 <th className="text-left text-xs font-semibold text-gray-500 uppercase px-6 py-3">Descripción</th>
                 <th className="text-right text-xs font-semibold text-gray-500 uppercase px-6 py-3">IP</th>
               </tr>
@@ -525,7 +525,7 @@ export default function Auditoria() {
                     <p><span className="text-gray-500">Usuario:</span> {detalleQuery.data.usuario?.nombre_usuario ?? detalleQuery.data.id_usuario}</p>
                     <p><span className="text-gray-500">Tabla:</span> {labelTablaAuditoria(detalleQuery.data.nombre_tabla)}</p>
                     <p><span className="text-gray-500">Registro:</span> #{detalleQuery.data.id_registro}</p>
-                    <p><span className="text-gray-500">Acción:</span> {accionAuditoriaLabel(detalleQuery.data.accion)}</p>
+                    <p><span className="text-gray-500">Modulo:</span> {accionAuditoriaLabel(detalleQuery.data.accion)}</p>
                     <p><span className="text-gray-500">IP:</span> {detalleQuery.data.ip_origen ?? '—'}</p>
                   </div>
                   <div>

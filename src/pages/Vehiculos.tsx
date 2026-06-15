@@ -44,7 +44,7 @@ import {
   estadoUsoVehiculoToApi,
 } from '../utils/registroVehiculoMappers';
 import { aggregateVehiculosMetricsFromList } from '../utils/vehiculosStats';
-import { nombresAlmacenesVehiculos } from '../utils/vehiculoAlmacenes';
+import { filterAlmacenesVehiculos, nombresAlmacenesVehiculos } from '../utils/vehiculoAlmacenes';
 import {
   INVENTARIO_VIEW_OPTIONS,
   isInventarioActivo,
@@ -310,6 +310,7 @@ export default function Vehiculos() {
   const almacenesQuery = useApiQuery(
     () => fetchAlmacenes({ page: 1, limit: API_MAX_LIMIT }),
     [],
+    showRegistro || Boolean(codigoVehiculo),
   );
   const sedesQuery = useApiQuery(
     () => fetchSedes({ page: 1, limit: API_MAX_LIMIT }),
@@ -333,11 +334,18 @@ export default function Vehiculos() {
     obsoletos: 0,
   };
 
-  const almacenOptions = useMemo(() => {
-    const almacenes = almacenesQuery.data?.data ?? [];
-    const sedes = sedesQuery.data?.data ?? [];
-    return ['Todos', ...nombresAlmacenesVehiculos(almacenes, sedes)];
-  }, [almacenesQuery.data, sedesQuery.data]);
+  const almacenesCatalogo = almacenesQuery.data?.data ?? [];
+  const sedesCatalogo = sedesQuery.data?.data ?? [];
+
+  const almacenesVehiculos = useMemo(
+    () => filterAlmacenesVehiculos(almacenesCatalogo, sedesCatalogo),
+    [almacenesCatalogo, sedesCatalogo],
+  );
+
+  const almacenOptions = useMemo(
+    () => ['Todos', ...nombresAlmacenesVehiculos(almacenesCatalogo, sedesCatalogo)],
+    [almacenesCatalogo, sedesCatalogo],
+  );
 
   const unidadAdministrativaOptions = useMemo(
     () => {
@@ -415,16 +423,13 @@ export default function Vehiculos() {
         {vehiculo && (
           <VehiculoDetail
             vehiculo={vehiculo}
-            almacenes={almacenesQuery.data?.data ?? []}
+            almacenes={almacenesVehiculos}
             onVolver={() => {
               refreshVehiculos();
               navigate('/vehiculos');
             }}
             onSaved={refreshVehiculos}
-            onInventarioAction={async (result) => {
-              if (result.type === 'transfer') {
-                setModuleFilter('almacen', result.almacenDestino);
-              }
+            onInventarioAction={() => {
               refreshVehiculos();
             }}
           />

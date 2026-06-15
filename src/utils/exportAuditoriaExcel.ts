@@ -9,7 +9,7 @@ const COLUMN_HEADERS = [
   'Usuario',
   'Tabla',
   'ID',
-  'Acción',
+  'Modulo',
   'Descripción',
   'IP',
 ] as const;
