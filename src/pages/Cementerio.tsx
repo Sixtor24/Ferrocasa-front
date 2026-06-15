@@ -282,11 +282,62 @@ function CementerioBienDetail({
   );
 }
 
+const CEMENTERIO_COLUMNS: Column<BienMueble>[] = [
+  {
+    key: "codigoInterno",
+    label: "Código",
+    render: (b) => (
+      <span className="font-mono font-bold text-navy-900">
+        {b.codigoInterno}
+      </span>
+    ),
+  },
+  {
+    key: "descripcion",
+    label: "Descripción",
+    render: (b) => (
+      <span className="max-w-[220px] truncate block">{b.descripcion}</span>
+    ),
+  },
+  {
+    key: "marca",
+    label: "Marca",
+    render: (b) => <span>{b.marca || "—"}</span>,
+  },
+  {
+    key: "modelo",
+    label: "Modelo",
+    render: (b) => <span>{b.modelo || "—"}</span>,
+  },
+  {
+    key: "color",
+    label: "Color",
+    render: (b) => <span>{b.color || "—"}</span>,
+  },
+  {
+    key: "serial",
+    label: "Serial",
+    render: (b) => <span className="font-mono text-sm">{b.serial || "—"}</span>,
+  },
+  {
+    key: "fechaAdquisicion",
+    label: "Fecha",
+    render: (b) => <span>{formatFecha(b.fechaAdquisicion)}</span>,
+  },
+  { key: "sede", label: "Sede" },
+  { key: "ubicacion", label: "Almacén" },
+  {
+    key: "estadoUso",
+    label: "Estado de uso",
+    render: (b) => <StatusBadge status={b.estadoUso} size="sm" />,
+  },
+];
+
 export default function Cementerio() {
-  const { canWriteAssets, canExportInventory, canViewRetirados } = useRolePermissions();
+  const { canWriteAssets, canExportInventory, canViewRetirados } =
+    useRolePermissions();
   const { id } = useParams();
   const navigate = useNavigate();
-  const [exportMsg, setExportMsg] = useState("");
   const {
     page,
     filters: filtros,
@@ -333,6 +384,7 @@ export default function Cementerio() {
     enObsolescencia: 0,
     obsoletos: 0,
   };
+  const metricsLoading = metricsQuery.loading && !metricsQuery.data;
 
   const almacenes = almacenesQuery.data?.data ?? [];
   const sedes = sedesQuery.data?.data ?? [];
@@ -341,7 +393,10 @@ export default function Cementerio() {
     [almacenes, sedes],
   );
   const departamentoOptions = almacenOptions;
-  const inventarioView = resolveInventarioView(filtros.inventario, canViewRetirados);
+  const inventarioView = resolveInventarioView(
+    filtros.inventario,
+    canViewRetirados,
+  );
 
   // Filtrar bienes
   const filteredBienes = useMemo(() => {
@@ -396,60 +451,6 @@ export default function Cementerio() {
     setModuleFilter(key, value);
     setPage(1);
   };
-
-  // Columnas de la tabla
-  const columns: Column<BienMueble>[] = [
-    {
-      key: "codigoInterno",
-      label: "Código",
-      render: (b) => (
-        <span className="font-mono font-bold text-navy-900">
-          {b.codigoInterno}
-        </span>
-      ),
-    },
-    {
-      key: "descripcion",
-      label: "Descripción",
-      render: (b) => (
-        <span className="max-w-[220px] truncate block">{b.descripcion}</span>
-      ),
-    },
-    {
-      key: "marca",
-      label: "Marca",
-      render: (b) => <span>{b.marca || "—"}</span>,
-    },
-    {
-      key: "modelo",
-      label: "Modelo",
-      render: (b) => <span>{b.modelo || "—"}</span>,
-    },
-    {
-      key: "color",
-      label: "Color",
-      render: (b) => <span>{b.color || "—"}</span>,
-    },
-    {
-      key: "serial",
-      label: "Serial",
-      render: (b) => (
-        <span className="font-mono text-sm">{b.serial || "—"}</span>
-      ),
-    },
-    {
-      key: "fechaAdquisicion",
-      label: "Fecha",
-      render: (b) => <span>{formatFecha(b.fechaAdquisicion)}</span>,
-    },
-    { key: "sede", label: "Sede" },
-    { key: "ubicacion", label: "Almacén" },
-    {
-      key: "estadoUso",
-      label: "Estado de uso",
-      render: (b) => <StatusBadge status={b.estadoUso} size="sm" />,
-    },
-  ];
 
   if (id) {
     return (
@@ -507,20 +508,9 @@ export default function Cementerio() {
       {/* Resumen de inventario */}
       <section
         aria-label="Métricas del cementerio"
-        className="rounded-xl border-2 border-navy-100 bg-linear-to-br from-slate-50 via-white to-slate-50 p-4 sm:p-5 shadow-sm"
       >
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
-          <h2 className="text-base font-bold text-navy-900">Métricas</h2>
-          {!bienesQuery.loading && (
-            <p className="text-xs text-gray-500">
-              {filteredBienes.length === metricas.total
-                ? `${metricas.total} bienes en sede Cementerio`
-                : `${filteredBienes.length} de ${metricas.total} bienes (filtros activos)`}
-            </p>
-          )}
-        </div>
-
-        {bienesQuery.loading && !bienesQuery.data ? (
+        {/* Loader */}
+        {metricsLoading ? (
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {Array.from({ length: 4 }).map((_, index) => (
               <div
@@ -530,6 +520,7 @@ export default function Cementerio() {
             ))}
           </div>
         ) : (
+          /* Content */
           <>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               <CementerioMetricCard
@@ -563,7 +554,7 @@ export default function Cementerio() {
                 valueClassName="text-red-700"
               />
             </div>
-            {metricas.total === 0 && !bienesQuery.loading && (
+            {metricas.total === 0 && !metricsLoading && (
               <p className="mt-4 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
                 No hay bienes registrados en la sede Cementerio.
               </p>
@@ -616,7 +607,7 @@ export default function Cementerio() {
           },
           {
             key: "fecha",
-            label: "Fecha",
+            label: "Fecha de adquisición",
             type: "date",
             value: filtros.fecha,
             onChange: (v) => setFiltro("fecha", v),
@@ -651,7 +642,13 @@ export default function Cementerio() {
             className: "sm:col-span-2 lg:col-span-1",
           },
         ]}
-      ></ModuleFilterBar>
+      >
+        <p className="text-sm text-gray-500 tabular-nums" aria-live="polite">
+          {filteredBienes.length === bienes.length
+            ? `${bienes.length} registro${bienes.length === 1 ? "" : "s"} en esta página`
+            : `${filteredBienes.length} de ${bienes.length} en esta página`}
+        </p>
+      </ModuleFilterBar>
 
       <ApiState
         loading={bienesQuery.loading && !bienesQuery.data}
@@ -662,7 +659,7 @@ export default function Cementerio() {
       >
         <ModuleDataTable
           data={paginatedBienes}
-          columns={columns}
+          columns={CEMENTERIO_COLUMNS}
           loading={bienesQuery.loading && Boolean(bienesQuery.data)}
           onDetails={(b) =>
             navigate(`/cementerio/${encodeURIComponent(b.codigoInterno)}`)
@@ -685,7 +682,11 @@ export default function Cementerio() {
               <option value={200}>200</option>
             </select>
           </div>
-          <ModulePagination page={page} totalPages={totalPages} onPageChange={setPage} />
+          <ModulePagination
+            page={page}
+            totalPages={totalPages}
+            onPageChange={setPage}
+          />
         </div>
       </ApiState>
 

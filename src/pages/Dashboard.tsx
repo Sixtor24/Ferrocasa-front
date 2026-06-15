@@ -32,7 +32,6 @@ import {
   Map,
   FileText,
   Shield,
-  Clock,
   ChevronRight,
   Boxes,
   LandPlot,
@@ -96,8 +95,11 @@ function capitalizar(texto: string): string {
 
 export default function Dashboard() {
   const { user } = useAuth();
-  const { canAccessModule, canAccessAuditoria, canViewMovimientosPatrimoniales } =
-    useRolePermissions();
+  const {
+    canAccessModule,
+    canAccessAuditoria,
+    canViewMovimientosPatrimoniales,
+  } = useRolePermissions();
   const navigate = useNavigate();
   const currentYear = new Date().getFullYear();
   const [periodo, setPeriodo] = useState<PeriodoMovimiento>("semanal");
@@ -142,8 +144,8 @@ export default function Dashboard() {
   const graficosQuery = useApiQuery(
     () => fetchDashboardGraficos(year),
     [year],
-    canViewMovimientosPatrimoniales
-      && (periodo === "anual" || !canAccessAuditoria),
+    canViewMovimientosPatrimoniales &&
+      (periodo === "anual" || !canAccessAuditoria),
     { key: `dashboard-graficos-${year}` },
   );
 
@@ -165,10 +167,10 @@ export default function Dashboard() {
         movimientosSpec!.hasta,
       ),
     [movimientosSpec?.desde, movimientosSpec?.hasta],
-    canViewMovimientosPatrimoniales
-      && canAccessAuditoria
-      && periodo !== "anual"
-      && movimientosSpec !== null,
+    canViewMovimientosPatrimoniales &&
+      canAccessAuditoria &&
+      periodo !== "anual" &&
+      movimientosSpec !== null,
     {
       key: movimientosSpec
         ? `dashboard-auditoria-${periodo}-${movimientosSpec.desde}-${movimientosSpec.hasta}`
@@ -428,7 +430,7 @@ export default function Dashboard() {
         </div>
       </header>
 
-      <section
+      {/* <section
         aria-label="Resumen del inventario"
         className="grid grid-cols-2 gap-4 lg:grid-cols-4"
       >
@@ -464,7 +466,7 @@ export default function Dashboard() {
           loading={loadingKpis}
           onClick={() => navigate("/vehiculos")}
         />
-      </section>
+      </section> */}
 
       <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <EstadoPanel
@@ -516,167 +518,167 @@ export default function Dashboard() {
         }`}
       >
         {canViewMovimientosPatrimoniales && (
-        <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-200 p-4 sm:p-6 min-w-0 overflow-hidden">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-4">
-            <div>
-              <h2 className="text-lg font-semibold text-navy-900">
-                Movimientos Patrimoniales
-              </h2>
-              <p className="text-sm text-gray-500">
-                Altas y bajas de activos — {periodoDescripcion}
-              </p>
+          <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-200 p-4 sm:p-6 min-w-0 overflow-hidden">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-4">
+              <div>
+                <h2 className="text-lg font-semibold text-navy-900">
+                  Movimientos Patrimoniales
+                </h2>
+                <p className="text-sm text-gray-500">
+                  Altas y bajas de activos — {periodoDescripcion}
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                <SearchableSelect
+                  value={periodo}
+                  onChange={(value) => setPeriodo(value as PeriodoMovimiento)}
+                  options={periodos.map((p) => ({
+                    value: p.key,
+                    label: p.label,
+                  }))}
+                  className="w-36"
+                />
+                <SearchableSelect
+                  value={String(year)}
+                  onChange={(value) => setYear(Number(value))}
+                  options={yearOptions.map(String)}
+                  className="w-28"
+                />
+                {periodo === "mensual" && (
+                  <>
+                    <SearchableSelect
+                      value={String(mes)}
+                      onChange={(value) => setMes(Number(value))}
+                      options={MESES_CALENDARIO.map((nombre, index) => ({
+                        value: String(index),
+                        label: `${nombre}${index === 1 && febreroEnBisiesto(year, index) ? " (29 días)" : ""}`,
+                      }))}
+                      className="w-44"
+                      aria-label="Mes"
+                    />
+                    <SearchableSelect
+                      value={String(semanaMes)}
+                      onChange={(value) => setSemanaMes(Number(value))}
+                      options={semanasDelMes.map((semana) => ({
+                        value: String(semana.index),
+                        label: semana.label,
+                      }))}
+                      className="w-44"
+                      aria-label="Semana del mes"
+                    />
+                  </>
+                )}
+              </div>
             </div>
-            <div className="flex flex-wrap items-center justify-end gap-2">
-              <SearchableSelect
-                value={periodo}
-                onChange={(value) => setPeriodo(value as PeriodoMovimiento)}
-                options={periodos.map((p) => ({
-                  value: p.key,
-                  label: p.label,
-                }))}
-                className="w-36"
-              />
-              <SearchableSelect
-                value={String(year)}
-                onChange={(value) => setYear(Number(value))}
-                options={yearOptions.map(String)}
-                className="w-28"
-              />
-              {periodo === "mensual" && (
-                <>
-                  <SearchableSelect
-                    value={String(mes)}
-                    onChange={(value) => setMes(Number(value))}
-                    options={MESES_CALENDARIO.map((nombre, index) => ({
-                      value: String(index),
-                      label: `${nombre}${index === 1 && febreroEnBisiesto(year, index) ? " (29 días)" : ""}`,
-                    }))}
-                    className="w-44"
-                    aria-label="Mes"
-                  />
-                  <SearchableSelect
-                    value={String(semanaMes)}
-                    onChange={(value) => setSemanaMes(Number(value))}
-                    options={semanasDelMes.map((semana) => ({
-                      value: String(semana.index),
-                      label: semana.label,
-                    }))}
-                    className="w-44"
-                    aria-label="Semana del mes"
-                  />
-                </>
+            <div className="h-[250px] w-full min-w-0 relative overflow-hidden">
+              {chartLoading ? (
+                <div
+                  className="absolute inset-0 flex flex-col justify-end gap-2 px-2 pb-6"
+                  aria-hidden
+                >
+                  {[60, 40, 80, 55, 70, 30, 45].map((h, i) => (
+                    <div key={i} className="flex items-end gap-2">
+                      <div
+                        className="w-full animate-pulse rounded-md bg-gray-100"
+                        style={{ height: `${h}px` }}
+                      />
+                    </div>
+                  ))}
+                </div>
+              ) : chartData.length === 0 ? (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-center">
+                  <p className="text-sm font-medium text-gray-500">
+                    Sin movimientos en este periodo
+                  </p>
+                  <p className="text-xs text-gray-400">
+                    Prueba con otro rango de fechas
+                  </p>
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height={250}>
+                  <BarChart
+                    data={chartData}
+                    margin={{ top: 24, right: 8, left: 0, bottom: 0 }}
+                  >
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      vertical={false}
+                      stroke="#e5e7eb"
+                    />
+                    <XAxis
+                      dataKey="periodo"
+                      axisLine={false}
+                      tickLine={false}
+                      interval={0}
+                      tick={{ fontSize: 11, fill: "#64748b" }}
+                    />
+                    <YAxis
+                      axisLine={false}
+                      tickLine={false}
+                      allowDecimals={false}
+                      width={32}
+                      tick={{ fontSize: 11, fill: "#94a3b8" }}
+                    />
+                    <Tooltip
+                      cursor={{ fill: "rgba(16, 42, 67, 0.06)" }}
+                      wrapperStyle={{
+                        zIndex: 20,
+                        maxWidth: 240,
+                        outline: "none",
+                      }}
+                      contentStyle={{
+                        borderRadius: 12,
+                        border: "1px solid #e5e7eb",
+                        boxShadow: "0 8px 24px rgba(16,42,67,0.08)",
+                        fontSize: 12,
+                      }}
+                      formatter={(value, name) => [
+                        `${value ?? 0}`,
+                        String(name ?? ""),
+                      ]}
+                      labelFormatter={(_label, payload) => {
+                        const detalle = payload?.[0]?.payload?.detalle;
+                        return detalle
+                          ? `${_label} · ${detalle}`
+                          : String(_label);
+                      }}
+                    />
+                    <Bar
+                      dataKey="altas"
+                      fill="#102a43"
+                      radius={[6, 6, 0, 0]}
+                      maxBarSize={48}
+                      name={periodo === "anual" ? "Protocolos" : "Cambios"}
+                    >
+                      <LabelList
+                        dataKey="altas"
+                        position="top"
+                        className="text-[10px] fill-navy-700"
+                      />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
               )}
             </div>
-          </div>
-          <div className="h-[250px] w-full min-w-0 relative overflow-hidden">
-            {chartLoading ? (
-              <div
-                className="absolute inset-0 flex flex-col justify-end gap-2 px-2 pb-6"
-                aria-hidden
-              >
-                {[60, 40, 80, 55, 70, 30, 45].map((h, i) => (
-                  <div key={i} className="flex items-end gap-2">
-                    <div
-                      className="w-full animate-pulse rounded-md bg-gray-100"
-                      style={{ height: `${h}px` }}
-                    />
-                  </div>
-                ))}
-              </div>
-            ) : chartData.length === 0 ? (
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-center">
-                <p className="text-sm font-medium text-gray-500">
-                  Sin movimientos en este periodo
+            <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
+              <div className="rounded-xl bg-navy-50 px-3 py-2.5">
+                <p className="text-gray-500">
+                  {periodo === "anual"
+                    ? "Protocolos del año"
+                    : "Cambios del periodo"}
                 </p>
-                <p className="text-xs text-gray-400">
-                  Prueba con otro rango de fechas
+                <p className="text-lg font-bold text-navy-900 tabular-nums">
+                  {movimientoTotales.cambios}
                 </p>
               </div>
-            ) : (
-              <ResponsiveContainer width="100%" height={250}>
-                <BarChart
-                  data={chartData}
-                  margin={{ top: 24, right: 8, left: 0, bottom: 0 }}
-                >
-                  <CartesianGrid
-                    strokeDasharray="3 3"
-                    vertical={false}
-                    stroke="#e5e7eb"
-                  />
-                  <XAxis
-                    dataKey="periodo"
-                    axisLine={false}
-                    tickLine={false}
-                    interval={0}
-                    tick={{ fontSize: 11, fill: "#64748b" }}
-                  />
-                  <YAxis
-                    axisLine={false}
-                    tickLine={false}
-                    allowDecimals={false}
-                    width={32}
-                    tick={{ fontSize: 11, fill: "#94a3b8" }}
-                  />
-                  <Tooltip
-                    cursor={{ fill: "rgba(16, 42, 67, 0.06)" }}
-                    wrapperStyle={{
-                      zIndex: 20,
-                      maxWidth: 240,
-                      outline: "none",
-                    }}
-                    contentStyle={{
-                      borderRadius: 12,
-                      border: "1px solid #e5e7eb",
-                      boxShadow: "0 8px 24px rgba(16,42,67,0.08)",
-                      fontSize: 12,
-                    }}
-                    formatter={(value, name) => [
-                      `${value ?? 0}`,
-                      String(name ?? ""),
-                    ]}
-                    labelFormatter={(_label, payload) => {
-                      const detalle = payload?.[0]?.payload?.detalle;
-                      return detalle
-                        ? `${_label} · ${detalle}`
-                        : String(_label);
-                    }}
-                  />
-                  <Bar
-                    dataKey="altas"
-                    fill="#102a43"
-                    radius={[6, 6, 0, 0]}
-                    maxBarSize={48}
-                    name={periodo === "anual" ? "Protocolos" : "Cambios"}
-                  >
-                    <LabelList
-                      dataKey="altas"
-                      position="top"
-                      className="text-[10px] fill-navy-700"
-                    />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-          </div>
-          <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
-            <div className="rounded-xl bg-navy-50 px-3 py-2.5">
-              <p className="text-gray-500">
-                {periodo === "anual"
-                  ? "Protocolos del año"
-                  : "Cambios del periodo"}
-              </p>
-              <p className="text-lg font-bold text-navy-900 tabular-nums">
-                {movimientoTotales.cambios}
-              </p>
-            </div>
-            <div className="rounded-xl bg-gray-50 px-3 py-2.5">
-              <p className="text-gray-500">Días con actividad</p>
-              <p className="text-lg font-bold text-gray-700 tabular-nums">
-                {movimientoTotales.diasActivos}
-              </p>
+              <div className="rounded-xl bg-gray-50 px-3 py-2.5">
+                <p className="text-gray-500">Días con actividad</p>
+                <p className="text-lg font-bold text-gray-700 tabular-nums">
+                  {movimientoTotales.diasActivos}
+                </p>
+              </div>
             </div>
           </div>
-        </div>
         )}
 
         <div
@@ -821,7 +823,7 @@ export default function Dashboard() {
       </section>
 
       {/* Distribución de Activos */}
-      <section className="grid grid-cols-1 gap-4 lg:grid-cols-full">
+      <section aria-label="Distribución de activos">
         <div className="bg-white rounded-2xl border border-gray-200 p-6">
           <h2 className="text-lg font-semibold text-navy-900 mb-4">
             Distribución de Activos
@@ -851,7 +853,6 @@ export default function Dashboard() {
             ))}
           </div>
         </div>
-
       </section>
     </div>
   );
