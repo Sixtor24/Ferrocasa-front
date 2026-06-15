@@ -231,6 +231,10 @@ export function validateApiPayload(path: string, method: string, body: unknown) 
     const source = (body ?? {}) as Record<string, unknown>;
     const normalized = {
       ...source,
+      id_terreno:
+        source.id_terreno != null && source.id_terreno !== ''
+          ? String(source.id_terreno).trim()
+          : source.id_terreno,
       id_documento_propiedad:
         source.id_documento_propiedad != null && source.id_documento_propiedad !== ''
           ? String(source.id_documento_propiedad)
@@ -240,7 +244,17 @@ export function validateApiPayload(path: string, method: string, body: unknown) 
   }
   if (method === 'POST' && p === '/propiedades') return parseWithSchema(payloadSchemas.propiedad, body);
   if (method === 'PUT' && p.startsWith('/propiedades/')) return parseWithSchema(payloadSchemas.updatePropiedad, body);
-  if ((method === 'POST' || method === 'PUT') && p.startsWith('/documentos-propiedad')) return parseWithSchema(payloadSchemas.documentoPropiedad, body);
+  if ((method === 'POST' || method === 'PUT') && p.startsWith('/documentos-propiedad')) {
+    const source = (body ?? {}) as Record<string, unknown>;
+    const normalized = {
+      ...source,
+      id_documento_propiedad:
+        source.id_documento_propiedad != null && source.id_documento_propiedad !== ''
+          ? String(source.id_documento_propiedad).trim()
+          : source.id_documento_propiedad,
+    };
+    return parseWithSchema(payloadSchemas.documentoPropiedad, normalized);
+  }
   if ((method === 'POST' || method === 'PUT') && p.startsWith('/protocolos')) return parseWithSchema(payloadSchemas.protocolo, body);
   if ((method === 'POST' || method === 'PUT') && p.startsWith('/desincorporaciones')) return parseWithSchema(payloadSchemas.desincorporacion, body);
   if ((method === 'POST' || method === 'PUT') && p.startsWith('/compromisos')) return parseWithSchema(payloadSchemas.compromiso, body);

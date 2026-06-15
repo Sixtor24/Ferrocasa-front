@@ -6,7 +6,10 @@ export const documentoParcelaFormSchema = z.object({
     .trim()
     .min(1, 'Indique el nro de documento')
     .max(20, 'El nro de documento no puede superar 20 caracteres'),
-  numeroPropiedad: z.number().int().min(0, 'Indique el nro de propiedad'),
+  numeroPropiedad: z
+    .number({ error: 'Indique el nro de propiedad' })
+    .int('Indique un nro de propiedad válido')
+    .positive('Indique el nro de propiedad'),
   nombrePropiedad: z.string().trim().min(1, 'Indique el nombre de la propiedad'),
   ubicacionPropiedad: z.string().trim().min(1, 'Indique la ubicación'),
   fechaAdquisicion: z.string().min(1, 'Indique la fecha de adquisición'),
@@ -25,7 +28,10 @@ export const parcelaRegistroFormSchema = z.object({
   ubicacionAdicional: z.string().trim().min(1, 'Indique la ubicación adicional'),
   areaTotalM2: z.coerce.number().positive('Indique el área total'),
   valorAdquisicion: z.coerce.number().min(0, 'El valor no puede ser negativo'),
-  ciResponsable: z.string(),
+  ciResponsable: z
+    .string()
+    .trim()
+    .min(1, 'Configure el responsable del almacén Terrenos en Configuración'),
   observaciones: z.string().optional().default(''),
   acreditacionTecnicaAmbiental: z.enum(['Sí', 'No', 'En trámite']),
   levantamientoTopografico: z.enum(['Sí', 'No', 'En trámite']),

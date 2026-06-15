@@ -1,5 +1,5 @@
 export interface Terreno {
-  id: number;
+  id: number | string;
   codigo: string;
   identificacion: string;
   ubicacion: string;
@@ -32,7 +32,7 @@ export interface Terreno {
 
 export interface ProtocolizacionTerreno {
   id: number;
-  terrenoId: number;
+  terrenoId: number | string;
   tipoProtocolizacion: string;
   motivo: string;
   beneficiario: string;

@@ -56,8 +56,14 @@ export async function fetchDocumentosPropiedad(query: DocumentosPropiedadQuery =
   return mapDocumentosPropiedadList(res);
 }
 
+function documentoPropiedadIdPath(id: number | string): string {
+  return encodeURIComponent(String(id));
+}
+
 export async function fetchDocumentoPropiedadById(id: number | string) {
-  const res = await apiRequest<ApiItemResponse<ApiDocumentoPropiedad>>(`/documentos-propiedad/${id}`);
+  const res = await apiRequest<ApiItemResponse<ApiDocumentoPropiedad>>(
+    `/documentos-propiedad/${documentoPropiedadIdPath(id)}`,
+  );
   if (!res.data) throw new Error('Respuesta vacía del API');
 
   return res.data;

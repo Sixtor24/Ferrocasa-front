@@ -96,8 +96,10 @@ function parcelaPayloadFromApi(
   raw: ApiParcela,
   overrides: Partial<Pick<ParcelaPayload, 'id_comprometida' | 'id_desincorporada'>> = {},
 ): ParcelaPayload {
+  const idTerreno = raw.codigo?.trim() || entityIdAsString(raw.id_terreno);
   return {
-    nombre: raw.nombre ?? `Parcela ${raw.id_terreno}`,
+    id_terreno: idTerreno,
+    nombre: raw.nombre ?? `Parcela ${idTerreno}`,
     zona: raw.zona ?? 'Sin zona',
     id_documento_propiedad: entityIdAsString(raw.id_documento_propiedad),
     id_desincorporada: overrides.id_desincorporada
@@ -532,7 +534,7 @@ export default function Terrenos() {
   }, [filtros.buscar, filtros.identificacion, filtros.zonificacion]);
 
   const detailQuery = useApiQuery(
-    () => fetchParcelaById(Number(id)),
+    () => fetchParcelaById(id!),
     [id],
     Boolean(id),
   );
@@ -721,7 +723,7 @@ export default function Terrenos() {
           data={paginated}
           columns={columns}
           loading={listQuery.loading && Boolean(listQuery.data)}
-          onDetails={(t) => navigate(`/terrenos/${t.id}`)}
+          onDetails={(t) => navigate(`/terrenos/${encodeURIComponent(String(t.id))}`)}
         />
 
 {/* Paginación */}

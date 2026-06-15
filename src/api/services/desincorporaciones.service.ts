@@ -55,9 +55,9 @@ export async function fetchDesincorporacionesByProtocolo(protocoloId: number) {
   return res.data ?? [];
 }
 
-export async function fetchDesincorporacionesByParcela(parcelaId: number) {
+export async function fetchDesincorporacionesByParcela(parcelaId: number | string) {
   const res = await apiRequest<ApiItemResponse<ApiDesincorporacionTerreno[]> | ApiListResponse<ApiDesincorporacionTerreno>>(
-    `/desincorporaciones/parcela/${parcelaId}`
+    `/desincorporaciones/parcela/${encodeURIComponent(String(parcelaId))}`
   );
 
   return res.data ?? [];

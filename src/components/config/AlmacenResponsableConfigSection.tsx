@@ -3,21 +3,32 @@ import { Pencil, Warehouse } from 'lucide-react';
 import { toast } from 'sonner';
 import { fetchAlmacenesAll } from '../../api/services/almacenes.service';
 import { fetchAllDepartamentos } from '../../api/services/departamentos.service';
+import { fetchSedes } from '../../api/services/sedes.service';
+import { API_MAX_LIMIT } from '../../api/pagination';
+import { ALMACEN_TERRENOS_NOMBRE } from '../../constants/almacenes';
 import { useApiQuery } from '../../hooks/useApiQuery';
 import SearchableSelect from '../forms/SearchableSelect';
 import type { ApiAlmacen } from '../../api/types';
+import { findAlmacenByNombre } from '../../utils/registroBienMappers';
 import {
   almacenResponsableLabel,
+  createAlmacenResponsableConfig,
   saveAlmacenResponsableConfig,
 } from '../../utils/almacenResponsableConfig';
 
+type ConfigMode = 'existing' | 'new';
+
 type AlmacenResponsableForm = {
+  nombreAlmacen: string;
+  idSede: string;
   nombreResponsable: string;
   ciResponsable: string;
   departamentoNombre: string;
 };
 
 const emptyForm: AlmacenResponsableForm = {
+  nombreAlmacen: '',
+  idSede: '',
   nombreResponsable: '',
   ciResponsable: '',
   departamentoNombre: '',
@@ -26,6 +37,8 @@ const emptyForm: AlmacenResponsableForm = {
 /** Carga datos ya guardados en el API (solo al editar desde la tabla). */
 function formFromAlmacenConfig(almacen: ApiAlmacen): AlmacenResponsableForm {
   return {
+    nombreAlmacen: almacen.nombre,
+    idSede: String(almacen.id_sede ?? almacen.sede?.id_sede ?? ''),
     nombreResponsable: almacen.responsable?.nombre ?? '',
     ciResponsable: almacen.ci_responsable ?? almacen.responsable?.ci_responsable ?? '',
     departamentoNombre:
@@ -38,6 +51,13 @@ function formFromAlmacenConfig(almacen: ApiAlmacen): AlmacenResponsableForm {
 /** Al elegir un almacén en el selector: formulario vacío para registrar manualmente. */
 function formForNewAlmacenSelection(): AlmacenResponsableForm {
   return emptyForm;
+}
+
+function formForNewTerrenosAlmacen(): AlmacenResponsableForm {
+  return {
+    ...emptyForm,
+    nombreAlmacen: ALMACEN_TERRENOS_NOMBRE,
+  };
 }
 
 function almacenTieneResponsableConfigurado(almacen: ApiAlmacen): boolean {
@@ -55,15 +75,31 @@ export default function AlmacenResponsableConfigSection({
   onError: (message: string) => void;
 }) {
   const [selectedAlmacenId, setSelectedAlmacenId] = useState('');
+  const [mode, setMode] = useState<ConfigMode>('existing');
   const [form, setForm] = useState<AlmacenResponsableForm>(emptyForm);
   const [editingExisting, setEditingExisting] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const almacenesQuery = useApiQuery(() => fetchAlmacenesAll(), []);
   const departamentosQuery = useApiQuery(() => fetchAllDepartamentos(), []);
+  const sedesQuery = useApiQuery(
+    () => fetchSedes({ page: 1, limit: API_MAX_LIMIT }),
+    [],
+  );
 
   const almacenes = almacenesQuery.data?.data ?? [];
   const departamentos = departamentosQuery.data ?? [];
+  const sedes = sedesQuery.data?.data ?? [];
+
+  const terrenosAlmacen = useMemo(
+    () => findAlmacenByNombre(ALMACEN_TERRENOS_NOMBRE, almacenes),
+    [almacenes],
+  );
+
+  const sedeOptions = useMemo(
+    () => sedes.map((sede) => ({ value: String(sede.id_sede), label: sede.nombre })),
+    [sedes],
+  );
 
   const almacenOptions = useMemo(
     () =>
@@ -83,58 +119,94 @@ export default function AlmacenResponsableConfigSection({
 
   const handleAlmacenChange = (id: string) => {
     setSelectedAlmacenId(id);
+    setMode('existing');
     setEditingExisting(false);
     setForm(formForNewAlmacenSelection());
   };
 
   const handleEditAlmacen = (almacen: ApiAlmacen) => {
+    setMode('existing');
     setSelectedAlmacenId(String(almacen.id_almacen));
     setEditingExisting(true);
     setForm(formFromAlmacenConfig(almacen));
   };
 
+  const handleStartNewAlmacen = (presetTerrenos = false) => {
+    setMode('new');
+    setSelectedAlmacenId('');
+    setEditingExisting(false);
+    setForm(presetTerrenos ? formForNewTerrenosAlmacen() : emptyForm);
+  };
+
   const handleClearForm = () => {
     setSelectedAlmacenId('');
+    setMode('existing');
     setEditingExisting(false);
     setForm(emptyForm);
   };
 
   const handleSave = async (e: FormEvent) => {
     e.preventDefault();
-    if (!selectedAlmacen) {
-      const message = 'Seleccione un almacén';
-      toast.error('No se pudo guardar', { description: message });
-      onError(message);
-      return;
-    }
 
     const wasEditing = editingExisting;
     setSaving(true);
     try {
-      await saveAlmacenResponsableConfig(
-        {
-          almacen: selectedAlmacen,
-          nombreResponsable: form.nombreResponsable,
-          ciResponsable: form.ciResponsable,
-          departamentoNombre: form.departamentoNombre,
-        },
-        departamentos,
-      );
-      const successMessage = wasEditing
-        ? `Responsable actualizado en ${selectedAlmacen.nombre}`
-        : `Responsable creado y asignado a ${selectedAlmacen.nombre}`;
-      toast.success(wasEditing ? 'Responsable actualizado' : 'Responsable creado y asignado', {
-        description: successMessage,
-      });
-      onSuccess(successMessage);
-      setEditingExisting(true);
+      if (mode === 'new') {
+        const idSede = Number(form.idSede);
+        if (!Number.isInteger(idSede) || idSede <= 0) {
+          throw new Error('Seleccione una sede válida');
+        }
+
+        const created = await createAlmacenResponsableConfig(
+          {
+            nombreAlmacen: form.nombreAlmacen,
+            idSede,
+            nombreResponsable: form.nombreResponsable,
+            ciResponsable: form.ciResponsable,
+            departamentoNombre: form.departamentoNombre,
+          },
+          departamentos,
+        );
+        const successMessage = `Almacén ${created.nombre} creado con responsable asignado`;
+        toast.success('Almacén creado', { description: successMessage });
+        onSuccess(successMessage);
+        setMode('existing');
+        setSelectedAlmacenId(String(created.id_almacen));
+        setEditingExisting(true);
+        setForm(formFromAlmacenConfig(created));
+      } else {
+        if (!selectedAlmacen) {
+          throw new Error('Seleccione un almacén');
+        }
+
+        await saveAlmacenResponsableConfig(
+          {
+            almacen: selectedAlmacen,
+            nombreResponsable: form.nombreResponsable,
+            ciResponsable: form.ciResponsable,
+            departamentoNombre: form.departamentoNombre,
+          },
+          departamentos,
+        );
+        const successMessage = wasEditing
+          ? `Responsable actualizado en ${selectedAlmacen.nombre}`
+          : `Responsable creado y asignado a ${selectedAlmacen.nombre}`;
+        toast.success(wasEditing ? 'Responsable actualizado' : 'Responsable creado y asignado', {
+          description: successMessage,
+        });
+        onSuccess(successMessage);
+        setEditingExisting(true);
+      }
+
       await almacenesQuery.refetch();
       await departamentosQuery.refetch();
     } catch (err) {
       const message = err instanceof Error ? err.message : 'No se pudo guardar la configuración';
-      toast.error(wasEditing ? 'No se pudo actualizar el responsable' : 'No se pudo crear el responsable', {
-        description: message,
-      });
+      const isNew = mode === 'new';
+      toast.error(
+        isNew ? 'No se pudo crear el almacén' : wasEditing ? 'No se pudo actualizar el responsable' : 'No se pudo crear el responsable',
+        { description: message },
+      );
       onError(message);
     } finally {
       setSaving(false);
@@ -155,52 +227,124 @@ export default function AlmacenResponsableConfigSection({
         <div className="min-w-0">
           <h2 className="text-base font-bold text-navy-900">Almacenes y responsables</h2>
           <p className="text-sm text-gray-500">
-            Los almacenes vienen del API. El responsable se crea o actualiza aquí al guardar; luego los
-            registros de bienes, cementerio y vehículos lo cargarán automáticamente.
+            Cree almacenes (p. ej. «Terrenos») y asigne su responsable. Los registros de bienes,
+            cementerio, vehículos y parcelas tomarán ese responsable automáticamente.
           </p>
         </div>
       </div>
 
       <div className="p-5 space-y-5">
+        {!terrenosAlmacen && !almacenesQuery.loading && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <p className="text-sm text-amber-900">
+              No existe el almacén <strong>{ALMACEN_TERRENOS_NOMBRE}</strong>. Créelo y asigne un
+              responsable para registrar parcelas con responsable automático.
+            </p>
+            <button
+              type="button"
+              onClick={() => handleStartNewAlmacen(true)}
+              className="shrink-0 px-4 py-2 bg-amber-800 text-white rounded-lg text-sm font-semibold hover:bg-amber-900"
+            >
+              Crear almacén Terrenos
+            </button>
+          </div>
+        )}
+
         <form
           onSubmit={handleSave}
           className="rounded-xl border border-gray-200 bg-gradient-to-b from-gray-50/80 to-white p-5 space-y-4"
         >
           <div>
             <p className="text-sm font-bold text-navy-900">
-              {editingExisting ? 'Editar responsable asignado' : 'Registrar nuevo responsable'}
+              {mode === 'new'
+                ? 'Registrar nuevo almacén'
+                : editingExisting
+                  ? 'Editar responsable asignado'
+                  : 'Registrar nuevo responsable'}
             </p>
             <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">
-              {editingExisting
-                ? 'Modifique los datos y guarde. El responsable se actualiza en el API.'
-                : 'Elija un almacén y complete nombre, cédula y departamento. No se precargan datos del sistema hasta que edite una fila de la tabla.'}
+              {mode === 'new'
+                ? 'Indique sede, nombre del almacén y datos del responsable. Se creará en el API al guardar.'
+                : editingExisting
+                  ? 'Modifique los datos y guarde. El responsable se actualiza en el API.'
+                  : 'Elija un almacén existente y complete nombre, cédula y departamento.'}
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <ConfigField
-              label="Almacén"
-              hint="Todas las sedes: administrativa, externa y cementerio"
-              required
-              className="md:col-span-2"
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setMode('existing');
+                if (!selectedAlmacenId) setForm(emptyForm);
+              }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold border ${
+                mode === 'existing'
+                  ? 'bg-navy-900 text-white border-navy-900'
+                  : 'bg-white text-gray-700 border-gray-200 hover:border-gray-300'
+              }`}
             >
-              <SearchableSelect
-                value={selectedAlmacenId}
-                onChange={handleAlmacenChange}
-                options={almacenOptions}
-                placeholder={almacenesQuery.loading ? 'Cargando almacenes…' : 'Seleccionar almacén…'}
-                searchPlaceholder="Buscar por sede o nombre…"
-                disabled={almacenesQuery.loading || almacenOptions.length === 0}
-                minSearchLength={1}
-              />
-            </ConfigField>
+              Almacén existente
+            </button>
+            <button
+              type="button"
+              onClick={() => handleStartNewAlmacen()}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold border ${
+                mode === 'new'
+                  ? 'bg-navy-900 text-white border-navy-900'
+                  : 'bg-white text-gray-700 border-gray-200 hover:border-gray-300'
+              }`}
+            >
+              Nuevo almacén
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {mode === 'new' ? (
+              <>
+                <TextField
+                  label="Nombre del almacén"
+                  hint="Ej. Terrenos, Galpón 6"
+                  value={form.nombreAlmacen}
+                  onChange={(value) => setForm((prev) => ({ ...prev, nombreAlmacen: value }))}
+                  placeholder={ALMACEN_TERRENOS_NOMBRE}
+                />
+                <ConfigField label="Sede" hint="Sede a la que pertenece el almacén" required>
+                  <SearchableSelect
+                    value={form.idSede}
+                    onChange={(value) => setForm((prev) => ({ ...prev, idSede: value }))}
+                    options={sedeOptions}
+                    placeholder={sedesQuery.loading ? 'Cargando sedes…' : 'Seleccionar sede…'}
+                    searchPlaceholder="Buscar sede…"
+                    disabled={sedesQuery.loading || sedeOptions.length === 0}
+                  />
+                </ConfigField>
+              </>
+            ) : (
+              <ConfigField
+                label="Almacén"
+                hint="Todas las sedes: administrativa, externa, cementerio y terrenos"
+                required
+                className="md:col-span-2"
+              >
+                <SearchableSelect
+                  value={selectedAlmacenId}
+                  onChange={handleAlmacenChange}
+                  options={almacenOptions}
+                  placeholder={almacenesQuery.loading ? 'Cargando almacenes…' : 'Seleccionar almacén…'}
+                  searchPlaceholder="Buscar por sede o nombre…"
+                  disabled={almacenesQuery.loading || almacenOptions.length === 0}
+                  minSearchLength={1}
+                />
+              </ConfigField>
+            )}
 
             <TextField
               label="Nombre del responsable"
               hint="Persona encargada del almacén seleccionado"
               value={form.nombreResponsable}
               onChange={(value) => setForm((prev) => ({ ...prev, nombreResponsable: value }))}
-              disabled={!selectedAlmacen}
+              disabled={mode === 'existing' && !selectedAlmacen}
               placeholder="Ej. Ingeniero Pedrito Navaja"
             />
             <TextField
@@ -208,7 +352,7 @@ export default function AlmacenResponsableConfigSection({
               hint="6 a 12 dígitos; puede usar V- o E-. Al guardar se envía solo el número al API"
               value={form.ciResponsable}
               onChange={(value) => setForm((prev) => ({ ...prev, ciResponsable: value }))}
-              disabled={!selectedAlmacen}
+              disabled={mode === 'existing' && !selectedAlmacen}
               placeholder="Ej. V-31881820 o solo dígitos"
             />
             <TextField
@@ -216,14 +360,14 @@ export default function AlmacenResponsableConfigSection({
               hint="Área de la sede a la que pertenece el responsable"
               value={form.departamentoNombre}
               onChange={(value) => setForm((prev) => ({ ...prev, departamentoNombre: value }))}
-              disabled={!selectedAlmacen}
+              disabled={mode === 'existing' && !selectedAlmacen}
               className="md:col-span-2"
               placeholder="Ej. Recursos Humanos"
             />
           </div>
 
           <div className="flex flex-wrap justify-end gap-2 pt-2 border-t border-gray-200/80">
-            {(selectedAlmacenId || editingExisting) && (
+            {(selectedAlmacenId || editingExisting || mode === 'new') && (
               <button
                 type="button"
                 onClick={handleClearForm}
@@ -234,16 +378,24 @@ export default function AlmacenResponsableConfigSection({
             )}
             <button
               type="submit"
-              disabled={saving || !selectedAlmacen}
+              disabled={saving || (mode === 'existing' && !selectedAlmacen)}
               className="px-6 py-2.5 bg-navy-900 text-white rounded-lg text-sm font-semibold hover:bg-navy-800 disabled:opacity-60"
             >
-              {saving ? 'Guardando…' : editingExisting ? 'Actualizar responsable' : 'Crear y asignar responsable'}
+              {saving
+                ? 'Guardando…'
+                : mode === 'new'
+                  ? 'Crear almacén y asignar responsable'
+                  : editingExisting
+                    ? 'Actualizar responsable'
+                    : 'Crear y asignar responsable'}
             </button>
           </div>
         </form>
 
-        {(almacenesQuery.error || departamentosQuery.error) && (
-          <p className="text-sm text-red-600">{almacenesQuery.error || departamentosQuery.error}</p>
+        {(almacenesQuery.error || departamentosQuery.error || sedesQuery.error) && (
+          <p className="text-sm text-red-600">
+            {almacenesQuery.error || departamentosQuery.error || sedesQuery.error}
+          </p>
         )}
 
         <div className="rounded-xl border border-gray-200 overflow-hidden">

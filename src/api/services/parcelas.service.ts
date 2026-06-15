@@ -33,7 +33,15 @@ export type ParcelasQuery = {
   estado?: 'disponible' | 'comprometida' | 'desincorporada';
 };
 
+export type ParcelaId = number | string;
+
+function parcelaIdPath(id: ParcelaId): string {
+  return encodeURIComponent(String(id));
+}
+
 export type ParcelaPayload = {
+  /** Identificador alfanumérico de la parcela (ej. TER-PO-001, T-007). */
+  id_terreno: string;
   nombre: string;
   zona: string;
   /** El API espera string (p. ej. `"5"` o `"DP-001"`). */
@@ -202,8 +210,8 @@ async function enrichTerrenoConResponsable(apiParcela: ApiParcela, terreno: Terr
   }
 }
 
-export async function fetchParcelaById(id: number) {
-  const res = await apiRequest<ApiItemResponse<ApiParcela>>(`/parcelas/${id}`);
+export async function fetchParcelaById(id: ParcelaId) {
+  const res = await apiRequest<ApiItemResponse<ApiParcela>>(`/parcelas/${parcelaIdPath(id)}`);
   if (!res.data) throw new Error('Respuesta vacía del API');
 
   const withDocumento = await enrichParcelaDocumento(res.data);
@@ -268,19 +276,21 @@ export async function createParcela(body: ParcelaPayload) {
     method: 'POST',
     body,
   });
+  if (!res.data) throw new Error('Respuesta vacía del API');
   return mapApiParcelaToTerreno(res.data);
 }
 
-export async function updateParcela(id: number, body: ParcelaPayload) {
-  const res = await apiRequest<ApiItemResponse<ApiParcela>>(`/parcelas/${id}`, {
+export async function updateParcela(id: ParcelaId, body: ParcelaPayload) {
+  const res = await apiRequest<ApiItemResponse<ApiParcela>>(`/parcelas/${parcelaIdPath(id)}`, {
     method: 'PUT',
     body,
   });
+  if (!res.data) throw new Error('Respuesta vacía del API');
   return mapApiParcelaToTerreno(res.data);
 }
 
-export async function deleteParcela(id: number) {
-  await apiRequest(`/parcelas/${id}`, { method: 'DELETE' });
+export async function deleteParcela(id: ParcelaId) {
+  await apiRequest(`/parcelas/${parcelaIdPath(id)}`, { method: 'DELETE' });
 }
 
 export type { Terreno, Inmueble };

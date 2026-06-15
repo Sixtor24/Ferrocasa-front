@@ -50,9 +50,9 @@ export async function fetchCompromisosByProtocolo(protocoloId: number) {
   return res.data ?? [];
 }
 
-export async function fetchCompromisosByParcela(parcelaId: number) {
+export async function fetchCompromisosByParcela(parcelaId: number | string) {
   const res = await apiRequest<ApiItemResponse<ApiCompromisoTerreno[]> | ApiListResponse<ApiCompromisoTerreno>>(
-    `/compromisos/parcela/${parcelaId}`
+    `/compromisos/parcela/${encodeURIComponent(String(parcelaId))}`
   );
 
   return res.data ?? [];

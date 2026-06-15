@@ -10,6 +10,9 @@ const PAYLOAD_FIELD_MESSAGES: Record<string, string> = {
   id_categoria_especifica: 'Seleccione una categoría específica válida.',
   id_almacen: 'El almacén seleccionado no es válido.',
   id_doc: 'El documento de ingreso (id_doc) es obligatorio. Indique el número de documento.',
+  id_documento_propiedad: 'Indique el nro de documento (letras, números y caracteres especiales, hasta 20).',
+  numero_propiedad: 'Indique el nro de propiedad.',
+  id_terreno: 'Indique el código de la parcela en cada ítem.',
   codigo: 'El código del vehículo es obligatorio en cada ítem.',
   placa: 'La placa del vehículo es obligatoria.',
 };
@@ -36,6 +39,12 @@ export function extractRegistroError(err: unknown, fallback: string): string {
     }
     if (/Unique constraint failed on the fields:\s*\(`codigo`\)/i.test(message)) {
       return 'El código del vehículo ya está registrado. Use un código distinto.';
+    }
+    if (/Unique constraint failed on the fields:\s*\(`id_documento_propiedad`\)/i.test(message)) {
+      return 'El nro de documento ya está registrado. Puede reutilizarlo en nuevas parcelas de la misma propiedad.';
+    }
+    if (/Unique constraint failed on the fields:\s*\(`numero_propiedad`\)/i.test(message)) {
+      return 'El nro de propiedad ya existe; se reutilizará para este registro.';
     }
     return message;
   }

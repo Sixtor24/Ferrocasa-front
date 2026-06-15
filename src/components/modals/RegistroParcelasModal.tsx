@@ -2,11 +2,14 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Pencil, Plus } from 'lucide-react';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { createDocumentoPropiedad, type FormaAdquisicionPropiedad } from '../../api/services/documentos-propiedad.service';
+import { createDocumentoPropiedad, fetchDocumentoPropiedadById, type DocumentoPropiedadPayload, type FormaAdquisicionPropiedad } from '../../api/services/documentos-propiedad.service';
 import { createParcela } from '../../api/services/parcelas.service';
 import { createPropiedad } from '../../api/services/propiedades.service';
 import { levantamientoTopograficoToApi } from '../../api/mappers/enums';
+import { ALMACEN_TERRENOS_NOMBRE } from '../../constants/almacenes';
+import { useAlmacenesRegistro } from '../../hooks/useAlmacenesRegistro';
 import { buildParcelaObservacionesMeta } from '../../utils/parcelaFechaMeta';
+import { resolveResponsableForAlmacen } from '../../utils/registroBienMappers';
 import { MONEDAS_REGISTRO } from '../../types/registroBienItem';
 import { formatMoneda } from '../../utils/formatters';
 import {
@@ -22,6 +25,7 @@ import {
   notifyRegistroError,
   notifyRegistroSuccess,
 } from '../../utils/registroNotify';
+import { isEntityAlreadyExistsError } from '../../utils/apiErrorMessage';
 import Modal from './Modal';
 import NuevaParcelaModal, { type ParcelaRegistroDraft } from './NuevaParcelaModal';
 import SearchableSelect from '../forms/SearchableSelect';
@@ -39,15 +43,14 @@ const FORMAS_DOCUMENTO: { label: string; value: FormaAdquisicionPropiedad }[] = 
   { label: 'Confiscación', value: 'Confiscacion' },
 ];
 
-const documentoDefaultValues: DocumentoParcelaFormInput = {
+const documentoDefaultValues = {
   numeroDocumento: '',
-  numeroPropiedad: 0,
   nombrePropiedad: '',
   ubicacionPropiedad: '',
   fechaAdquisicion: '',
   formaAdquisicion: 'Compra',
   moneda: 'Bs',
-};
+} as DocumentoParcelaFormInput;
 
 function areaTotal(items: ParcelaRegistroDraft[]) {
   return items.reduce((sum, item) => sum + (item.areaTotalM2 || 0), 0);
@@ -70,9 +73,17 @@ async function ensurePropiedad(documento: DocumentoParcelaForm) {
       ubicacion: documento.ubicacionPropiedad.trim(),
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message.toLowerCase() : '';
-    const alreadyExists = message.includes('existe') || message.includes('duplicate') || message.includes('409');
-    if (!alreadyExists) throw err;
+    if (!isEntityAlreadyExistsError(err)) throw err;
+  }
+}
+
+async function ensureDocumentoPropiedad(payload: DocumentoPropiedadPayload) {
+  const id = payload.id_documento_propiedad.trim();
+  try {
+    return await createDocumentoPropiedad({ ...payload, id_documento_propiedad: id });
+  } catch (err) {
+    if (!isEntityAlreadyExistsError(err)) throw err;
+    return fetchDocumentoPropiedadById(id);
   }
 }
 
@@ -87,6 +98,17 @@ export default function RegistroParcelasModal({
   const [editingItem, setEditingItem] = useState<ParcelaRegistroDraft | null>(null);
   const [itemsError, setItemsError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [nroPropiedadDraft, setNroPropiedadDraft] = useState('');
+  const { almacenes, loading: almacenesLoading } = useAlmacenesRegistro(open);
+  const [responsableTerrenos, setResponsableTerrenos] = useState({
+    responsable: '—',
+    ciResponsable: '',
+  });
+
+  const sinResponsableTerrenos = useMemo(
+    () => !almacenesLoading && !responsableTerrenos.ciResponsable,
+    [almacenesLoading, responsableTerrenos.ciResponsable],
+  );
 
   const {
     register,
@@ -109,17 +131,36 @@ export default function RegistroParcelasModal({
   useEffect(() => {
     if (!open) return;
     reset(documentoDefaultValues);
+    setNroPropiedadDraft('');
     setItems([]);
     setEditingItem(null);
     setItemModalOpen(false);
     setItemsError(null);
+    setResponsableTerrenos({ responsable: '—', ciResponsable: '' });
   }, [open, reset]);
 
+  useEffect(() => {
+    if (!open || almacenes.length === 0) return;
+    let cancelled = false;
+    resolveResponsableForAlmacen(ALMACEN_TERRENOS_NOMBRE, almacenes).then((result) => {
+      if (!cancelled) setResponsableTerrenos(result);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, almacenes]);
+
   const guardarItem = (item: ParcelaRegistroDraft) => {
+    const withResponsable = {
+      ...item,
+      ciResponsable: item.ciResponsable || responsableTerrenos.ciResponsable,
+    };
     setItems((prev) => {
-      const exists = prev.some((row) => row.key === item.key);
-      if (exists) return prev.map((row) => (row.key === item.key ? item : row));
-      return [...prev, item];
+      const exists = prev.some((row) => row.key === withResponsable.key);
+      if (exists) {
+        return prev.map((row) => (row.key === withResponsable.key ? withResponsable : row));
+      }
+      return [...prev, withResponsable];
     });
   };
 
@@ -152,15 +193,15 @@ export default function RegistroParcelasModal({
     setSubmitting(true);
     try {
       await ensurePropiedad(documento);
-      const createdIds: number[] = [];
-      for (const item of items) {
-        const doc = await createDocumentoPropiedad({
-          id_documento_propiedad: documento.numeroDocumento.trim(),
-          numero_propiedad: documento.numeroPropiedad,
-          forma_adquisicion: documento.formaAdquisicion,
-          area_total_m2: item.areaTotalM2,
-        });
+      const doc = await ensureDocumentoPropiedad({
+        id_documento_propiedad: documento.numeroDocumento.trim(),
+        numero_propiedad: documento.numeroPropiedad,
+        forma_adquisicion: documento.formaAdquisicion,
+        area_total_m2: totalArea,
+      });
 
+      const createdIds: Array<number | string> = [];
+      for (const item of items) {
         const observaciones = buildParcelaObservacionesMeta(item.observaciones ?? '', {
           codigo: item.codigo,
           fechaAdquisicion: documento.fechaAdquisicion,
@@ -169,10 +210,11 @@ export default function RegistroParcelasModal({
         });
 
         const parcela = await createParcela({
+          id_terreno: item.codigo.trim(),
           nombre: item.identificacion,
           zona: item.zona,
-          id_documento_propiedad: doc.id_documento_propiedad,
-          ci_responsable: item.ciResponsable,
+          id_documento_propiedad: String(doc.id_documento_propiedad),
+          ci_responsable: item.ciResponsable || responsableTerrenos.ciResponsable,
           zonificacion: item.zonificacion,
           observaciones,
           acreditacion_ambiental: acreditacionToApi(item.acreditacionTecnicaAmbiental),
@@ -219,6 +261,13 @@ export default function RegistroParcelasModal({
         }
       >
         <div className="space-y-6">
+          {sinResponsableTerrenos && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              Configure el almacén <strong>{ALMACEN_TERRENOS_NOMBRE}</strong> y su responsable en{' '}
+              <strong>Configuración</strong> antes de cargar parcelas.
+            </div>
+          )}
+
           <section className="border border-gray-300 rounded-lg p-4 sm:p-5 space-y-4">
             <div className="flex items-center justify-between gap-4">
               <h4 className="text-sm font-bold text-navy-900 uppercase tracking-wide">
@@ -241,10 +290,15 @@ export default function RegistroParcelasModal({
               <Field label="Nro de Documento">
                 <input
                   type="text"
+                  inputMode="text"
+                  autoComplete="off"
                   {...register('numeroDocumento')}
-                  placeholder="Ingrese nro de documento"
-                  className="input-field"
+                  placeholder="Ej. OC-2019/0456 o DOC#2024-01"
+                  className={`input-field ${errors.numeroDocumento ? 'border-red-400' : ''}`}
                 />
+                {errors.numeroDocumento && (
+                  <p className="text-xs text-red-600 mt-1">{errors.numeroDocumento.message}</p>
+                )}
               </Field>
               <Field label="Nro de Propiedad">
                 <Controller
@@ -254,8 +308,13 @@ export default function RegistroParcelasModal({
                     <input
                       type="text"
                       inputMode="numeric"
-                      value={field.value != null ? String(field.value) : ''}
-                      onChange={(e) => field.onChange(Number(e.target.value.replace(/\D/g, '')) || 0)}
+                      placeholder="Ej. 1042"
+                      value={nroPropiedadDraft}
+                      onChange={(e) => {
+                        const digits = e.target.value.replace(/\D/g, '');
+                        setNroPropiedadDraft(digits);
+                        field.onChange(digits === '' ? undefined : Number(digits));
+                      }}
                       className={`input-field ${errors.numeroPropiedad ? 'border-red-400' : ''}`}
                     />
                   )}
@@ -396,6 +455,7 @@ export default function RegistroParcelasModal({
       <NuevaParcelaModal
         open={itemModalOpen}
         item={editingItem}
+        defaultCiResponsable={responsableTerrenos.ciResponsable}
         onClose={() => {
           setItemModalOpen(false);
           setEditingItem(null);

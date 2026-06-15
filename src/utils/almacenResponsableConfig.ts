@@ -1,4 +1,4 @@
-import { updateAlmacen } from '../api/services/almacenes.service';
+import { createAlmacen, updateAlmacen } from '../api/services/almacenes.service';
 import {
   createDepartamento,
   fetchDepartamentosBySede,
@@ -14,6 +14,14 @@ import { parseCiResponsableForApi } from './vehiculoApiFields';
 
 export type AlmacenResponsableConfigInput = {
   almacen: ApiAlmacen;
+  nombreResponsable: string;
+  ciResponsable: string;
+  departamentoNombre: string;
+};
+
+export type CreateAlmacenResponsableConfigInput = {
+  nombreAlmacen: string;
+  idSede: number;
   nombreResponsable: string;
   ciResponsable: string;
   departamentoNombre: string;
@@ -86,6 +94,34 @@ async function upsertResponsable(
   }
 
   return ci;
+}
+
+export async function createAlmacenResponsableConfig(
+  input: CreateAlmacenResponsableConfigInput,
+  departamentos: ApiDepartamento[],
+): Promise<ApiAlmacen> {
+  const nombreAlmacen = input.nombreAlmacen.trim();
+  const nombre = input.nombreResponsable.trim();
+
+  if (!nombreAlmacen) throw new Error('Indique el nombre del almacén');
+  if (!nombre) throw new Error('Indique el nombre del responsable');
+  if (!input.ciResponsable.trim()) throw new Error('Indique la cédula del responsable');
+  if (!input.idSede) throw new Error('Seleccione una sede');
+
+  const idDepartamento = await resolveDepartamentoId(
+    input.departamentoNombre,
+    input.idSede,
+    departamentos,
+  );
+
+  const ci = await upsertResponsable(input.ciResponsable, nombre, idDepartamento);
+
+  return createAlmacen({
+    nombre: nombreAlmacen,
+    id_sede: input.idSede,
+    ci_responsable: ci,
+    id_departamento: idDepartamento,
+  });
 }
 
 export async function saveAlmacenResponsableConfig(

@@ -523,6 +523,7 @@ export const payloadSchemas = {
     descripcion: z.string().min(1),
   }),
   parcela: z.object({
+    id_terreno: z.string().trim().min(1),
     nombre: z.string().min(1),
     zona: z.string().min(1),
     id_documento_propiedad: z.string().min(1),

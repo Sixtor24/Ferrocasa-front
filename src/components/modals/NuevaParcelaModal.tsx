@@ -20,12 +20,14 @@ export type ParcelaRegistroDraft = ParcelaRegistroForm & { key: string };
 type NuevaParcelaModalProps = {
   open: boolean;
   item: ParcelaRegistroDraft | null;
+  /** CI del responsable del almacén Terrenos (Configuración); se envía sin mostrarlo en el formulario. */
+  defaultCiResponsable?: string;
   onClose: () => void;
   onSave: (item: ParcelaRegistroDraft) => void;
   onDelete?: (key: string) => void;
 };
 
-function emptyParcela(): ParcelaRegistroDraft {
+function emptyParcela(ciResponsable = ''): ParcelaRegistroDraft {
   return {
     key: `parcela-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     codigo: '',
@@ -35,7 +37,7 @@ function emptyParcela(): ParcelaRegistroDraft {
     ubicacionAdicional: '',
     areaTotalM2: 0,
     valorAdquisicion: 0,
-    ciResponsable: '',
+    ciResponsable,
     observaciones: '',
     acreditacionTecnicaAmbiental: 'No',
     levantamientoTopografico: 'En trámite',
@@ -50,6 +52,7 @@ function parcelaToFormValues(item: ParcelaRegistroDraft): ParcelaRegistroForm {
 export default function NuevaParcelaModal({
   open,
   item,
+  defaultCiResponsable = '',
   onClose,
   onSave,
   onDelete,
@@ -63,6 +66,7 @@ export default function NuevaParcelaModal({
     control,
     handleSubmit,
     reset,
+    setValue,
     formState: { errors },
   } = useForm<ParcelaRegistroForm>({
     resolver: zodResolver(parcelaRegistroFormSchema) as Resolver<ParcelaRegistroForm>,
@@ -71,13 +75,23 @@ export default function NuevaParcelaModal({
 
   useEffect(() => {
     if (!open) return;
-    const next = item ?? emptyParcela();
+    const ci = item?.ciResponsable || defaultCiResponsable || '';
+    const next = item ?? emptyParcela(ci);
+    if (!item && ci) {
+      next.ciResponsable = ci;
+    }
     setItemKey(next.key);
     reset(parcelaToFormValues(next));
     setAreaDraft(next.areaTotalM2 > 0 ? String(next.areaTotalM2).replace('.', ',') : '');
-  }, [open, item, reset]);
+  }, [open, item, defaultCiResponsable, reset]);
+
+  useEffect(() => {
+    if (!open || !defaultCiResponsable) return;
+    setValue('ciResponsable', defaultCiResponsable, { shouldValidate: false });
+  }, [open, defaultCiResponsable, setValue]);
 
   const onSubmit = (parsed: ParcelaRegistroForm) => {
+    const ciResponsable = (parsed.ciResponsable || defaultCiResponsable || '').trim();
     onSave({
       ...parsed,
       key: itemKey,
@@ -87,6 +101,7 @@ export default function NuevaParcelaModal({
       zonificacion: parsed.zonificacion.trim(),
       ubicacionAdicional: parsed.ubicacionAdicional.trim(),
       observaciones: parsed.observaciones?.trim() ?? '',
+      ciResponsable,
     });
     onClose();
   };

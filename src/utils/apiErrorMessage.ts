@@ -1,3 +1,5 @@
+import { ApiError } from '../api/client';
+
 export function formatApiErrorMessage(body: unknown, fallback: string): string {
   if (!body || typeof body !== 'object') return fallback;
 
@@ -23,4 +25,24 @@ export function formatApiErrorMessage(body: unknown, fallback: string): string {
   }
 
   return fallback;
+}
+
+/** Conflicto por entidad ya registrada (409, unique constraint, mensajes del API en español). */
+export function isEntityAlreadyExistsError(err: unknown): boolean {
+  if (err instanceof ApiError && err.status === 409) return true;
+
+  const message = (
+    err instanceof ApiError
+      ? formatApiErrorMessage(err.body, err.message)
+      : err instanceof Error
+        ? err.message
+        : ''
+  ).toLowerCase();
+
+  return (
+    message.includes('existe') ||
+    message.includes('duplicate') ||
+    message.includes('already exists') ||
+    message.includes('unique constraint')
+  );
 }
