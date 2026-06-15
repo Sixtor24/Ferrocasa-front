@@ -18,6 +18,7 @@ import {
   buildMovimientosAnualesFromGraficos,
   buildMovimientosChartSpec,
   buildMovimientosFromAuditoria,
+  buildMovimientosFromGraficos,
   findAlertaCantidad,
   formatActividadHora,
   formatActividadMensaje,
@@ -95,7 +96,8 @@ function capitalizar(texto: string): string {
 
 export default function Dashboard() {
   const { user } = useAuth();
-  const { canAccessModule } = useRolePermissions();
+  const { canAccessModule, canAccessAuditoria, canViewMovimientosPatrimoniales } =
+    useRolePermissions();
   const navigate = useNavigate();
   const currentYear = new Date().getFullYear();
   const [periodo, setPeriodo] = useState<PeriodoMovimiento>("semanal");
@@ -140,7 +142,8 @@ export default function Dashboard() {
   const graficosQuery = useApiQuery(
     () => fetchDashboardGraficos(year),
     [year],
-    periodo === "anual",
+    canViewMovimientosPatrimoniales
+      && (periodo === "anual" || !canAccessAuditoria),
     { key: `dashboard-graficos-${year}` },
   );
 
@@ -162,7 +165,10 @@ export default function Dashboard() {
         movimientosSpec!.hasta,
       ),
     [movimientosSpec?.desde, movimientosSpec?.hasta],
-    periodo !== "anual" && movimientosSpec !== null,
+    canViewMovimientosPatrimoniales
+      && canAccessAuditoria
+      && periodo !== "anual"
+      && movimientosSpec !== null,
     {
       key: movimientosSpec
         ? `dashboard-auditoria-${periodo}-${movimientosSpec.desde}-${movimientosSpec.hasta}`
@@ -241,17 +247,36 @@ export default function Dashboard() {
   );
 
   const chartData = useMemo(() => {
+    if (!canViewMovimientosPatrimoniales) return [];
+
     if (periodo === "anual") {
       return buildMovimientosAnualesFromGraficos(year, graficos);
     }
-    if (!movimientosSpec) return [];
-    return buildMovimientosFromAuditoria(
-      auditoriaMovimientosQuery.data ?? [],
-      movimientosSpec.fechas,
-    );
+
+    if (canAccessAuditoria) {
+      if (!movimientosSpec) return [];
+      return buildMovimientosFromAuditoria(
+        auditoriaMovimientosQuery.data ?? [],
+        movimientosSpec.fechas,
+      );
+    }
+
+    return buildMovimientosFromGraficos({
+      periodo,
+      year,
+      mes,
+      semanaMes,
+      semanasDelMes,
+      graficos,
+    });
   }, [
+    canViewMovimientosPatrimoniales,
+    canAccessAuditoria,
     periodo,
     year,
+    mes,
+    semanaMes,
+    semanasDelMes,
     graficos,
     movimientosSpec,
     auditoriaMovimientosQuery.data,
@@ -356,10 +381,19 @@ export default function Dashboard() {
     return { texto: "Sin cambios recientes registrados", hora: null };
   }, [actividadQuery.loading, ultimaActividad, alertas]);
 
-  const chartLoading =
-    periodo === "anual"
-      ? graficosQuery.loading
-      : auditoriaMovimientosQuery.loading;
+  const chartLoading = useMemo(() => {
+    if (!canViewMovimientosPatrimoniales) return false;
+    if (periodo === "anual" || !canAccessAuditoria) {
+      return graficosQuery.loading;
+    }
+    return auditoriaMovimientosQuery.loading;
+  }, [
+    canViewMovimientosPatrimoniales,
+    periodo,
+    canAccessAuditoria,
+    graficosQuery.loading,
+    auditoriaMovimientosQuery.loading,
+  ]);
   const donutVacio = totalParcelas === 0;
 
   return (
@@ -476,7 +510,12 @@ export default function Dashboard() {
       </section>
 
       {/* Gráfico de movimientos patrimoniales */}
-      <section className="grid grid-cols-1 gap-4 lg:grid-cols-3 min-w-0">
+      <section
+        className={`grid grid-cols-1 gap-4 min-w-0 ${
+          canViewMovimientosPatrimoniales ? "lg:grid-cols-3" : ""
+        }`}
+      >
+        {canViewMovimientosPatrimoniales && (
         <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-200 p-4 sm:p-6 min-w-0 overflow-hidden">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-4">
             <div>
@@ -638,8 +677,13 @@ export default function Dashboard() {
             </div>
           </div>
         </div>
+        )}
 
-        <div className="bg-white rounded-2xl border border-gray-200 p-6 min-w-0 overflow-hidden transition-shadow hover:shadow-md">
+        <div
+          className={`bg-white rounded-2xl border border-gray-200 p-6 min-w-0 overflow-hidden transition-shadow hover:shadow-md ${
+            canViewMovimientosPatrimoniales ? "" : "lg:col-span-full"
+          }`}
+        >
           <button
             type="button"
             onClick={() => navigate("/terrenos")}
