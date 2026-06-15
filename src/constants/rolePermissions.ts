@@ -21,6 +21,8 @@ export type RolePermissions = {
   defaultPath: string;
   canAccessModule: (module: AppModule) => boolean;
   canAccessAuditoria: boolean;
+  /** Gráfico de movimientos patrimoniales en el dashboard. */
+  canViewMovimientosPatrimoniales: boolean;
   canAccessReportes: boolean;
   canManageUsers: boolean;
   canManageMasterTables: boolean;
@@ -75,6 +77,7 @@ export function getRolePermissions(rol: RoleName | null | undefined): RolePermis
       defaultPath,
       canAccessModule: () => false,
       canAccessAuditoria: false,
+      canViewMovimientosPatrimoniales: false,
       canAccessReportes: false,
       canManageUsers: false,
       canManageMasterTables: false,
@@ -107,6 +110,7 @@ export function getRolePermissions(rol: RoleName | null | undefined): RolePermis
     defaultPath,
     canAccessModule: (module: AppModule) => moduleAllowed(role, module),
     canAccessAuditoria: isSuperAdmin || isAdmin,
+    canViewMovimientosPatrimoniales: isSuperAdmin || isAdmin || isCoordinador,
     canAccessReportes: isSuperAdmin || isAdmin || isCoordinador,
     canManageUsers: isSuperAdmin,
     canManageMasterTables: isSuperAdmin,
