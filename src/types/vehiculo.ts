@@ -7,7 +7,7 @@ export type EstadoUsoVehiculo = 'En uso' | 'En obsolescencia' | 'Obsoleto';
 export type EstatusCargaVehiculo = 'Completo' | 'Parcial' | 'Pendiente' | 'Error';
 
 export interface Vehiculo {
-  id: number;
+  id: number | string;
   codigoInterno: string;
   descripcion: string;
   marca: string;

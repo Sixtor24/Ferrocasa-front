@@ -2,8 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
-  fetchApiVehiculoById,
-  fetchVehiculoById,
+  fetchApiVehiculoByCodigo,
+  fetchVehiculoByCodigo,
   fetchVehiculos,
   fetchVehiculosAll,
   updateVehiculo,
@@ -94,7 +94,7 @@ function VehiculoDetail({
   const guardarCambio = async () => {
     setSaving(true);
     try {
-      const apiVehiculo = await fetchApiVehiculoById(vehiculo.id);
+      const apiVehiculo = await fetchApiVehiculoByCodigo(vehiculo.id);
       const payload = apiVehiculoToUpdatePayload(apiVehiculo, {
         estado_uso: estadoUsoVehiculoToApi(estadoUso),
         condicion_fisica: condicionVehiculoToApi(condicionFisica),
@@ -277,7 +277,8 @@ function VehiculoDetail({
 
 export default function Vehiculos() {
   const { canWriteAssets, canExportInventory, canViewRetirados } = useRolePermissions();
-  const { id } = useParams();
+  const { id: codigoParam } = useParams();
+  const codigoVehiculo = codigoParam ? decodeURIComponent(codigoParam) : undefined;
   const navigate = useNavigate();
   const {
     page,
@@ -307,18 +308,18 @@ export default function Vehiculos() {
   const almacenesQuery = useApiQuery(
     () => fetchAlmacenes({ page: 1, limit: API_MAX_LIMIT }),
     [],
-    showRegistro || Boolean(id),
+    showRegistro || Boolean(codigoVehiculo),
   );
   const departamentosQuery = useApiQuery(() => fetchAllDepartamentos(), []);
 
   const detailQuery = useApiQuery(
-    () => fetchVehiculoById(Number(id)),
-    [id],
-    Boolean(id),
+    () => fetchVehiculoByCodigo(codigoVehiculo!),
+    [codigoVehiculo],
+    Boolean(codigoVehiculo),
   );
 
   const lista = listQuery.data?.data ?? [];
-  const vehiculo = id ? detailQuery.data : null;
+  const vehiculo = codigoVehiculo ? detailQuery.data : null;
   const metricas = metricsQuery.data ?? {
     total: 0,
     valorTotal: 0,
@@ -402,7 +403,7 @@ export default function Vehiculos() {
     { key: 'condicionFisica', label: 'Condición Física', render: (v) => <StatusBadge status={v.condicionFisica} showDot size="sm" /> },
   ];
 
-  if (id) {
+  if (codigoVehiculo) {
     return (
       <ApiState loading={detailQuery.loading} error={detailQuery.error} onRetry={detailQuery.refetch}>
         {vehiculo && (
@@ -436,7 +437,7 @@ export default function Vehiculos() {
         createLabel="Crear Registro"
       />
 
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <ModuleMetricCard
           label="Total vehículos"
           value={(metricas.total ?? 0).toLocaleString('es-VE')}
@@ -466,12 +467,6 @@ export default function Vehiculos() {
           borderClassName="border-red-200"
           valueClassName="text-red-700"
         />
-        <ModuleMetricCard
-          label="Valor total"
-          value={formatMoneda(metricas.valorTotal, 'Bs')}
-          icon={<Car size={22} className="text-navy-600" />}
-          iconWrapClassName="bg-navy-50"
-        />
       </div>
 
       <ModuleFilterBar
@@ -484,7 +479,7 @@ export default function Vehiculos() {
           { key: 'almacen', label: 'Almacén', type: 'select', value: filtros.almacen, onChange: (v) => setFiltro('almacen', v), options: almacenOptions },
           { key: 'condicion', label: 'Condición Física', type: 'select', value: filtros.condicionFisica, onChange: (v) => setFiltro('condicionFisica', v), options: ['Todas', ...CONDICIONES_VEHICULO] },
           { key: 'departamento', label: 'Unidad Administrativa', type: 'select', value: filtros.departamento, onChange: (v) => setFiltro('departamento', v), options: unidadAdministrativaOptions },
-          { key: 'fecha', label: 'Fecha', type: 'date', value: filtros.fecha, onChange: (v) => setFiltro('fecha', v) },
+          { key: 'fecha', label: 'Fecha de adquisición', type: 'date', value: filtros.fecha, onChange: (v) => setFiltro('fecha', v) },
           { key: 'estado', label: 'Estado de uso', type: 'select', value: filtros.estadoUso, onChange: (v) => setFiltro('estadoUso', v), options: ['Todos', ...ESTADOS_USO_VEHICULO] },
           ...(canViewRetirados
             ? [{ key: 'inventario', label: 'Ver retirados', type: 'select' as const, value: inventarioView, onChange: (v: string) => setFiltro('inventario', v), options: [...INVENTARIO_VIEW_OPTIONS] }]
@@ -504,7 +499,7 @@ export default function Vehiculos() {
           data={paginated}
           columns={columns}
           loading={listQuery.loading && Boolean(listQuery.data)}
-          onDetails={(v) => navigate(`/vehiculos/${v.id}`)}
+          onDetails={(v) => navigate(`/vehiculos/${encodeURIComponent(String(v.codigoInterno))}`)}
         />
 
         <ModuleTablePaginationBar

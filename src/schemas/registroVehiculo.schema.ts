@@ -6,7 +6,7 @@ export const documentoRegistroVehiculoFormSchema = documentoRegistroFormSchema.e
   numeroDocumento: z
     .string()
     .trim()
-    .min(1, 'Indique el número de documento de ingreso')
+    .min(1, 'Indique el nro de documento')
     .max(20, 'El nro de documento no puede superar 20 caracteres'),
 });
 

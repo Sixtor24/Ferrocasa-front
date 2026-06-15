@@ -167,15 +167,19 @@ async function enrichVehiculoConResponsable(apiVehiculo: ApiVehiculo, vehiculo: 
   }
 }
 
-export async function fetchApiVehiculoById(id: number): Promise<ApiVehiculo> {
-  const res = await apiRequest<ApiItemResponse<ApiVehiculo>>(`/vehiculos/${id}`);
+function vehiculoCodigoPath(codigo: number | string): string {
+  return encodeURIComponent(String(codigo));
+}
+
+export async function fetchApiVehiculoByCodigo(codigo: number | string): Promise<ApiVehiculo> {
+  const res = await apiRequest<ApiItemResponse<ApiVehiculo>>(`/vehiculos/${vehiculoCodigoPath(codigo)}`);
   if (!res.data) throw new Error('Respuesta vacía del API');
   return res.data;
 }
 
-export async function fetchVehiculoById(id: number): Promise<Vehiculo> {
+export async function fetchVehiculoByCodigo(codigo: number | string): Promise<Vehiculo> {
   const [apiVehiculo, almacenesById] = await Promise.all([
-    fetchApiVehiculoById(id),
+    fetchApiVehiculoByCodigo(codigo),
     fetchAlmacenesCatalog(),
   ]);
 
@@ -248,9 +252,9 @@ export async function createVehiculo(body: VehiculoCreateBody) {
   return mapApiVehiculoToVehiculo(res.data);
 }
 
-export async function updateVehiculo(codigo: number, body: VehiculoBody) {
+export async function updateVehiculo(codigo: number | string, body: VehiculoBody) {
   const payload = normalizeVehiculoWriteBody(body);
-  const res = await apiRequest<ApiItemResponse<ApiVehiculo>>(`/vehiculos/${codigo}`, {
+  const res = await apiRequest<ApiItemResponse<ApiVehiculo>>(`/vehiculos/${vehiculoCodigoPath(codigo)}`, {
     method: 'PUT',
     body: payload,
   });
@@ -260,11 +264,11 @@ export async function updateVehiculo(codigo: number, body: VehiculoBody) {
 }
 
 export async function deleteVehiculo(codigo: number | string) {
-  await apiRequest(`/vehiculos/${codigo}`, { method: 'DELETE' });
+  await apiRequest(`/vehiculos/${vehiculoCodigoPath(codigo)}`, { method: 'DELETE' });
 }
 
-export async function asignarVehiculo(codigo: number, ci_responsable: string) {
-  const res = await apiRequest<ApiItemResponse<ApiVehiculo>>(`/vehiculos/${codigo}/asignar`, {
+export async function asignarVehiculo(codigo: number | string, ci_responsable: string) {
+  const res = await apiRequest<ApiItemResponse<ApiVehiculo>>(`/vehiculos/${vehiculoCodigoPath(codigo)}/asignar`, {
     method: 'PATCH',
     body: { ci_responsable },
   });
@@ -274,13 +278,16 @@ export async function asignarVehiculo(codigo: number, ci_responsable: string) {
 }
 
 export async function cambiarEstadoVehiculo(
-  codigo: number,
+  codigo: number | string,
   body: { estado_vehiculo: EstadoVehiculoApi; estado_uso: EstadoUsoVehiculoApi },
 ) {
-  const res = await apiRequest<ApiItemResponse<ApiVehiculo>>(`/vehiculos/${codigo}/cambiar-estado`, {
+  const res = await apiRequest<ApiItemResponse<ApiVehiculo>>(
+    `/vehiculos/${vehiculoCodigoPath(codigo)}/cambiar-estado`,
+    {
     method: 'PATCH',
     body,
-  });
+    },
+  );
   if (!res.data) throw new Error('Respuesta vacía del API');
 
   return mapApiVehiculoToVehiculo(res.data);
