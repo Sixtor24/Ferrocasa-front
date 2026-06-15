@@ -9,6 +9,7 @@ import type {
 } from '../types';
 import { mapApiBienToBienMueble } from '../mappers/bien.mapper';
 import { mapApiVehiculoToVehiculo } from '../mappers/vehiculo.mapper';
+import { isEntityAlreadyExistsError } from '../../utils/apiErrorMessage';
 import { readDocumentoId } from '../../utils/vehiculoApiFields';
 
 /** POST /documentos para registro de vehículos (CreateDocumento en OpenAPI). */
@@ -53,6 +54,10 @@ function mapDocumentosList(res: ApiListResponse<ApiDocumento>) {
   };
 }
 
+function documentoIdPath(id: number | string): string {
+  return encodeURIComponent(String(id));
+}
+
 export async function fetchDocumentos(query: DocumentosQuery = {}) {
   const res = await apiRequest<ApiListResponse<ApiDocumento>>('/documentos', {
     params: {
@@ -68,7 +73,7 @@ export async function fetchDocumentos(query: DocumentosQuery = {}) {
 }
 
 export async function fetchDocumentoById(id: number | string) {
-  const res = await apiRequest<ApiItemResponse<ApiDocumento>>(`/documentos/${id}`);
+  const res = await apiRequest<ApiItemResponse<ApiDocumento>>(`/documentos/${documentoIdPath(id)}`);
   if (!res.data) throw new Error('Respuesta vacía del API');
 
   return res.data;
@@ -105,14 +110,16 @@ export async function fetchDocumentosByProveedor(nombre: string) {
   return res.data ?? [];
 }
 
-export async function fetchDocumentoBienes(id: number) {
-  const res = await apiRequest<ApiItemResponse<ApiBien[]> | ApiListResponse<ApiBien>>(`/documentos/${id}/bienes`);
+export async function fetchDocumentoBienes(id: number | string) {
+  const res = await apiRequest<ApiItemResponse<ApiBien[]> | ApiListResponse<ApiBien>>(
+    `/documentos/${documentoIdPath(id)}/bienes`,
+  );
   return (res.data ?? []).map((bien) => mapApiBienToBienMueble(bien));
 }
 
-export async function fetchDocumentoVehiculos(id: number) {
+export async function fetchDocumentoVehiculos(id: number | string) {
   const res = await apiRequest<ApiItemResponse<ApiVehiculo[]> | ApiListResponse<ApiVehiculo>>(
-    `/documentos/${id}/vehiculos`
+    `/documentos/${documentoIdPath(id)}/vehiculos`,
   );
   return (res.data ?? []).map((vehiculo) => mapApiVehiculoToVehiculo(vehiculo));
 }
@@ -138,8 +145,32 @@ export async function createDocumentoVehiculo(body: DocumentoVehiculoPayload) {
   return { ...res.data, id_doc: idDoc };
 }
 
-export async function updateDocumento(id: number, body: DocumentoPayload) {
-  const res = await apiRequest<ApiItemResponse<ApiDocumento>>(`/documentos/${id}`, {
+/** Crea el documento o reutiliza uno existente con el mismo id_doc (nro de documento). */
+export async function ensureDocumentoVehiculo(body: DocumentoVehiculoPayload) {
+  const idDoc = body.id_doc.trim();
+  try {
+    const doc = await createDocumentoVehiculo({ ...body, id_doc: idDoc });
+    return { doc, created: true as const };
+  } catch (err) {
+    if (!isEntityAlreadyExistsError(err)) throw err;
+    try {
+      const doc = await fetchDocumentoById(idDoc);
+      return { doc: { ...doc, id_doc: readDocumentoId(doc) }, created: false as const };
+    } catch {
+      const list = await fetchDocumentos({ search: idDoc, limit: 100 });
+      const doc = list.data.find(
+        (row) =>
+          readDocumentoId(row) === idDoc
+          || row.numero_documento?.trim() === idDoc,
+      );
+      if (!doc) throw new Error(`Documento no encontrado: ${idDoc}`);
+      return { doc: { ...doc, id_doc: readDocumentoId(doc) }, created: false as const };
+    }
+  }
+}
+
+export async function updateDocumento(id: number | string, body: DocumentoPayload) {
+  const res = await apiRequest<ApiItemResponse<ApiDocumento>>(`/documentos/${documentoIdPath(id)}`, {
     method: 'PUT',
     body,
   });
@@ -149,5 +180,5 @@ export async function updateDocumento(id: number, body: DocumentoPayload) {
 }
 
 export async function deleteDocumento(id: number | string) {
-  await apiRequest(`/documentos/${id}`, { method: 'DELETE' });
+  await apiRequest(`/documentos/${documentoIdPath(id)}`, { method: 'DELETE' });
 }

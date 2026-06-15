@@ -35,7 +35,7 @@ export function buildDocumentoVehiculoPayload(input: {
 }): DocumentoVehiculoPayload {
   const id_doc = input.numeroDocumento.trim();
   if (!id_doc) {
-    throw new Error('Indique el número de documento de ingreso');
+    throw new Error('Indique el nro de documento');
   }
 
   return {
