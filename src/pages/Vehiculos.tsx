@@ -10,6 +10,7 @@ import {
 } from '../api/services/vehiculos.service';
 import { fetchAllDepartamentos } from '../api/services/departamentos.service';
 import { fetchAlmacenes } from '../api/services/almacenes.service';
+import { fetchSedes } from '../api/services/sedes.service';
 import { API_MAX_LIMIT } from '../api/pagination';
 import { useApiQuery } from '../hooks/useApiQuery';
 import { RegistroVehiculosModal } from '../components/modals';
@@ -35,7 +36,7 @@ import ModuleTablePaginationBar from '../components/module/ModuleTablePagination
 import AssetDetailView from '../components/module/AssetDetailView';
 import ApiState from '../components/ApiState';
 import StatusBadge from '../components/StatusBadge';
-import { formatFecha, formatMoneda } from '../utils/formatters';
+import { formatFecha, formatMoneda, fechaCalendarioIso } from '../utils/formatters';
 import { notifyVehiculoActualizado } from '../utils/assetNotify';
 import { apiVehiculoToUpdatePayload } from '../utils/assetUpdateMappers';
 import {
@@ -43,6 +44,7 @@ import {
   estadoUsoVehiculoToApi,
 } from '../utils/registroVehiculoMappers';
 import { aggregateVehiculosMetricsFromList } from '../utils/vehiculosStats';
+import { nombresAlmacenesVehiculos } from '../utils/vehiculoAlmacenes';
 import {
   INVENTARIO_VIEW_OPTIONS,
   isInventarioActivo,
@@ -308,7 +310,10 @@ export default function Vehiculos() {
   const almacenesQuery = useApiQuery(
     () => fetchAlmacenes({ page: 1, limit: API_MAX_LIMIT }),
     [],
-    showRegistro || Boolean(codigoVehiculo),
+  );
+  const sedesQuery = useApiQuery(
+    () => fetchSedes({ page: 1, limit: API_MAX_LIMIT }),
+    [],
   );
   const departamentosQuery = useApiQuery(() => fetchAllDepartamentos(), []);
 
@@ -328,10 +333,11 @@ export default function Vehiculos() {
     obsoletos: 0,
   };
 
-  const almacenOptions = useMemo(
-    () => catalogOptions(lista.map((v) => v.almacen), 'Todos'),
-    [lista],
-  );
+  const almacenOptions = useMemo(() => {
+    const almacenes = almacenesQuery.data?.data ?? [];
+    const sedes = sedesQuery.data?.data ?? [];
+    return ['Todos', ...nombresAlmacenesVehiculos(almacenes, sedes)];
+  }, [almacenesQuery.data, sedesQuery.data]);
 
   const unidadAdministrativaOptions = useMemo(
     () => {
@@ -357,7 +363,7 @@ export default function Vehiculos() {
       if (filtros.almacen && filtros.almacen !== 'Todos' && v.almacen !== filtros.almacen) return false;
       if (filtros.condicionFisica && filtros.condicionFisica !== 'Todas' && v.condicionFisica !== filtros.condicionFisica) return false;
       if (filtros.departamento && filtros.departamento !== 'Todos' && v.unidadAdministrativa !== filtros.departamento) return false;
-      if (filtros.fecha && v.fechaAdquisicion !== filtros.fecha) return false;
+      if (filtros.fecha && fechaCalendarioIso(v.fechaAdquisicion) !== filtros.fecha) return false;
       if (filtros.estadoUso && filtros.estadoUso !== 'Todos' && v.estadoUso !== filtros.estadoUso) return false;
       if (q) {
         const hay =

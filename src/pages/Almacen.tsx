@@ -33,7 +33,7 @@ import {
   ALMACENES_BIENES_ADMINISTRATIVOS,
   DEPARTAMENTOS_BIENES_ADMINISTRATIVOS,
 } from '../data/bienesCatalogos';
-import { formatFecha, formatMoneda } from '../utils/formatters';
+import { formatFecha, formatMoneda, fechaCalendarioIso } from '../utils/formatters';
 import { notifyBienActualizado } from '../utils/assetNotify';
 import { apiBienToUpdatePayload } from '../utils/assetUpdateMappers';
 import { bienCodigoPk } from '../utils/bienCodigo';
@@ -396,7 +396,7 @@ export default function Almacen() {
       if (filtros.condicionFisica && filtros.condicionFisica !== 'Todas' && b.condicionFisica !== filtros.condicionFisica) return false;
       if (filtros.departamento && filtros.departamento !== 'Todos' && b.unidadAdministrativa !== filtros.departamento) return false;
       if (filtros.numeroDocumento && !b.numeroDocumento.includes(filtros.numeroDocumento)) return false;
-      if (filtros.fecha && b.fechaAdquisicion !== filtros.fecha) return false;
+      if (filtros.fecha && fechaCalendarioIso(b.fechaAdquisicion) !== filtros.fecha) return false;
       if (filtros.estadoUso && filtros.estadoUso !== 'Todos' && b.estadoUso !== filtros.estadoUso) return false;
       if (filtros.buscar) {
         const q = filtros.buscar.toLowerCase();

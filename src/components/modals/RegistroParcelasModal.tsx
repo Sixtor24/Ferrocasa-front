@@ -29,6 +29,7 @@ import { isEntityAlreadyExistsError } from '../../utils/apiErrorMessage';
 import Modal from './Modal';
 import NuevaParcelaModal, { type ParcelaRegistroDraft } from './NuevaParcelaModal';
 import SearchableSelect from '../forms/SearchableSelect';
+import FechaFilterInput from '../forms/FechaFilterInput';
 
 type RegistroParcelasModalProps = {
   open: boolean;
@@ -336,10 +337,12 @@ export default function RegistroParcelasModal({
                 {errors.ubicacionPropiedad && <p className="text-xs text-red-600 mt-1">{errors.ubicacionPropiedad.message}</p>}
               </Field>
               <Field label="Fecha Adquisición">
-                <input
-                  type="date"
-                  {...register('fechaAdquisicion')}
-                  className={`input-field ${errors.fechaAdquisicion ? 'border-red-400' : ''}`}
+                <Controller
+                  name="fechaAdquisicion"
+                  control={control}
+                  render={({ field }) => (
+                    <FechaFilterInput value={field.value} onChange={field.onChange} />
+                  )}
                 />
                 {errors.fechaAdquisicion && <p className="text-xs text-red-600 mt-1">{errors.fechaAdquisicion.message}</p>}
               </Field>

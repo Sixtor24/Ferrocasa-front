@@ -21,8 +21,7 @@ import {
   resolveInventarioView,
 } from "../utils/inventarioActivo";
 import { useApiQuery } from "../hooks/useApiQuery";
-import { toIsoDate } from "../api/mappers/enums";
-import { formatFecha, formatMoneda } from "../utils/formatters";
+import { formatFecha, formatMoneda, fechaCalendarioIso } from "../utils/formatters";
 import { notifyBienActualizado } from "../utils/assetNotify";
 import { apiBienToUpdatePayload } from "../utils/assetUpdateMappers";
 import { bienCodigoPk } from "../utils/bienCodigo";
@@ -369,7 +368,7 @@ export default function Cementerio() {
         !b.numeroDocumento.includes(filtros.numeroDocumento)
       )
         return false;
-      if (filtros.fecha && toIsoDate(b.fechaAdquisicion) !== filtros.fecha)
+      if (filtros.fecha && fechaCalendarioIso(b.fechaAdquisicion) !== filtros.fecha)
         return false;
       if (
         filtros.estadoUso &&

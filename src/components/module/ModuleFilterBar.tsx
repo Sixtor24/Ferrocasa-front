@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { RotateCcw } from 'lucide-react';
 import SearchableSelect from '../forms/SearchableSelect';
+import FechaFilterInput from '../forms/FechaFilterInput';
 
 export type FilterFieldType = 'text' | 'select' | 'search' | 'date';
 
@@ -37,9 +38,11 @@ export default function ModuleFilterBar({ fields, onClearFilters, children }: Mo
                 options={field.options ?? ['Todos']}
                 placeholder={field.placeholder ?? 'Todos'}
               />
+            ) : field.type === 'date' ? (
+              <FechaFilterInput value={field.value} onChange={field.onChange} />
             ) : (
               <input
-                type={field.type === 'date' ? 'date' : 'text'}
+                type="text"
                 value={field.value}
                 onChange={(e) => field.onChange(e.target.value)}
                 placeholder={field.placeholder ?? ''}

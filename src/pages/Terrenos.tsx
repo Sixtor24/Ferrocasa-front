@@ -39,7 +39,7 @@ import ModuleDataTable from '../components/module/ModuleDataTable';
 import ModuleTablePaginationBar from '../components/module/ModuleTablePaginationBar';
 import AssetDetailView from '../components/module/AssetDetailView';
 import ApiState from '../components/ApiState';
-import { formatFecha, formatMoneda } from '../utils/formatters';
+import { formatFecha, formatMoneda, fechaCalendarioIso } from '../utils/formatters';
 import { aggregateTerrenoMetricas } from '../utils/parcelasStats';
 import { exportInventarioParcelas } from '../utils/exportInventarioParcelasExcel';
 import { useModuleUiState } from '../stores/moduleUiStore';
@@ -69,7 +69,11 @@ function filterTerrenosByUiFilters(terrenos: Terreno[], filtros: TerrenosFilters
       return false;
     }
     if (filtros.nroPropiedad && !t.nroPropiedad.includes(filtros.nroPropiedad)) return false;
-    if (filtros.fecha && t.fechaAdquisicion !== filtros.fecha) return false;
+    if (filtros.fecha) {
+      const fechaAdquisicion =
+        t.fechaAdquisicion !== '—' ? t.fechaAdquisicion : t.fechaIngreso !== '—' ? t.fechaIngreso : '';
+      if (fechaCalendarioIso(fechaAdquisicion) !== filtros.fecha) return false;
+    }
     if (filtros.levantamiento && filtros.levantamiento !== 'Todos' && t.levantamientoTopografico !== filtros.levantamiento) return false;
     if (filtros.acreditacion && filtros.acreditacion !== 'Todos' && t.acreditacionTecnicaAmbiental !== filtros.acreditacion) return false;
     return true;
