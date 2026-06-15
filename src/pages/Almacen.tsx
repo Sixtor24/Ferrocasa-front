@@ -4,6 +4,12 @@ import { toast } from 'sonner';
 import { fetchAlmacenes } from '../api/services/almacenes.service';
 import { API_MAX_LIMIT } from '../api/pagination';
 import { aggregateBienesMetricsFromList } from '../utils/bienesStats';
+import {
+  INVENTARIO_VIEW_OPTIONS,
+  isInventarioActivo,
+  matchesInventarioView,
+  resolveInventarioView,
+} from '../utils/inventarioActivo';
 import { fetchApiBienByCodigo, updateBien } from '../api/services/bienes.service';
 import {
   fetchAllBienesAdministrativos,
@@ -113,6 +119,7 @@ function hasActiveInventoryFilters(filtros: typeof FILTROS_INVENTARIO_VACIOS) {
     if (key === 'departamento' && trimmed === 'Todos') return false;
     if (key === 'condicionFisica' && trimmed === 'Todas') return false;
     if (key === 'estadoUso' && trimmed === 'Todos') return false;
+    if (key === 'inventario' && trimmed === 'Activos') return false;
     return true;
   });
 }
@@ -327,7 +334,7 @@ function AlmacenBienDetail({
 }
 
 export default function Almacen() {
-  const { canWriteAssets, canExportInventory } = useRolePermissions();
+  const { canWriteAssets, canExportInventory, canViewRetirados } = useRolePermissions();
   const { id } = useParams();
   const navigate = useNavigate();
   const {
@@ -351,7 +358,7 @@ export default function Almacen() {
   const metricsQuery = useApiQuery(
     async () => {
       const bienes = await fetchAllBienesAdministrativos({ search: apiSearch });
-      return aggregateBienesMetricsFromList(bienes);
+      return aggregateBienesMetricsFromList(bienes.filter(isInventarioActivo));
     },
     [apiSearch],
   );
@@ -376,11 +383,13 @@ export default function Almacen() {
   const totalPages = bienesQuery.data?.meta.totalPages ?? 1;
   const metricsLoading = metricsQuery.loading && !metricsQuery.data;
   const filtersActive = useMemo(() => hasActiveInventoryFilters(filtros), [filtros]);
+  const inventarioView = resolveInventarioView(filtros.inventario, canViewRetirados);
 
   const almacenOptions = useMemo(() => ['Todas', ...ALMACENES_BIENES_ADMINISTRATIVOS], []);
 
   const filtered = useMemo(() => {
     return lista.filter((b) => {
+      if (!matchesInventarioView(b, inventarioView)) return false;
       if (filtros.codigo && !b.codigoInterno.toLowerCase().includes(filtros.codigo.toLowerCase())) return false;
       if (filtros.descripcion && !b.descripcion.toLowerCase().includes(filtros.descripcion.toLowerCase())) return false;
       if (filtros.almacen && filtros.almacen !== 'Todas' && b.ubicacion !== filtros.almacen) return false;
@@ -401,7 +410,7 @@ export default function Almacen() {
       }
       return true;
     });
-  }, [lista, filtros]);
+  }, [lista, filtros, inventarioView]);
 
   const setFiltro = (key: keyof typeof filtros, value: string) => {
     setModuleFilter(key, value);
@@ -556,6 +565,18 @@ export default function Almacen() {
             onChange: (v) => setFiltro('estadoUso', v),
             options: [...ESTADOS_USO],
           },
+          ...(canViewRetirados
+            ? [
+                {
+                  key: 'inventario',
+                  label: 'Ver retirados',
+                  type: 'select' as const,
+                  value: inventarioView,
+                  onChange: (v: string) => setFiltro('inventario', v),
+                  options: [...INVENTARIO_VIEW_OPTIONS],
+                },
+              ]
+            : []),
           {
             key: 'buscar',
             label: 'Buscar',

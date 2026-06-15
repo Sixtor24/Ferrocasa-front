@@ -18,6 +18,7 @@ export interface BienMueble {
   formaAdquisicion: FormaAdquisicion;
   fechaAdquisicion: string;         // ISO date o vacío
   fechaIngreso: string;             // bien.fecha_ingreso
+  fechaEgreso?: string;             // bien.fecha_egreso (vacío/ausente si sigue en inventario activo)
   numeroDocumento: string;
   nombreProveedor: string;
   cantidad: number | null;

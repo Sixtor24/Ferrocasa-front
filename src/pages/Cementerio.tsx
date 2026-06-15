@@ -14,6 +14,12 @@ import { fetchAlmacenes } from "../api/services/almacenes.service";
 import { fetchSedes } from "../api/services/sedes.service";
 import { API_MAX_LIMIT } from "../api/pagination";
 import { aggregateBienesMetricsFromList } from "../utils/bienesStats";
+import {
+  INVENTARIO_VIEW_OPTIONS,
+  isInventarioActivo,
+  matchesInventarioView,
+  resolveInventarioView,
+} from "../utils/inventarioActivo";
 import { useApiQuery } from "../hooks/useApiQuery";
 import { toIsoDate } from "../api/mappers/enums";
 import { formatFecha, formatMoneda } from "../utils/formatters";
@@ -277,7 +283,7 @@ function CementerioBienDetail({
 }
 
 export default function Cementerio() {
-  const { canWriteAssets, canExportInventory } = useRolePermissions();
+  const { canWriteAssets, canExportInventory, canViewRetirados } = useRolePermissions();
   const { id } = useParams();
   const navigate = useNavigate();
   const [exportMsg, setExportMsg] = useState("");
@@ -303,7 +309,7 @@ export default function Cementerio() {
   );
   const metricsQuery = useApiQuery(async () => {
     const bienes = await fetchAllBienesCementerio({ search: apiSearch });
-    return aggregateBienesMetricsFromList(bienes);
+    return aggregateBienesMetricsFromList(bienes.filter(isInventarioActivo));
   }, [apiSearch]);
   const almacenesQuery = useApiQuery(
     () => fetchAlmacenes({ page: 1, limit: API_MAX_LIMIT }),
@@ -335,11 +341,13 @@ export default function Cementerio() {
     [almacenes, sedes],
   );
   const departamentoOptions = almacenOptions;
+  const inventarioView = resolveInventarioView(filtros.inventario, canViewRetirados);
 
   // Filtrar bienes
   const filteredBienes = useMemo(() => {
     const q = filtros.buscar.toLowerCase();
     return bienes.filter((b) => {
+      if (!matchesInventarioView(b, inventarioView)) return false;
       if (
         filtros.codigo &&
         !b.codigoInterno.toLowerCase().includes(filtros.codigo.toLowerCase())
@@ -380,7 +388,7 @@ export default function Cementerio() {
       }
       return true;
     });
-  }, [bienes, filtros]);
+  }, [bienes, filtros, inventarioView]);
 
   const paginatedBienes = filteredBienes;
 
@@ -621,6 +629,18 @@ export default function Cementerio() {
             onChange: (v) => setFiltro("estadoUso", v),
             options: ["Todos", ...ESTADOS_USO],
           },
+          ...(canViewRetirados
+            ? [
+                {
+                  key: "inventario",
+                  label: "Ver retirados",
+                  type: "select" as const,
+                  value: inventarioView,
+                  onChange: (v: string) => setFiltro("inventario", v),
+                  options: [...INVENTARIO_VIEW_OPTIONS],
+                },
+              ]
+            : []),
           {
             key: "buscar",
             label: "Buscar",

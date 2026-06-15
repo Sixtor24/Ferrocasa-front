@@ -7,6 +7,7 @@ export const FILTROS_INVENTARIO_VACIOS = {
   numeroDocumento: '',
   fecha: '',
   estadoUso: '',
+  inventario: '',
   buscar: '',
 };
 

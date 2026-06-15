@@ -33,6 +33,8 @@ export type RolePermissions = {
   isAssetReadOnly: boolean;
   canTransferBien: boolean;
   canRetireBien: boolean;
+  /** Ver en el listado los bienes/vehículos dados de baja (retirados). */
+  canViewRetirados: boolean;
   canExportInventory: boolean;
 };
 
@@ -86,6 +88,7 @@ export function getRolePermissions(rol: RoleName | null | undefined): RolePermis
       isAssetReadOnly: true,
       canTransferBien: false,
       canRetireBien: false,
+      canViewRetirados: false,
       canExportInventory: false,
     };
   }
@@ -104,6 +107,8 @@ export function getRolePermissions(rol: RoleName | null | undefined): RolePermis
     isSuperAdmin || isAdmin || isCoordinador;
   const canRetireBien =
     isSuperAdmin || isAdmin || isCoordinador;
+  const canViewRetirados =
+    isSuperAdmin || isAdmin || isCoordinador;
 
   return {
     role,
@@ -119,6 +124,7 @@ export function getRolePermissions(rol: RoleName | null | undefined): RolePermis
     isAssetReadOnly,
     canTransferBien,
     canRetireBien,
+    canViewRetirados,
     canExportInventory: canWriteAssets,
   };
 }

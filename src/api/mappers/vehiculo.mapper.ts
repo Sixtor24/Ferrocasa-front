@@ -43,6 +43,7 @@ export function mapApiVehiculoToVehiculo(
     proveedor: v.documento?.nombre_proveedor ?? '—',
     moneda: mapMoneda(v.documento?.moneda),
     fechaIngreso: toIsoDate(v.fecha_ingreso) || '—',
+    fechaEgreso: toIsoDate(v.fecha_egreso),
     fechaAdquisicion: toIsoDate(v.documento?.fecha_adquisicion) || '—',
     numeroDocumento:
       v.documento?.numero_documento?.trim()

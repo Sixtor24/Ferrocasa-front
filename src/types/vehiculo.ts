@@ -21,6 +21,7 @@ export interface Vehiculo {
   proveedor: string;
   moneda: 'Bs' | 'USD' | 'EUR';
   fechaIngreso: string;
+  fechaEgreso?: string;             // vacío/ausente si sigue en inventario activo
   fechaAdquisicion: string;
   numeroDocumento: string;
   anioFabricacion: number | null;

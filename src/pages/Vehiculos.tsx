@@ -43,6 +43,12 @@ import {
   estadoUsoVehiculoToApi,
 } from '../utils/registroVehiculoMappers';
 import { aggregateVehiculosMetricsFromList } from '../utils/vehiculosStats';
+import {
+  INVENTARIO_VIEW_OPTIONS,
+  isInventarioActivo,
+  matchesInventarioView,
+  resolveInventarioView,
+} from '../utils/inventarioActivo';
 import { useModuleUiState } from '../stores/moduleUiStore';
 import type { Column } from '../components/DataTable';
 import { AlertCircle, AlertTriangle, ArrowLeft, BarChart3, Car } from 'lucide-react';
@@ -270,7 +276,7 @@ function VehiculoDetail({
 }
 
 export default function Vehiculos() {
-  const { canWriteAssets, canExportInventory } = useRolePermissions();
+  const { canWriteAssets, canExportInventory, canViewRetirados } = useRolePermissions();
   const { id } = useParams();
   const navigate = useNavigate();
   const {
@@ -294,7 +300,7 @@ export default function Vehiculos() {
   const metricsQuery = useApiQuery(
     async () => {
       const { data } = await fetchVehiculosAll({ search: apiSearch });
-      return aggregateVehiculosMetricsFromList(data);
+      return aggregateVehiculosMetricsFromList(data.filter(isInventarioActivo));
     },
     [apiSearch],
   );
@@ -339,9 +345,12 @@ export default function Vehiculos() {
     [departamentosQuery.data, lista],
   );
 
+  const inventarioView = resolveInventarioView(filtros.inventario, canViewRetirados);
+
   const filtered = useMemo(() => {
     const q = filtros.buscar.trim().toLowerCase();
     return lista.filter((v) => {
+      if (!matchesInventarioView(v, inventarioView)) return false;
       if (filtros.codigo && !v.codigoInterno.toLowerCase().includes(filtros.codigo.toLowerCase())) return false;
       if (filtros.descripcion && !v.descripcion.toLowerCase().includes(filtros.descripcion.toLowerCase())) return false;
       if (filtros.almacen && filtros.almacen !== 'Todos' && v.almacen !== filtros.almacen) return false;
@@ -363,7 +372,7 @@ export default function Vehiculos() {
       }
       return true;
     });
-  }, [lista, filtros]);
+  }, [lista, filtros, inventarioView]);
 
   const totalPages = listQuery.data?.meta.totalPages ?? 1;
   const paginated = filtered;
@@ -477,6 +486,9 @@ export default function Vehiculos() {
           { key: 'departamento', label: 'Unidad Administrativa', type: 'select', value: filtros.departamento, onChange: (v) => setFiltro('departamento', v), options: unidadAdministrativaOptions },
           { key: 'fecha', label: 'Fecha', type: 'date', value: filtros.fecha, onChange: (v) => setFiltro('fecha', v) },
           { key: 'estado', label: 'Estado de uso', type: 'select', value: filtros.estadoUso, onChange: (v) => setFiltro('estadoUso', v), options: ['Todos', ...ESTADOS_USO_VEHICULO] },
+          ...(canViewRetirados
+            ? [{ key: 'inventario', label: 'Ver retirados', type: 'select' as const, value: inventarioView, onChange: (v: string) => setFiltro('inventario', v), options: [...INVENTARIO_VIEW_OPTIONS] }]
+            : []),
           { key: 'buscar', label: 'Buscar', type: 'search', value: filtros.buscar, onChange: (v) => setFiltro('buscar', v), placeholder: 'Buscar...', className: 'lg:col-span-1' },
         ]}
       />

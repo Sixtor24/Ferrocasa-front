@@ -33,6 +33,7 @@ export function mapApiBienToBienMueble(
     formaAdquisicion: mapFormaAdquisicion(b.documento?.forma_adquisicion),
     fechaAdquisicion: toIsoDate(b.documento?.fecha_adquisicion ?? b.fecha_ingreso),
     fechaIngreso: toIsoDate(b.fecha_ingreso),
+    fechaEgreso: toIsoDate(b.fecha_egreso),
     numeroDocumento: b.documento?.numero_documento?.trim() || (b.documento ? String(b.documento.id_doc) : '—'),
     nombreProveedor: b.documento?.nombre_proveedor?.trim() || '—',
     moneda: mapMoneda(b.documento?.moneda),
