@@ -1,6 +1,14 @@
-/**
- * Monto editable: coma decimal solo cuando el valor realmente tiene decimales.
- */
+import { toIsoDate } from '../api/mappers/enums';
+
+const FECHA_CALENDARIO_TZ = 'America/Caracas';
+
+/** Valor solo con día civil (YYYY-MM-DD), sin hora ni zona horaria. */
+function isDateOnlyValue(value: string): boolean {
+  const trimmed = value.trim();
+  const head = trimmed.split('T')[0].split(' ')[0];
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(head)) return false;
+  return !trimmed.includes('T') && !/\d{1,2}:\d{2}/.test(trimmed);
+}
 export function formatMontoInput(valor: number): string {
   if (!Number.isFinite(valor) || valor <= 0) return '';
   return String(valor).replace('.', ',');
@@ -35,13 +43,41 @@ export function formatMoneda(valor: number | null, moneda: string = 'Bs'): strin
  */
 export function formatFecha(fecha: string): string {
   if (!fecha || fecha === '—') return '—';
+  if (isDateOnlyValue(fecha)) {
+    return isoDateToDisplay(fecha.trim().split('T')[0].split(' ')[0]);
+  }
   const d = new Date(fecha);
   if (Number.isNaN(d.getTime())) return '—';
   return d.toLocaleDateString('es-VE', {
+    timeZone: FECHA_CALENDARIO_TZ,
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
   });
+}
+
+/**
+ * Fecha civil en Venezuela → YYYY-MM-DD.
+ * Usar al filtrar para que coincida con lo que muestra formatFecha.
+ */
+export function fechaCalendarioIso(fecha?: string | null): string {
+  if (!fecha || fecha === '—') return '';
+  const trimmed = String(fecha).trim();
+  if (isDateOnlyValue(trimmed)) {
+    return trimmed.split('T')[0].split(' ')[0];
+  }
+  const d = new Date(trimmed);
+  if (Number.isNaN(d.getTime())) return toIsoDate(fecha);
+  return d.toLocaleDateString('en-CA', { timeZone: FECHA_CALENDARIO_TZ });
+}
+
+/** YYYY-MM-DD → DD/MM/YYYY (sin depender del locale del navegador). */
+export function isoDateToDisplay(iso: string): string {
+  if (!iso?.trim()) return '';
+  const head = iso.trim().split('T')[0].split(' ')[0];
+  const match = head.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return '';
+  return `${match[3]}/${match[2]}/${match[1]}`;
 }
 
 /**

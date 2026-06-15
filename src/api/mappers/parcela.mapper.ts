@@ -26,8 +26,8 @@ function fechaIngresoParcela(p: ApiParcela): string {
 
 function fechaAdquisicionParcela(p: ApiParcela): string {
   return (
-    toIsoDate(p.documento?.fecha_adquisicion)
-    || extractFechaAdquisicionMeta(p.observaciones)
+    extractFechaAdquisicionMeta(p.observaciones)
+    || toIsoDate(p.documento?.fecha_adquisicion)
     || ''
   );
 }
