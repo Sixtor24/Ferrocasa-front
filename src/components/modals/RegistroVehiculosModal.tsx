@@ -5,7 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import Modal from './Modal';
 import NuevoItemVehiculoRegistroModal from './NuevoItemVehiculoRegistroModal';
 import SearchableSelect from '../forms/SearchableSelect';
-import { ensureDocumentoVehiculo, type FormaAdquisicionDocumento } from '../../api/services/documentos.service';
+import { createDocumentoVehiculo, type FormaAdquisicionDocumento } from '../../api/services/documentos.service';
 import { fetchSedes } from '../../api/services/sedes.service';
 import { API_MAX_LIMIT } from '../../api/pagination';
 import { fetchResponsableByCi } from '../../api/services/responsables.service';
@@ -232,13 +232,12 @@ export default function RegistroVehiculosModal({
 
     setSubmitting(true);
     let idDoc: string | null = null;
-    let documentoNuevo = true;
     const codigosVehiculo: Array<number | string> = [];
 
     try {
       await ensureResponsablesVehiculos(items);
 
-      const { doc: documentoCreado, created } = await ensureDocumentoVehiculo(
+      const documentoCreado = await createDocumentoVehiculo(
         buildDocumentoVehiculoPayload({
           numeroDocumento: documento.numeroDocumento,
           nombreProveedor: documento.nombreProveedor,
@@ -248,7 +247,6 @@ export default function RegistroVehiculosModal({
         }),
       );
 
-      documentoNuevo = created;
       idDoc = readDocumentoId(documentoCreado);
       const fechaIngreso = new Date().toISOString().split('T')[0];
 
@@ -274,7 +272,7 @@ export default function RegistroVehiculosModal({
       onSuccess(message);
       onClose();
     } catch (err) {
-      await rollbackRegistroVehiculos({ idDoc, codigosVehiculo, documentoNuevo });
+      await rollbackRegistroVehiculos({ idDoc, codigosVehiculo });
       const message = extractRegistroError(err, 'No se pudo cargar el registro');
       notifyRegistroError('No se pudo cargar el registro', message);
       onError(message);
@@ -312,16 +310,10 @@ export default function RegistroVehiculosModal({
               <Field label="Nro de Documento">
                 <input
                   type="text"
-                  inputMode="text"
-                  autoComplete="off"
-                  maxLength={20}
                   {...register('numeroDocumento')}
-                  placeholder="Ej. TR-2018/0088, DOC#2024-01"
-                  className={`input-field ${documentoErrors.numeroDocumento ? 'border-red-400' : ''}`}
+                  placeholder="Ingrese nro de documento"
+                  className="input-field"
                 />
-                {documentoErrors.numeroDocumento && (
-                  <p className="text-xs text-red-600 mt-1">{documentoErrors.numeroDocumento.message}</p>
-                )}
               </Field>
               <Field label="Nombre de Proveedor">
                 <input
@@ -333,7 +325,7 @@ export default function RegistroVehiculosModal({
                   <p className="text-xs text-red-600 mt-1">{documentoErrors.nombreProveedor.message}</p>
                 )}
               </Field>
-              <Field label="Fecha de Adquisición">
+              <Field label="Fecha Adquisición">
                 <input
                   type="date"
                   {...register('fechaAdquisicion')}

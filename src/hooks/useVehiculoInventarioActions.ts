@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import type { ApiAlmacen } from '../api/types';
 import {
-  fetchApiVehiculoByCodigo,
+  fetchApiVehiculoById,
   updateVehiculo,
 } from '../api/services/vehiculos.service';
 import type { Vehiculo } from '../types/vehiculo';
@@ -41,7 +41,7 @@ export function useVehiculoInventarioActions({
   const handleTransfer = async (idAlmacen: number, nombreAlmacen: string) => {
     setTransferLoading(true);
     try {
-      const apiVehiculo = await fetchApiVehiculoByCodigo(vehiculo.id);
+      const apiVehiculo = await fetchApiVehiculoById(vehiculo.id);
       const payload = apiVehiculoToUpdatePayload(apiVehiculo, { id_almacen: idAlmacen });
       await updateVehiculo(vehiculo.id, payload);
       notifyVehiculoTransferido(vehiculo, nombreAlmacen);
@@ -59,7 +59,7 @@ export function useVehiculoInventarioActions({
   const handleRetire = async () => {
     setRetireLoading(true);
     try {
-      const apiVehiculo = await fetchApiVehiculoByCodigo(vehiculo.id);
+      const apiVehiculo = await fetchApiVehiculoById(vehiculo.id);
       const payload = apiVehiculoToUpdatePayload(apiVehiculo, {
         estado_uso: 'Dado_de_Baja',
         fecha_egreso: todayIsoDate(),

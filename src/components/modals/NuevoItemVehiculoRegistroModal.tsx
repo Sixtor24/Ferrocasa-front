@@ -52,7 +52,7 @@ function createEmptyItem(almacenDefault: string, unidadDefault: string): ItemVeh
     anioFabricacion: new Date().getFullYear(),
     serialMotor: '',
     serialCarroceria: '',
-    cantidad: 1,
+    cantidad: 0,
     valorAdquisicion: 0,
     unidadAdministrativa: unidadDefault,
     responsable: '',

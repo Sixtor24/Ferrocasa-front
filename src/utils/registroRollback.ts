@@ -28,8 +28,6 @@ export async function rollbackRegistroBienes(params: {
 export async function rollbackRegistroVehiculos(params: {
   idDoc: number | string | null;
   codigosVehiculo: Array<number | string>;
-  /** Si false, no borra el documento (p. ej. se reutilizó uno ya existente). */
-  documentoNuevo?: boolean;
 }) {
   for (const codigo of [...params.codigosVehiculo].reverse()) {
     try {
@@ -38,7 +36,7 @@ export async function rollbackRegistroVehiculos(params: {
       // best-effort
     }
   }
-  if (params.idDoc == null || params.documentoNuevo === false) return;
+  if (params.idDoc == null) return;
   try {
     await deleteDocumento(params.idDoc);
   } catch {
