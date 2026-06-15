@@ -23,6 +23,7 @@ import { isSinSerialBien, serialBienToApi } from './serialBien';
 import {
   apiStringField,
   ciResponsableForApi,
+  entityIdForApi,
   readBienDocumentoId,
   usuarioCargaForApi,
   vehiculoSerialUpdateForApi,

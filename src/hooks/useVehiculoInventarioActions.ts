@@ -6,6 +6,7 @@ import {
   updateVehiculo,
 } from '../api/services/vehiculos.service';
 import type { Vehiculo } from '../types/vehiculo';
+import { isInventarioActivo } from '../utils/inventarioActivo';
 import {
   apiVehiculoToUpdatePayload,
   todayIsoDate,
@@ -36,7 +37,7 @@ export function useVehiculoInventarioActions({
   const [transferLoading, setTransferLoading] = useState(false);
   const [retireLoading, setRetireLoading] = useState(false);
 
-  const retirado = vehiculo.estadoUso === 'Obsoleto';
+  const retirado = !isInventarioActivo(vehiculo);
 
   const handleTransfer = async (idAlmacen: number, nombreAlmacen: string) => {
     setTransferLoading(true);
