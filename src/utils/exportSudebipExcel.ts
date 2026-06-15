@@ -9,12 +9,13 @@ import {
 import { fetchVehiculosAll } from '../api/services/vehiculos.service';
 import type { BienMueble } from '../types/bien';
 import type { Vehiculo } from '../types/vehiculo';
+import { isInventarioActivo } from './inventarioActivo';
 import { exportSudebipBienesMuebles } from './exportSudebipBienesMueblesExcel';
 import { exportSudebipVehiculosReport } from './exportSudebipVehiculosExcel';
 
 async function fetchAllBienesBySedeAliases(aliases: readonly string[]): Promise<BienMueble[]> {
   const all = await fetchAllPages((page, limit) => fetchBienes({ page, limit }));
-  return all.filter((bien) => matchesSede(bien.sede, aliases));
+  return all.filter((bien) => isInventarioActivo(bien) && matchesSede(bien.sede, aliases));
 }
 
 export async function exportSudebipMuebles(
@@ -45,7 +46,7 @@ export async function exportSudebipForModule(module: ModuleFormatKey): Promise<v
     }
     case 'vehiculos': {
       const { data } = await fetchVehiculosAll();
-      await exportSudebipVehiculos(data);
+      await exportSudebipVehiculos(data.filter(isInventarioActivo));
       return;
     }
     default:

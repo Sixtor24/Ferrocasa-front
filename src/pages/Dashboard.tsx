@@ -11,6 +11,12 @@ import {
   fetchDashboardStats,
 } from "../api/services/dashboard.service";
 import { fetchParcelasEstadisticas } from "../api/services/parcelas.service";
+import {
+  fetchAllBienesAdministrativos,
+  fetchAllBienesCementerio,
+} from "../api/services/bienes-sedes.service";
+import { fetchVehiculosAll } from "../api/services/vehiculos.service";
+import { isInventarioActivo } from "../utils/inventarioActivo";
 import { useApiQuery } from "../hooks/useApiQuery";
 import SearchableSelect from "../components/forms/SearchableSelect";
 import { dashboardStats } from "../data/dashboard";
@@ -136,6 +142,17 @@ export default function Dashboard() {
 
   const statsQuery = useApiQuery(() => fetchDashboardStats(), []);
   const parcelasStatsQuery = useApiQuery(() => fetchParcelasEstadisticas(), []);
+  // KPIs de bienes/vehículos recalculados desde las listas completas para
+  // excluir los ítems retirados (dados de baja), que el backend aún incluye.
+  const bienesAdminQuery = useApiQuery(
+    () => fetchAllBienesAdministrativos(),
+    [],
+  );
+  const bienesCementerioQuery = useApiQuery(
+    () => fetchAllBienesCementerio(),
+    [],
+  );
+  const vehiculosListQuery = useApiQuery(() => fetchVehiculosAll(), []);
   const actividadQuery = useApiQuery(
     () => fetchDashboardActividadReciente(1),
     [],
@@ -185,11 +202,21 @@ export default function Dashboard() {
   const ultimaActividad = actividadQuery.data?.data[0];
   const graficos = graficosQuery.data;
 
-  const totalBienes = inventario?.bienes_edificio_administrativo ?? 0;
-  const totalCementerio = inventario?.bienes_cementerio ?? 0;
+  const totalBienes = useMemo(
+    () => (bienesAdminQuery.data ?? []).filter(isInventarioActivo).length,
+    [bienesAdminQuery.data],
+  );
+  const totalCementerio = useMemo(
+    () => (bienesCementerioQuery.data ?? []).filter(isInventarioActivo).length,
+    [bienesCementerioQuery.data],
+  );
+  const totalVehiculos = useMemo(
+    () =>
+      (vehiculosListQuery.data?.data ?? []).filter(isInventarioActivo).length,
+    [vehiculosListQuery.data],
+  );
   const totalParcelas =
     parcelasStatsQuery.data?.total ?? inventario?.parcelas ?? 0;
-  const totalVehiculos = inventario?.vehiculos_maquinarias ?? 0;
 
   const parcelasEstado = useMemo(() => {
     const parcelasApi = parcelasStatsQuery.data;
@@ -237,6 +264,11 @@ export default function Dashboard() {
   );
 
   const loadingKpis = statsQuery.loading;
+  const loadingBienes = bienesAdminQuery.loading && !bienesAdminQuery.data;
+  const loadingCementerio =
+    bienesCementerioQuery.loading && !bienesCementerioQuery.data;
+  const loadingVehiculos =
+    vehiculosListQuery.loading && !vehiculosListQuery.data;
   const loadingEstados = statsQuery.loading || alertasQuery.loading;
 
   const accionesRapidas = useMemo(
@@ -439,7 +471,7 @@ export default function Dashboard() {
           accent="navy"
           label={dashboardStats.totalBienesMuebles.label}
           value={totalBienes.toLocaleString()}
-          loading={loadingKpis}
+          loading={loadingBienes}
           onClick={() => navigate("/almacen")}
         />
         <StatCard
@@ -447,7 +479,7 @@ export default function Dashboard() {
           accent="sky"
           label={dashboardStats.inventarioCementerio.label}
           value={totalCementerio.toLocaleString()}
-          loading={loadingKpis}
+          loading={loadingCementerio}
           onClick={() => navigate("/cementerio")}
         />
         <StatCard
@@ -463,7 +495,7 @@ export default function Dashboard() {
           accent="amber"
           label={dashboardStats.totalVehiculos.label}
           value={totalVehiculos.toLocaleString()}
-          loading={loadingKpis}
+          loading={loadingVehiculos}
           onClick={() => navigate("/vehiculos")}
         />
       </section> */}

@@ -8,12 +8,13 @@ import {
 } from '../api/services/bienes-sedes.service';
 import { fetchVehiculosAll } from '../api/services/vehiculos.service';
 import type { BienMueble } from '../types/bien';
+import { isInventarioActivo } from './inventarioActivo';
 import { exportInternoBienesAdministrativos, exportInternoCementerio } from './exportInternoBienesAdministrativosExcel';
 import { exportInternoVehiculosMaquinaria } from './exportInternoVehiculosExcel';
 
 async function fetchAllBienesBySedeAliases(aliases: readonly string[]): Promise<BienMueble[]> {
   const all = await fetchAllPages((page, limit) => fetchBienes({ page, limit }));
-  return all.filter((bien) => matchesSede(bien.sede, aliases));
+  return all.filter((bien) => isInventarioActivo(bien) && matchesSede(bien.sede, aliases));
 }
 
 export async function exportInternoForModule(module: ModuleFormatKey): Promise<void> {
@@ -30,7 +31,7 @@ export async function exportInternoForModule(module: ModuleFormatKey): Promise<v
     }
     case 'vehiculos': {
       const { data } = await fetchVehiculosAll();
-      await exportInternoVehiculosMaquinaria(data);
+      await exportInternoVehiculosMaquinaria(data.filter(isInventarioActivo));
       return;
     }
     default:
