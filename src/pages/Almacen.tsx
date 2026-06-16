@@ -35,7 +35,7 @@ import {
   DEPARTAMENTOS_BIENES_ADMINISTRATIVOS,
 } from '../data/bienesCatalogos';
 import { formatFecha, formatMoneda, fechaCalendarioIso } from '../utils/formatters';
-import { useBienMuebleDetailEdit } from '../hooks/useBienMuebleDetailEdit';
+import { useAlmacenBienDetailEdit } from '../modules/almacen/useAlmacenBienDetailEdit';
 import { useUnsavedChangesGuard } from '../hooks/useUnsavedChangesGuard';
 import {
   FORMAS_ADQUISICION_DOCUMENTO,
@@ -155,10 +155,9 @@ function AlmacenBienDetail({
     responsableDisplay,
     valorTotalDocumento,
     valorTotalDocumentoLoading,
-  } = useBienMuebleDetailEdit({
+  } = useAlmacenBienDetailEdit({
     bien,
     almacenes,
-    almacenesCatalog: ALMACENES_BIENES_ADMINISTRATIVOS,
     disabled: fieldsDisabled,
     onSaved,
   });

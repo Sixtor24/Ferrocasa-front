@@ -1,14 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { toApiDateTime, toIsoDate } from '../api/mappers/enums';
-import { fetchApiBienByCodigo, updateBien } from '../api/services/bienes.service';
-import { fetchDocumentoBienes, updateDocumento } from '../api/services/documentos.service';
-import type { ApiAlmacen } from '../api/types';
-import type { BienMueble, FormaAdquisicion } from '../types/bien';
-import { apiBienToUpdatePayload } from '../utils/assetUpdateMappers';
-import { notifyBienActualizado } from '../utils/assetNotify';
-import { bienCodigoPk } from '../utils/bienCodigo';
-import { formaAdquisicionToApi } from '../utils/formaAdquisicionMappers';
+import { toApiDateTime, toIsoDate } from '../../api/mappers/enums';
+import { fetchApiBienByCodigo, updateBien } from '../../api/services/bienes.service';
+import { fetchDocumentoBienes, updateDocumento } from '../../api/services/documentos.service';
+import type { ApiAlmacen } from '../../api/types';
+import { ALMACENES_BIENES_ADMINISTRATIVOS } from '../../data/bienesCatalogos';
+import type { BienMueble, FormaAdquisicion } from '../../types/bien';
+import { apiBienToUpdatePayload } from '../../utils/assetUpdateMappers';
+import { notifyBienActualizado } from '../../utils/assetNotify';
+import { bienCodigoPk } from '../../utils/bienCodigo';
+import {
+  mergeBienValorInDocumentoList,
+  sumValorBienesDocumento,
+} from '../../utils/documentoValor';
+import { formaAdquisicionToApi } from '../../utils/formaAdquisicionMappers';
 import {
   condicionFisicaToApi,
   estadoUsoToApi,
@@ -16,15 +21,11 @@ import {
   monedaBienToDocumento,
   normalizeCatalogValue,
   resolveResponsableForAlmacen,
-} from '../utils/registroBienMappers';
-import { isSinSerialBien, serialBienToApi } from '../utils/serialBien';
-import {
-  mergeBienValorInDocumentoList,
-  sumValorBienesDocumento,
-} from '../utils/documentoValor';
-import { readBienDocumentoId } from '../utils/vehiculoApiFields';
+} from '../../utils/registroBienMappers';
+import { isSinSerialBien, serialBienToApi } from '../../utils/serialBien';
+import { readBienDocumentoId } from '../../utils/vehiculoApiFields';
 
-export type BienMuebleDetailDraft = {
+export type AlmacenBienDetailDraft = {
   descripcion: string;
   estadoUso: BienMueble['estadoUso'];
   condicionFisica: BienMueble['condicionFisica'];
@@ -44,7 +45,7 @@ function serialDraftFromBien(bien: BienMueble) {
   return bien.serial === '—' ? '' : bien.serial;
 }
 
-function draftFromBien(bien: BienMueble): BienMuebleDetailDraft {
+function draftFromBien(bien: BienMueble): AlmacenBienDetailDraft {
   return {
     descripcion: bien.descripcion === '—' ? '' : bien.descripcion,
     estadoUso: bien.estadoUso,
@@ -61,7 +62,7 @@ function draftFromBien(bien: BienMueble): BienMuebleDetailDraft {
   };
 }
 
-function draftsEqual(a: BienMuebleDetailDraft, b: BienMuebleDetailDraft) {
+function draftsEqual(a: AlmacenBienDetailDraft, b: AlmacenBienDetailDraft) {
   return (
     a.descripcion === b.descripcion
     && a.estadoUso === b.estadoUso
@@ -78,37 +79,35 @@ function draftsEqual(a: BienMuebleDetailDraft, b: BienMuebleDetailDraft) {
   );
 }
 
-function filterAlmacenOptions(almacenes: ApiAlmacen[], catalog: readonly string[]) {
-  const catalogNames = new Set(catalog.map(normalizeCatalogValue));
-  const fromCatalog = almacenes
+function almacenOptionsForModulo(almacenes: ApiAlmacen[]) {
+  const catalogNames = new Set(ALMACENES_BIENES_ADMINISTRATIVOS.map(normalizeCatalogValue));
+  const fromApi = almacenes
     .map((almacen) => almacen.nombre)
     .filter((nombre): nombre is string => {
       if (!nombre?.trim()) return false;
       return catalogNames.has(normalizeCatalogValue(nombre));
     });
 
-  if (fromCatalog.length > 0) {
-    return [...new Set(fromCatalog)].sort((a, b) => a.localeCompare(b, 'es'));
+  if (fromApi.length > 0) {
+    return [...new Set(fromApi)].sort((a, b) => a.localeCompare(b, 'es'));
   }
 
-  return [...catalog];
+  return [...ALMACENES_BIENES_ADMINISTRATIVOS];
 }
 
-type UseBienMuebleDetailEditParams = {
+type UseAlmacenBienDetailEditParams = {
   bien: BienMueble;
   almacenes: ApiAlmacen[];
-  almacenesCatalog: readonly string[];
   disabled?: boolean;
   onSaved?: () => void | Promise<void>;
 };
 
-export function useBienMuebleDetailEdit({
+export function useAlmacenBienDetailEdit({
   bien,
   almacenes,
-  almacenesCatalog,
   disabled = false,
   onSaved,
-}: UseBienMuebleDetailEditParams) {
+}: UseAlmacenBienDetailEditParams) {
   const baseline = useMemo(() => draftFromBien(bien), [bien]);
   const documentoId = useMemo(() => {
     const numero = bien.numeroDocumento?.trim();
@@ -177,8 +176,8 @@ export function useBienMuebleDetailEdit({
   }, [bien.codigoInterno, bien.valorAdquisicion]);
 
   const almacenOptions = useMemo(
-    () => filterAlmacenOptions(almacenes, almacenesCatalog),
-    [almacenes, almacenesCatalog],
+    () => almacenOptionsForModulo(almacenes),
+    [almacenes],
   );
 
   const almacenSeleccionado = useMemo(
@@ -215,7 +214,7 @@ export function useBienMuebleDetailEdit({
 
   const isDirty = !draftsEqual(draft, baseline);
 
-  const patchDraft = (patch: Partial<BienMuebleDetailDraft>) => {
+  const patchDraft = (patch: Partial<AlmacenBienDetailDraft>) => {
     setDraft((current) => ({ ...current, ...patch }));
   };
 

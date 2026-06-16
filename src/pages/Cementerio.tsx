@@ -1,15 +1,10 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { toast } from "sonner";
 import {
   fetchAllBienesCementerio,
   fetchBienCementerioByCodigo,
   fetchBienesCementerio,
 } from "../api/services/bienes-sedes.service";
-import {
-  fetchApiBienByCodigo,
-  updateBien,
-} from "../api/services/bienes.service";
 import { fetchAlmacenes } from "../api/services/almacenes.service";
 import { fetchSedes } from "../api/services/sedes.service";
 import { API_MAX_LIMIT } from "../api/pagination";
@@ -22,11 +17,12 @@ import {
 } from "../utils/inventarioActivo";
 import { useApiQuery } from "../hooks/useApiQuery";
 import { formatFecha, formatMoneda, fechaCalendarioIso } from "../utils/formatters";
-import { notifyBienActualizado } from "../utils/assetNotify";
-import { apiBienToUpdatePayload } from "../utils/assetUpdateMappers";
-import { bienCodigoPk } from "../utils/bienCodigo";
-import { estadoUsoToApi } from "../utils/registroBienMappers";
+import { useCementerioBienDetailEdit } from "../modules/cementerio/useCementerioBienDetailEdit";
 import { useUnsavedChangesGuard } from "../hooks/useUnsavedChangesGuard";
+import {
+  FORMAS_ADQUISICION_DOCUMENTO,
+  formaAdquisicionToApi,
+} from "../utils/formaAdquisicionMappers";
 import UnsavedChangesModal from "../components/modals/UnsavedChangesModal";
 import type { Column } from "../components/DataTable";
 import StatusBadge from "../components/StatusBadge";
@@ -43,22 +39,28 @@ import ModulePageHeader from "../components/module/ModulePageHeader";
 import { useRolePermissions } from "../hooks/useRolePermissions";
 import ModuleFilterBar from "../components/module/ModuleFilterBar";
 import SearchableSelect from "../components/forms/SearchableSelect";
+import CurrencyAmountInput from "../components/forms/CurrencyAmountInput";
+import FechaFilterInput from "../components/forms/FechaFilterInput";
+import DetailFieldInput, { DetailReadOnly } from "../components/module/DetailFieldInput";
 import { FILTROS_INVENTARIO_VACIOS } from "../constants/moduleFilters";
 import ModuleDataTable from "../components/module/ModuleDataTable";
 import ModulePagination from "../components/module/ModulePagination";
 import AssetDetailView from "../components/module/AssetDetailView";
 import { useModuleUiState } from "../stores/moduleUiStore";
 import type { BienMueble } from "../types/bien";
-import { ESTADOS_USO } from "../types/bien";
+import { CONDICIONES_FISICAS, ESTADOS_USO } from "../types/bien";
 import { nombresAlmacenesCementerio } from "../utils/cementerioAlmacenes";
 import {
   ArrowLeft,
-  FileText,
   Landmark,
   Package,
   AlertTriangle,
   AlertCircle,
+  Loader2,
 } from "lucide-react";
+
+const ACTION_BTN =
+  "inline-flex items-center justify-center gap-2 rounded-lg text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed";
 
 function CementerioBienDetail({
   bien,
@@ -76,40 +78,31 @@ function CementerioBienDetail({
   const { canWriteAssets, canTransferBien, canRetireBien } =
     useRolePermissions();
   const navigate = useNavigate();
-  const [estadoUso, setEstadoUso] = useState(bien.estadoUso);
-  const [saving, setSaving] = useState(false);
   const inventario = useBienInventarioActions({
     bien,
     almacenes,
     onActionSuccess: onInventarioAction,
   });
-
-  useEffect(() => {
-    setEstadoUso(bien.estadoUso);
-  }, [bien.estadoUso]);
-
-  const isDirty = estadoUso !== bien.estadoUso;
+  const fieldsDisabled = inventario.retirado || !canWriteAssets;
+  const {
+    draft,
+    patchDraft,
+    isDirty,
+    saving,
+    guardarCambio,
+    almacenOptions,
+    sede,
+    unidadAdministrativa,
+    responsableDisplay,
+    valorTotalDocumento,
+    valorTotalDocumentoLoading,
+  } = useCementerioBienDetailEdit({
+    bien,
+    almacenes,
+    disabled: fieldsDisabled,
+    onSaved,
+  });
   const unsaved = useUnsavedChangesGuard(isDirty);
-
-  const guardarCambio = async () => {
-    setSaving(true);
-    try {
-      const codigo = bienCodigoPk(bien);
-      const apiBien = await fetchApiBienByCodigo(codigo);
-      const payload = apiBienToUpdatePayload(apiBien, {
-        estado_uso: estadoUsoToApi(estadoUso),
-      });
-      await updateBien(codigo, payload);
-      notifyBienActualizado(bien, { estadoUso });
-      await onSaved?.();
-    } catch (err) {
-      toast.error("No se pudo guardar el cambio", {
-        description: err instanceof Error ? err.message : "Intente nuevamente.",
-      });
-    } finally {
-      setSaving(false);
-    }
-  };
 
   return (
     <>
@@ -134,71 +127,206 @@ function CementerioBienDetail({
           {
             title: "Detalles",
             fields: [
-              { label: "Descripción", value: bien.descripcion },
               {
-                label: "Fecha de Ingreso",
-                value: formatFecha(bien.fechaIngreso || bien.fechaAdquisicion),
-              },
-              { label: "Color", value: bien.color || "—" },
-              { label: "Marca", value: bien.marca || "—" },
-              { label: "Modelo", value: bien.modelo || "—" },
-              {
-                label: "Valor de Adquisición",
-                value: formatMoneda(bien.valorAdquisicion, bien.moneda),
+                label: "Descripción",
+                value: (
+                  <DetailFieldInput
+                    value={draft.descripcion}
+                    onChange={(value) => patchDraft({ descripcion: value })}
+                    disabled={fieldsDisabled}
+                  />
+                ),
               },
               {
                 label: "Código",
-                value: bien.sinCodigo ? "Sin código" : bien.codigoInterno,
-              },
-              {
-                label: "Serial",
-                value: bien.sinSerial ? "Sin serial" : bien.serial || "—",
-              },
-              {
-                label: "Responsable",
-                value:
-                  bien.responsable !== "—"
-                    ? bien.responsable
-                    : bien.ciResponsable
-                      ? `CI ${bien.ciResponsable}`
-                      : "—",
-              },
-              {
-                label: "Unidad Administrativa",
-                value: bien.unidadAdministrativa,
+                value: (
+                  <DetailReadOnly>
+                    {bien.sinCodigo ? "Sin código" : bien.codigoInterno}
+                  </DetailReadOnly>
+                ),
               },
               {
                 label: "Estado de uso",
-                value: (
+                value: fieldsDisabled ? (
+                  <DetailReadOnly>{draft.estadoUso}</DetailReadOnly>
+                ) : (
                   <SearchableSelect
-                    value={estadoUso}
+                    value={draft.estadoUso}
                     onChange={(value) =>
-                      setEstadoUso(value as BienMueble["estadoUso"])
+                      patchDraft({ estadoUso: value as BienMueble["estadoUso"] })
                     }
                     options={ESTADOS_USO}
                     className="max-w-xs"
-                    disabled={inventario.retirado || !canWriteAssets}
                     disableSearch
                   />
                 ),
               },
-              { label: "Almacén", value: bien.ubicacion },
-              { label: "Sede", value: bien.sede },
+              {
+                label: "Fecha de Ingreso",
+                value: (
+                  <DetailReadOnly>
+                    {formatFecha(bien.fechaIngreso || bien.fechaAdquisicion) || "—"}
+                  </DetailReadOnly>
+                ),
+              },
+              {
+                label: "Serial",
+                value: (
+                  <DetailFieldInput
+                    value={draft.serial}
+                    onChange={(value) => patchDraft({ serial: value })}
+                    disabled={fieldsDisabled}
+                    placeholder={bien.sinSerial ? "Sin serial" : undefined}
+                  />
+                ),
+              },
+              {
+                label: "Condición Física",
+                value: fieldsDisabled ? (
+                  <DetailReadOnly>{draft.condicionFisica}</DetailReadOnly>
+                ) : (
+                  <SearchableSelect
+                    value={draft.condicionFisica}
+                    onChange={(value) =>
+                      patchDraft({
+                        condicionFisica: value as BienMueble["condicionFisica"],
+                      })
+                    }
+                    options={CONDICIONES_FISICAS}
+                    className="max-w-xs"
+                    disableSearch
+                  />
+                ),
+              },
+              {
+                label: "Color",
+                value: (
+                  <DetailFieldInput
+                    value={draft.color}
+                    onChange={(value) => patchDraft({ color: value })}
+                    disabled={fieldsDisabled}
+                  />
+                ),
+              },
+              {
+                label: "Responsable",
+                value: <DetailReadOnly>{responsableDisplay}</DetailReadOnly>,
+              },
+              {
+                label: "Almacén",
+                value: fieldsDisabled ? (
+                  <DetailReadOnly>{draft.almacen || "—"}</DetailReadOnly>
+                ) : (
+                  <SearchableSelect
+                    value={draft.almacen}
+                    onChange={(value) => patchDraft({ almacen: value })}
+                    options={almacenOptions}
+                    className="max-w-xs"
+                  />
+                ),
+              },
+              {
+                label: "Marca",
+                value: (
+                  <DetailFieldInput
+                    value={draft.marca}
+                    onChange={(value) => patchDraft({ marca: value })}
+                    disabled={fieldsDisabled}
+                  />
+                ),
+              },
+              {
+                label: "Unidad Administrativa",
+                value: <DetailReadOnly>{unidadAdministrativa || "—"}</DetailReadOnly>,
+              },
+              {
+                label: "Modelo",
+                value: (
+                  <DetailFieldInput
+                    value={draft.modelo}
+                    onChange={(value) => patchDraft({ modelo: value })}
+                    disabled={fieldsDisabled}
+                  />
+                ),
+              },
+              {
+                label: "Sede",
+                value: <DetailReadOnly>{sede || "—"}</DetailReadOnly>,
+              },
+              {
+                label: "Valor de Adquisición",
+                value: fieldsDisabled ? (
+                  <DetailReadOnly>
+                    {formatMoneda(draft.valorAdquisicion, bien.moneda)}
+                  </DetailReadOnly>
+                ) : (
+                  <CurrencyAmountInput
+                    value={draft.valorAdquisicion}
+                    onChange={(value) => patchDraft({ valorAdquisicion: value })}
+                  />
+                ),
+              },
             ],
           },
           {
             title: "Detalles del documento de Ingreso",
             fields: [
-              { label: "Nro de Documento", value: bien.numeroDocumento || "—" },
+              {
+                label: "Nro de Documento",
+                value: <DetailReadOnly>{bien.numeroDocumento || "—"}</DetailReadOnly>,
+              },
+              {
+                label: "Forma de Adquisición",
+                value: fieldsDisabled ? (
+                  <DetailReadOnly>{draft.formaAdquisicion}</DetailReadOnly>
+                ) : (
+                  <SearchableSelect
+                    value={formaAdquisicionToApi(draft.formaAdquisicion)}
+                    onChange={(value) => {
+                      const forma = FORMAS_ADQUISICION_DOCUMENTO.find(
+                        (item) => item.value === value,
+                      );
+                      if (forma) {
+                        patchDraft({
+                          formaAdquisicion: forma.label as BienMueble["formaAdquisicion"],
+                        });
+                      }
+                    }}
+                    options={FORMAS_ADQUISICION_DOCUMENTO}
+                    className="max-w-xs"
+                    disableSearch
+                  />
+                ),
+              },
+              {
+                label: "Valor Total de Documento",
+                loading: valorTotalDocumentoLoading,
+                value: (
+                  <DetailReadOnly>
+                    {formatMoneda(valorTotalDocumento, bien.moneda)}
+                  </DetailReadOnly>
+                ),
+              },
               {
                 label: "Fecha Adquisición",
-                value: formatFecha(bien.fechaAdquisicion),
+                value: fieldsDisabled ? (
+                  <DetailReadOnly>{formatFecha(draft.fechaAdquisicion) || "—"}</DetailReadOnly>
+                ) : (
+                  <FechaFilterInput
+                    value={draft.fechaAdquisicion}
+                    onChange={(value) => patchDraft({ fechaAdquisicion: value })}
+                  />
+                ),
               },
-              { label: "Forma de Adquisición", value: bien.formaAdquisicion },
-              { label: "Nombre de Proveedor", value: bien.nombreProveedor },
               {
-                label: "Valor del Bien",
-                value: formatMoneda(bien.valorAdquisicion, bien.moneda),
+                label: "Nombre de Proveedor",
+                value: (
+                  <DetailFieldInput
+                    value={draft.nombreProveedor}
+                    onChange={(value) => patchDraft({ nombreProveedor: value })}
+                    disabled={fieldsDisabled}
+                  />
+                ),
               },
             ],
           },
@@ -208,19 +336,27 @@ function CementerioBienDetail({
             <button
               type="button"
               onClick={() => unsaved.requestLeave(onVolver)}
-              className="inline-flex items-center gap-2 px-4 py-2.5 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50"
+              className={`${ACTION_BTN} px-4 py-2.5 border border-gray-200 text-gray-700 hover:bg-gray-50`}
             >
-              <ArrowLeft size={16} />
+              <ArrowLeft size={16} aria-hidden />
               Volver al listado
             </button>
             {canWriteAssets && (
               <button
                 type="button"
                 onClick={guardarCambio}
-                disabled={saving}
-                className="px-5 py-2.5 bg-navy-900 text-white rounded-lg text-sm font-semibold hover:bg-navy-800 disabled:opacity-60"
+                disabled={saving || !isDirty || inventario.retirado}
+                aria-busy={saving}
+                className={`${ACTION_BTN} px-5 py-2.5 bg-navy-900 text-white hover:bg-navy-800 disabled:opacity-60`}
               >
-                {saving ? "Guardando..." : "Guardar cambio"}
+                {saving ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" aria-hidden />
+                    Guardando...
+                  </>
+                ) : (
+                  "Guardar cambio"
+                )}
               </button>
             )}
             {canTransferBien && (
@@ -232,7 +368,7 @@ function CementerioBienDetail({
                   inventario.transferLoading ||
                   inventario.retireLoading
                 }
-                className="px-5 py-2.5 border border-navy-200 text-navy-800 rounded-lg text-sm font-semibold hover:bg-navy-50 disabled:opacity-50"
+                className={`${ACTION_BTN} px-5 py-2.5 border border-navy-200 text-navy-800 hover:bg-navy-50 disabled:opacity-50`}
               >
                 Transferir a otro almacén
               </button>
@@ -246,7 +382,7 @@ function CementerioBienDetail({
                   inventario.transferLoading ||
                   inventario.retireLoading
                 }
-                className="px-5 py-2.5 border border-red-200 text-red-700 rounded-lg text-sm font-semibold hover:bg-red-50 disabled:opacity-50"
+                className={`${ACTION_BTN} px-5 py-2.5 border border-red-200 text-red-700 hover:bg-red-50 disabled:opacity-50`}
               >
                 Retirar de Inventario
               </button>
