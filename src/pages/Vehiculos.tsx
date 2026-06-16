@@ -1,12 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { toast } from 'sonner';
 import {
-  fetchApiVehiculoByCodigo,
   fetchVehiculoByCodigo,
   fetchVehiculos,
   fetchVehiculosAll,
-  updateVehiculo,
 } from '../api/services/vehiculos.service';
 import { fetchAllDepartamentos } from '../api/services/departamentos.service';
 import { fetchAlmacenes } from '../api/services/almacenes.service';
@@ -35,13 +32,16 @@ import ModuleTablePaginationBar from '../components/module/ModuleTablePagination
 import AssetDetailView from '../components/module/AssetDetailView';
 import ApiState from '../components/ApiState';
 import StatusBadge from '../components/StatusBadge';
+import CurrencyAmountInput from '../components/forms/CurrencyAmountInput';
+import FechaFilterInput from '../components/forms/FechaFilterInput';
+import FlexibleIntegerInput from '../components/forms/FlexibleIntegerInput';
+import DetailFieldInput, { DetailReadOnly } from '../components/module/DetailFieldInput';
 import { formatFecha, formatMoneda, fechaCalendarioIso } from '../utils/formatters';
-import { notifyVehiculoActualizado } from '../utils/assetNotify';
-import { apiVehiculoToUpdatePayload } from '../utils/assetUpdateMappers';
 import {
-  condicionVehiculoToApi,
-  estadoUsoVehiculoToApi,
-} from '../utils/registroVehiculoMappers';
+  FORMAS_ADQUISICION_DOCUMENTO,
+  formaAdquisicionToApi,
+} from '../utils/formaAdquisicionMappers';
+import { useVehiculoDetailEdit } from '../modules/vehiculos/useVehiculoDetailEdit';
 import { aggregateVehiculosMetricsFromList } from '../utils/vehiculosStats';
 import { filterAlmacenesVehiculos, nombresAlmacenesVehiculos } from '../utils/vehiculoAlmacenes';
 import {
@@ -52,9 +52,12 @@ import {
 } from '../utils/inventarioActivo';
 import { useModuleUiState } from '../stores/moduleUiStore';
 import type { Column } from '../components/DataTable';
-import { AlertCircle, AlertTriangle, ArrowLeft, BarChart3, Car } from 'lucide-react';
+import { AlertCircle, AlertTriangle, ArrowLeft, BarChart3, Car, Loader2 } from 'lucide-react';
 
 const DEFAULT_PAGE_SIZE = 50;
+
+const ACTION_BTN =
+  'inline-flex items-center justify-center gap-2 rounded-lg text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed';
 
 function catalogOptions(values: string[], allLabel: string) {
   const unique = Array.from(
@@ -78,45 +81,27 @@ function VehiculoDetail({
 }) {
   const { canWriteAssets, canTransferBien } = useRolePermissions();
   const navigate = useNavigate();
-  const [estadoUso, setEstadoUso] = useState(vehiculo.estadoUso);
-  const [condicionFisica, setCondicionFisica] = useState(vehiculo.condicionFisica);
-  const [saving, setSaving] = useState(false);
   const inventario = useVehiculoInventarioActions({ vehiculo, almacenes, onActionSuccess: onInventarioAction });
-
-  useEffect(() => {
-    setEstadoUso(vehiculo.estadoUso);
-    setCondicionFisica(vehiculo.condicionFisica);
-  }, [vehiculo.estadoUso, vehiculo.condicionFisica]);
-
-  const isDirty =
-    estadoUso !== vehiculo.estadoUso || condicionFisica !== vehiculo.condicionFisica;
+  const fieldsDisabled = inventario.retirado || !canWriteAssets;
+  const {
+    draft,
+    patchDraft,
+    isDirty,
+    saving,
+    guardarCambio,
+    almacenOptions,
+    sede,
+    unidadAdministrativa,
+    responsableDisplay,
+    valorTotalDocumento,
+    valorTotalDocumentoLoading,
+  } = useVehiculoDetailEdit({
+    vehiculo,
+    almacenes,
+    disabled: fieldsDisabled,
+    onSaved,
+  });
   const unsaved = useUnsavedChangesGuard(isDirty);
-
-  const guardarCambio = async () => {
-    setSaving(true);
-    try {
-      const apiVehiculo = await fetchApiVehiculoByCodigo(vehiculo.id);
-      const payload = apiVehiculoToUpdatePayload(apiVehiculo, {
-        estado_uso: estadoUsoVehiculoToApi(estadoUso),
-        condicion_fisica: condicionVehiculoToApi(condicionFisica),
-      });
-      await updateVehiculo(vehiculo.id, payload);
-      notifyVehiculoActualizado(vehiculo, estadoUso);
-      await onSaved?.();
-    } catch (err) {
-      toast.error('No se pudo guardar el cambio', {
-        description: err instanceof Error ? err.message : 'Intente nuevamente.',
-      });
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const placaDisplay = vehiculo.sinPlaca ? 'Sin placa' : vehiculo.placa;
-  const serialMotorDisplay = vehiculo.sinSerialMotor ? 'Sin serial' : vehiculo.serialMotor;
-  const serialCarroceriaDisplay = vehiculo.sinSerialCarroceria
-    ? 'Sin serial'
-    : (vehiculo.serialCarroceria || '—');
 
   return (
     <>
@@ -139,70 +124,238 @@ function VehiculoDetail({
           {
             title: 'Detalles',
             fields: [
-              { label: 'Descripción', value: vehiculo.descripcion },
-              { label: 'Código', value: vehiculo.codigoInterno },
+              {
+                label: 'Descripción',
+                value: (
+                  <DetailFieldInput
+                    value={draft.descripcion}
+                    onChange={(value) => patchDraft({ descripcion: value })}
+                    disabled={fieldsDisabled}
+                  />
+                ),
+              },
+              {
+                label: 'Código',
+                value: <DetailReadOnly>{vehiculo.codigoInterno}</DetailReadOnly>,
+              },
               {
                 label: 'Estado de uso',
-                value: (
+                value: fieldsDisabled ? (
+                  <DetailReadOnly>{draft.estadoUso}</DetailReadOnly>
+                ) : (
                   <SearchableSelect
-                    value={estadoUso}
-                    onChange={(value) => setEstadoUso(value as Vehiculo['estadoUso'])}
+                    value={draft.estadoUso}
+                    onChange={(value) =>
+                      patchDraft({ estadoUso: value as Vehiculo['estadoUso'] })
+                    }
                     options={ESTADOS_USO_VEHICULO}
                     className="max-w-xs"
-                    disabled={inventario.retirado || !canWriteAssets}
                     disableSearch
                   />
                 ),
               },
-              { label: 'Fecha de Ingreso', value: formatFecha(vehiculo.fechaIngreso) },
-              { label: 'Placa', value: placaDisplay },
+              {
+                label: 'Fecha de Ingreso',
+                value: (
+                  <DetailReadOnly>
+                    {formatFecha(vehiculo.fechaIngreso) || '—'}
+                  </DetailReadOnly>
+                ),
+              },
+              {
+                label: 'Placa',
+                value: (
+                  <DetailFieldInput
+                    value={draft.placa}
+                    onChange={(value) => patchDraft({ placa: value })}
+                    disabled={fieldsDisabled}
+                    placeholder={vehiculo.sinPlaca ? 'Sin placa' : undefined}
+                  />
+                ),
+              },
               {
                 label: 'Condición Física',
-                value: (
+                value: fieldsDisabled ? (
+                  <DetailReadOnly>{draft.condicionFisica}</DetailReadOnly>
+                ) : (
                   <SearchableSelect
-                    value={condicionFisica}
-                    onChange={(value) => setCondicionFisica(value as Vehiculo['condicionFisica'])}
+                    value={draft.condicionFisica}
+                    onChange={(value) =>
+                      patchDraft({ condicionFisica: value as Vehiculo['condicionFisica'] })
+                    }
                     options={CONDICIONES_VEHICULO}
                     className="max-w-xs"
-                    disabled={inventario.retirado || !canWriteAssets}
                     disableSearch
                   />
                 ),
               },
-              { label: 'Color', value: vehiculo.color },
-              { label: 'Serial del motor', value: serialMotorDisplay },
-              { label: 'Almacén', value: vehiculo.almacen },
-              { label: 'Marca', value: vehiculo.marca },
-              { label: 'Serial de carrocería', value: serialCarroceriaDisplay },
-              { label: 'Unidad Administrativa', value: vehiculo.unidadAdministrativa },
-              { label: 'Modelo', value: vehiculo.modelo },
+              {
+                label: 'Color',
+                value: (
+                  <DetailFieldInput
+                    value={draft.color}
+                    onChange={(value) => patchDraft({ color: value })}
+                    disabled={fieldsDisabled}
+                  />
+                ),
+              },
+              {
+                label: 'Serial del motor',
+                value: (
+                  <DetailFieldInput
+                    value={draft.serialMotor}
+                    onChange={(value) => patchDraft({ serialMotor: value })}
+                    disabled={fieldsDisabled}
+                    placeholder={vehiculo.sinSerialMotor ? 'Sin serial' : undefined}
+                  />
+                ),
+              },
+              {
+                label: 'Almacén',
+                value: fieldsDisabled ? (
+                  <DetailReadOnly>{draft.almacen || '—'}</DetailReadOnly>
+                ) : (
+                  <SearchableSelect
+                    value={draft.almacen}
+                    onChange={(value) => patchDraft({ almacen: value })}
+                    options={almacenOptions}
+                    className="max-w-xs"
+                  />
+                ),
+              },
+              {
+                label: 'Marca',
+                value: (
+                  <DetailFieldInput
+                    value={draft.marca}
+                    onChange={(value) => patchDraft({ marca: value })}
+                    disabled={fieldsDisabled}
+                  />
+                ),
+              },
+              {
+                label: 'Serial de carrocería',
+                value: (
+                  <DetailFieldInput
+                    value={draft.serialCarroceria}
+                    onChange={(value) => patchDraft({ serialCarroceria: value })}
+                    disabled={fieldsDisabled}
+                    placeholder={vehiculo.sinSerialCarroceria ? 'Sin serial' : undefined}
+                  />
+                ),
+              },
+              {
+                label: 'Unidad Administrativa',
+                value: <DetailReadOnly>{unidadAdministrativa || '—'}</DetailReadOnly>,
+              },
+              {
+                label: 'Modelo',
+                value: (
+                  <DetailFieldInput
+                    value={draft.modelo}
+                    onChange={(value) => patchDraft({ modelo: value })}
+                    disabled={fieldsDisabled}
+                  />
+                ),
+              },
               {
                 label: 'Responsable',
-                value: vehiculo.responsable !== '—'
-                  ? vehiculo.responsable
-                  : vehiculo.ciResponsable
-                    ? `CI ${vehiculo.ciResponsable}`
-                    : '—',
+                value: <DetailReadOnly>{responsableDisplay}</DetailReadOnly>,
               },
-              { label: 'Sede', value: vehiculo.sede },
-              { label: 'Año de fabricación', value: vehiculo.anioFabricacion?.toString() ?? '—' },
-              { label: 'Estado', value: <StatusBadge status={estadoUso} size="sm" /> },
+              {
+                label: 'Sede',
+                value: <DetailReadOnly>{sede || '—'}</DetailReadOnly>,
+              },
+              {
+                label: 'Año de fabricación',
+                value: fieldsDisabled ? (
+                  <DetailReadOnly>
+                    {draft.anioFabricacion > 0 ? String(draft.anioFabricacion) : '—'}
+                  </DetailReadOnly>
+                ) : (
+                  <FlexibleIntegerInput
+                    value={draft.anioFabricacion}
+                    onChange={(value) => patchDraft({ anioFabricacion: value })}
+                    placeholder="Año"
+                    className="input-field max-w-xs"
+                  />
+                ),
+              },
               {
                 label: 'Valor de Adquisición',
-                value: formatMoneda(vehiculo.valorAdquisicion, vehiculo.moneda),
+                value: fieldsDisabled ? (
+                  <DetailReadOnly>
+                    {formatMoneda(draft.valorAdquisicion, vehiculo.moneda)}
+                  </DetailReadOnly>
+                ) : (
+                  <CurrencyAmountInput
+                    value={draft.valorAdquisicion}
+                    onChange={(value) => patchDraft({ valorAdquisicion: value })}
+                  />
+                ),
               },
             ],
           },
           {
             title: 'Detalles del documento de Ingreso',
             fields: [
-              { label: 'Forma de Adquisición', value: vehiculo.formaAdquisicion },
+              {
+                label: 'Nro de Documento',
+                value: <DetailReadOnly>{vehiculo.numeroDocumento || '—'}</DetailReadOnly>,
+              },
+              {
+                label: 'Forma de Adquisición',
+                value: fieldsDisabled ? (
+                  <DetailReadOnly>{draft.formaAdquisicion}</DetailReadOnly>
+                ) : (
+                  <SearchableSelect
+                    value={formaAdquisicionToApi(draft.formaAdquisicion)}
+                    onChange={(value) => {
+                      const forma = FORMAS_ADQUISICION_DOCUMENTO.find(
+                        (item) => item.value === value,
+                      );
+                      if (forma) {
+                        patchDraft({
+                          formaAdquisicion: forma.label as Vehiculo['formaAdquisicion'],
+                        });
+                      }
+                    }}
+                    options={FORMAS_ADQUISICION_DOCUMENTO}
+                    className="max-w-xs"
+                    disableSearch
+                  />
+                ),
+              },
               {
                 label: 'Valor Total de Documento',
-                value: formatMoneda(vehiculo.valorAdquisicion, vehiculo.moneda),
+                loading: valorTotalDocumentoLoading,
+                value: (
+                  <DetailReadOnly>
+                    {formatMoneda(valorTotalDocumento, vehiculo.moneda)}
+                  </DetailReadOnly>
+                ),
               },
-              { label: 'Fecha Adquisición', value: formatFecha(vehiculo.fechaAdquisicion) },
-              { label: 'Nombre de Proveedor', value: vehiculo.proveedor || '—' },
+              {
+                label: 'Fecha Adquisición',
+                value: fieldsDisabled ? (
+                  <DetailReadOnly>{formatFecha(draft.fechaAdquisicion) || '—'}</DetailReadOnly>
+                ) : (
+                  <FechaFilterInput
+                    value={draft.fechaAdquisicion}
+                    onChange={(value) => patchDraft({ fechaAdquisicion: value })}
+                  />
+                ),
+              },
+              {
+                label: 'Nombre de Proveedor',
+                value: (
+                  <DetailFieldInput
+                    value={draft.nombreProveedor}
+                    onChange={(value) => patchDraft({ nombreProveedor: value })}
+                    disabled={fieldsDisabled}
+                  />
+                ),
+              },
             ],
           },
         ]}
@@ -211,19 +364,27 @@ function VehiculoDetail({
             <button
               type="button"
               onClick={() => unsaved.requestLeave(onVolver)}
-              className="inline-flex items-center gap-2 px-4 py-2.5 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50"
+              className={`${ACTION_BTN} px-4 py-2.5 border border-gray-200 text-gray-700 hover:bg-gray-50`}
             >
-              <ArrowLeft size={16} />
+              <ArrowLeft size={16} aria-hidden />
               Volver al listado
             </button>
             {canWriteAssets && (
               <button
                 type="button"
                 onClick={guardarCambio}
-                disabled={saving || inventario.retirado}
-                className="px-5 py-2.5 bg-navy-900 text-white rounded-lg text-sm font-semibold hover:bg-navy-800 disabled:opacity-60"
+                disabled={saving || !isDirty || inventario.retirado}
+                aria-busy={saving}
+                className={`${ACTION_BTN} px-5 py-2.5 bg-navy-900 text-white hover:bg-navy-800 disabled:opacity-60`}
               >
-                {saving ? 'Guardando...' : 'Guardar cambio'}
+                {saving ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" aria-hidden />
+                    Guardando...
+                  </>
+                ) : (
+                  'Guardar cambio'
+                )}
               </button>
             )}
             {canTransferBien && (
@@ -231,7 +392,7 @@ function VehiculoDetail({
                 type="button"
                 onClick={() => inventario.setTransferOpen(true)}
                 disabled={inventario.retirado || inventario.transferLoading}
-                className="px-5 py-2.5 border border-navy-200 text-navy-800 rounded-lg text-sm font-semibold hover:bg-navy-50 disabled:opacity-50"
+                className={`${ACTION_BTN} px-5 py-2.5 border border-navy-200 text-navy-800 hover:bg-navy-50 disabled:opacity-50`}
               >
                 Transferir a otro almacén
               </button>
@@ -307,7 +468,6 @@ export default function Vehiculos() {
   );
 
   const lista = listQuery.data?.data ?? [];
-  const vehiculo = codigoVehiculo ? detailQuery.data : null;
   const metricas = metricsQuery.data ?? {
     total: 0,
     valorTotal: 0,
@@ -400,11 +560,22 @@ export default function Vehiculos() {
   ];
 
   if (codigoVehiculo) {
+    const vehiculoDetalle =
+      detailQuery.data ??
+      lista.find(
+        (v) => v.codigoInterno === codigoVehiculo || String(v.id) === codigoVehiculo,
+      ) ??
+      null;
+
     return (
-      <ApiState loading={detailQuery.loading} error={detailQuery.error} onRetry={detailQuery.refetch}>
-        {vehiculo && (
+      <ApiState
+        loading={detailQuery.loading && !vehiculoDetalle}
+        error={detailQuery.error}
+        onRetry={detailQuery.refetch}
+      >
+        {vehiculoDetalle && (
           <VehiculoDetail
-            vehiculo={vehiculo}
+            vehiculo={vehiculoDetalle}
             almacenes={almacenesVehiculos}
             onVolver={() => {
               refreshVehiculos();
