@@ -1,6 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { toast } from 'sonner';
 import { fetchAlmacenes } from '../api/services/almacenes.service';
 import { API_MAX_LIMIT } from '../api/pagination';
 import { aggregateBienesMetricsFromList } from '../utils/bienesStats';
@@ -10,7 +9,6 @@ import {
   matchesInventarioView,
   resolveInventarioView,
 } from '../utils/inventarioActivo';
-import { fetchApiBienByCodigo, updateBien } from '../api/services/bienes.service';
 import {
   fetchAllBienesAdministrativos,
   fetchBienAdministrativoByCodigo,
@@ -21,6 +19,9 @@ import ApiState from '../components/ApiState';
 import AssetDetailView from '../components/module/AssetDetailView';
 import ModuleFilterBar from '../components/module/ModuleFilterBar';
 import SearchableSelect from '../components/forms/SearchableSelect';
+import CurrencyAmountInput from '../components/forms/CurrencyAmountInput';
+import FechaFilterInput from '../components/forms/FechaFilterInput';
+import DetailFieldInput, { DetailReadOnly } from '../components/module/DetailFieldInput';
 import { FILTROS_INVENTARIO_VACIOS } from '../constants/moduleFilters';
 import ModuleDataTable from '../components/module/ModuleDataTable';
 import ModulePagination from '../components/module/ModulePagination';
@@ -34,11 +35,12 @@ import {
   DEPARTAMENTOS_BIENES_ADMINISTRATIVOS,
 } from '../data/bienesCatalogos';
 import { formatFecha, formatMoneda, fechaCalendarioIso } from '../utils/formatters';
-import { notifyBienActualizado } from '../utils/assetNotify';
-import { apiBienToUpdatePayload } from '../utils/assetUpdateMappers';
-import { bienCodigoPk } from '../utils/bienCodigo';
-import { condicionFisicaToApi, estadoUsoToApi } from '../utils/registroBienMappers';
+import { useBienMuebleDetailEdit } from '../hooks/useBienMuebleDetailEdit';
 import { useUnsavedChangesGuard } from '../hooks/useUnsavedChangesGuard';
+import {
+  FORMAS_ADQUISICION_DOCUMENTO,
+  formaAdquisicionToApi,
+} from '../utils/formaAdquisicionMappers';
 import UnsavedChangesModal from '../components/modals/UnsavedChangesModal';
 import { useModuleUiState } from '../stores/moduleUiStore';
 import type { Column } from '../components/DataTable';
@@ -139,42 +141,28 @@ function AlmacenBienDetail({
 }) {
   const { canWriteAssets, canTransferBien, canRetireBien } = useRolePermissions();
   const navigate = useNavigate();
-  const [estadoUso, setEstadoUso] = useState(bien.estadoUso);
-  const [condicionFisica, setCondicionFisica] = useState(bien.condicionFisica);
-  const [saving, setSaving] = useState(false);
   const inventario = useBienInventarioActions({ bien, almacenes, onActionSuccess: onInventarioAction });
-
-  useEffect(() => {
-    setEstadoUso(bien.estadoUso);
-    setCondicionFisica(bien.condicionFisica);
-  }, [bien.estadoUso, bien.condicionFisica]);
-
-  const isDirty =
-    estadoUso !== bien.estadoUso || condicionFisica !== bien.condicionFisica;
+  const fieldsDisabled = inventario.retirado || !canWriteAssets;
+  const {
+    draft,
+    patchDraft,
+    isDirty,
+    saving,
+    guardarCambio,
+    almacenOptions,
+    sede,
+    unidadAdministrativa,
+    responsableDisplay,
+    valorTotalDocumento,
+    valorTotalDocumentoLoading,
+  } = useBienMuebleDetailEdit({
+    bien,
+    almacenes,
+    almacenesCatalog: ALMACENES_BIENES_ADMINISTRATIVOS,
+    disabled: fieldsDisabled,
+    onSaved,
+  });
   const unsaved = useUnsavedChangesGuard(isDirty);
-
-  const guardarCambio = async () => {
-    if (!isDirty || saving) return;
-
-    setSaving(true);
-    try {
-      const codigo = bienCodigoPk(bien);
-      const apiBien = await fetchApiBienByCodigo(codigo);
-      const payload = apiBienToUpdatePayload(apiBien, {
-        estado_uso: estadoUsoToApi(estadoUso),
-        condicion_fisica: condicionFisicaToApi(condicionFisica),
-      });
-      await updateBien(codigo, payload);
-      notifyBienActualizado(bien, { estadoUso, condicionFisica });
-      await onSaved?.();
-    } catch (err) {
-      toast.error('No se pudo guardar el cambio', {
-        description: err instanceof Error ? err.message : 'Intente nuevamente.',
-      });
-    } finally {
-      setSaving(false);
-    }
-  };
 
   return (
     <>
@@ -197,61 +185,191 @@ function AlmacenBienDetail({
         {
           title: 'Detalles',
           fields: [
-            { label: 'Descripción', value: bien.descripcion },
-            { label: 'Código', value: bien.sinCodigo ? 'Sin código' : bien.codigoInterno },
+            {
+              label: 'Descripción',
+              value: (
+                <DetailFieldInput
+                  value={draft.descripcion}
+                  onChange={(value) => patchDraft({ descripcion: value })}
+                  disabled={fieldsDisabled}
+                />
+              ),
+            },
+            {
+              label: 'Código',
+              value: (
+                <DetailReadOnly>
+                  {bien.sinCodigo ? 'Sin código' : bien.codigoInterno}
+                </DetailReadOnly>
+              ),
+            },
             {
               label: 'Estado de uso',
-              value: (
+              value: fieldsDisabled ? (
+                <DetailReadOnly>{draft.estadoUso}</DetailReadOnly>
+              ) : (
                 <SearchableSelect
-                  value={estadoUso}
-                  onChange={(value) => setEstadoUso(value as BienMueble['estadoUso'])}
+                  value={draft.estadoUso}
+                  onChange={(value) => patchDraft({ estadoUso: value as BienMueble['estadoUso'] })}
                   options={ESTADOS_USO}
                   className="max-w-xs"
-                  disabled={inventario.retirado || !canWriteAssets}
                   disableSearch
                 />
               ),
             },
-            { label: 'Fecha de Ingreso', value: formatFecha(bien.fechaAdquisicion) || '—' },
-            { label: 'Serial', value: bien.sinSerial ? 'Sin serial' : (bien.serial || '—') },
+            {
+              label: 'Fecha de Ingreso',
+              value: (
+                <DetailReadOnly>{formatFecha(bien.fechaIngreso) || '—'}</DetailReadOnly>
+              ),
+            },
+            {
+              label: 'Serial',
+              value: (
+                <DetailFieldInput
+                  value={draft.serial}
+                  onChange={(value) => patchDraft({ serial: value })}
+                  disabled={fieldsDisabled}
+                  placeholder={bien.sinSerial ? 'Sin serial' : undefined}
+                />
+              ),
+            },
             {
               label: 'Condición Física',
-              value: (
+              value: fieldsDisabled ? (
+                <DetailReadOnly>{draft.condicionFisica}</DetailReadOnly>
+              ) : (
                 <SearchableSelect
-                  value={condicionFisica}
-                  onChange={(value) => setCondicionFisica(value as BienMueble['condicionFisica'])}
+                  value={draft.condicionFisica}
+                  onChange={(value) =>
+                    patchDraft({ condicionFisica: value as BienMueble['condicionFisica'] })
+                  }
                   options={CONDICIONES_FISICAS}
                   className="max-w-xs"
-                  disabled={inventario.retirado || !canWriteAssets}
                   disableSearch
                 />
               ),
             },
-            { label: 'Color', value: bien.color || '—' },
+            {
+              label: 'Color',
+              value: (
+                <DetailFieldInput
+                  value={draft.color}
+                  onChange={(value) => patchDraft({ color: value })}
+                  disabled={fieldsDisabled}
+                />
+              ),
+            },
             {
               label: 'Responsable',
-              value: bien.responsable !== '—'
-                ? bien.responsable
-                : bien.ciResponsable
-                  ? `CI ${bien.ciResponsable}`
-                  : '—',
+              value: <DetailReadOnly>{responsableDisplay}</DetailReadOnly>,
             },
-            { label: 'Almacén', value: bien.ubicacion },
-            { label: 'Marca', value: bien.marca },
-            { label: 'Unidad Administrativa', value: bien.unidadAdministrativa },
-            { label: 'Modelo', value: bien.modelo || '—' },
-            { label: 'Sede', value: bien.sede },
-            { label: 'Valor de Adquisición', value: formatMoneda(bien.valorAdquisicion, bien.moneda) },
+            {
+              label: 'Almacén',
+              value: fieldsDisabled ? (
+                <DetailReadOnly>{draft.almacen || '—'}</DetailReadOnly>
+              ) : (
+                <SearchableSelect
+                  value={draft.almacen}
+                  onChange={(value) => patchDraft({ almacen: value })}
+                  options={almacenOptions}
+                  className="max-w-xs"
+                />
+              ),
+            },
+            {
+              label: 'Marca',
+              value: (
+                <DetailFieldInput
+                  value={draft.marca}
+                  onChange={(value) => patchDraft({ marca: value })}
+                  disabled={fieldsDisabled}
+                />
+              ),
+            },
+            {
+              label: 'Unidad Administrativa',
+              value: <DetailReadOnly>{unidadAdministrativa || '—'}</DetailReadOnly>,
+            },
+            {
+              label: 'Modelo',
+              value: (
+                <DetailFieldInput
+                  value={draft.modelo}
+                  onChange={(value) => patchDraft({ modelo: value })}
+                  disabled={fieldsDisabled}
+                />
+              ),
+            },
+            {
+              label: 'Sede',
+              value: <DetailReadOnly>{sede || '—'}</DetailReadOnly>,
+            },
+            {
+              label: 'Valor de Adquisición',
+              value: fieldsDisabled ? (
+                <DetailReadOnly>{formatMoneda(draft.valorAdquisicion, bien.moneda)}</DetailReadOnly>
+              ) : (
+                <CurrencyAmountInput
+                  value={draft.valorAdquisicion}
+                  onChange={(value) => patchDraft({ valorAdquisicion: value })}
+                />
+              ),
+            },
           ],
         },
         {
           title: 'Detalles del documento de Ingreso',
           fields: [
-            { label: 'Nro de Documento', value: bien.numeroDocumento || '—' },
-            { label: 'Forma de Adquisición', value: bien.formaAdquisicion },
-            { label: 'Valor Total de Documento', value: formatMoneda(bien.valorAdquisicion, bien.moneda) },
-            { label: 'Fecha Adquisición', value: formatFecha(bien.fechaAdquisicion) || '—' },
-            { label: 'Nombre de Proveedor', value: bien.nombreProveedor },
+            {
+              label: 'Nro de Documento',
+              value: <DetailReadOnly>{bien.numeroDocumento || '—'}</DetailReadOnly>,
+            },
+            {
+              label: 'Forma de Adquisición',
+              value: fieldsDisabled ? (
+                <DetailReadOnly>{draft.formaAdquisicion}</DetailReadOnly>
+              ) : (
+                <SearchableSelect
+                  value={formaAdquisicionToApi(draft.formaAdquisicion)}
+                  onChange={(value) => {
+                    const forma = FORMAS_ADQUISICION_DOCUMENTO.find((item) => item.value === value);
+                    if (forma) patchDraft({ formaAdquisicion: forma.label as BienMueble['formaAdquisicion'] });
+                  }}
+                  options={FORMAS_ADQUISICION_DOCUMENTO}
+                  className="max-w-xs"
+                  disableSearch
+                />
+              ),
+            },
+            {
+              label: 'Valor Total de Documento',
+              loading: valorTotalDocumentoLoading,
+              value: (
+                <DetailReadOnly>{formatMoneda(valorTotalDocumento, bien.moneda)}</DetailReadOnly>
+              ),
+            },
+            {
+              label: 'Fecha Adquisición',
+              value: fieldsDisabled ? (
+                <DetailReadOnly>{formatFecha(draft.fechaAdquisicion) || '—'}</DetailReadOnly>
+              ) : (
+                <FechaFilterInput
+                  value={draft.fechaAdquisicion}
+                  onChange={(value) => patchDraft({ fechaAdquisicion: value })}
+                />
+              ),
+            },
+            {
+              label: 'Nombre de Proveedor',
+              value: (
+                <DetailFieldInput
+                  value={draft.nombreProveedor}
+                  onChange={(value) => patchDraft({ nombreProveedor: value })}
+                  disabled={fieldsDisabled}
+                />
+              ),
+            },
           ],
         },
       ]}

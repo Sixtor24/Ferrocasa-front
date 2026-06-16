@@ -1,11 +1,13 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, Loader2 } from 'lucide-react';
 import SearchableSelect from '../forms/SearchableSelect';
 
 export interface DetailField {
   label: string;
   value: ReactNode;
+  /** Muestra un indicador de carga junto al label (p. ej. total de documento). */
+  loading?: boolean;
 }
 
 export interface DetailSection {
@@ -95,8 +97,26 @@ export default function AssetDetailView({
           <div className="p-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-5">
             {section.fields.map((field) => (
               <div key={field.label} className="relative overflow-visible">
-                <p className="text-xs font-medium text-gray-500 mb-1">{field.label}</p>
-                <div className="text-sm font-medium text-navy-900">{field.value ?? '—'}</div>
+                <p className="text-xs font-medium text-gray-500 mb-1 flex items-center gap-1.5">
+                  <span>{field.label}</span>
+                  {field.loading && (
+                    <Loader2
+                      size={12}
+                      className="animate-spin text-navy-500 shrink-0"
+                      aria-hidden
+                    />
+                  )}
+                  {field.loading && (
+                    <span className="sr-only">Actualizando</span>
+                  )}
+                </p>
+                <div
+                  className={`text-sm font-medium text-navy-900 transition-opacity ${
+                    field.loading ? 'opacity-60' : ''
+                  }`}
+                >
+                  {field.value ?? '—'}
+                </div>
               </div>
             ))}
           </div>
