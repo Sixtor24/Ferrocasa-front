@@ -28,7 +28,6 @@ import type { Column } from "../components/DataTable";
 import StatusBadge from "../components/StatusBadge";
 import ApiState from "../components/ApiState";
 import { RegistroBienesCementerioModal } from "../components/modals";
-import RetirarInventarioModal from "../components/modals/RetirarInventarioModal";
 import TransferirAlmacenModal from "../components/modals/TransferirAlmacenModal";
 import {
   useBienInventarioActions,
@@ -75,7 +74,7 @@ function CementerioBienDetail({
   onSaved?: () => void | Promise<void>;
   onInventarioAction?: (result: InventarioBienActionResult) => void;
 }) {
-  const { canWriteAssets, canTransferBien, canRetireBien } =
+  const { canWriteAssets, canTransferBien } =
     useRolePermissions();
   const navigate = useNavigate();
   const inventario = useBienInventarioActions({
@@ -365,26 +364,11 @@ function CementerioBienDetail({
                 onClick={() => inventario.setTransferOpen(true)}
                 disabled={
                   inventario.retirado ||
-                  inventario.transferLoading ||
-                  inventario.retireLoading
+                  inventario.transferLoading
                 }
                 className={`${ACTION_BTN} px-5 py-2.5 border border-navy-200 text-navy-800 hover:bg-navy-50 disabled:opacity-50`}
               >
                 Transferir a otro almacén
-              </button>
-            )}
-            {canRetireBien && (
-              <button
-                type="button"
-                onClick={() => inventario.setRetireOpen(true)}
-                disabled={
-                  inventario.retirado ||
-                  inventario.transferLoading ||
-                  inventario.retireLoading
-                }
-                className={`${ACTION_BTN} px-5 py-2.5 border border-red-200 text-red-700 hover:bg-red-50 disabled:opacity-50`}
-              >
-                Retirar de Inventario
               </button>
             )}
           </>
@@ -399,13 +383,6 @@ function CementerioBienDetail({
         almacenes={inventario.almacenes}
         onConfirm={inventario.handleTransfer}
         loading={inventario.transferLoading}
-      />
-      <RetirarInventarioModal
-        open={inventario.retireOpen}
-        onClose={() => inventario.setRetireOpen(false)}
-        assetLabel={inventario.assetLabel}
-        onConfirm={inventario.handleRetire}
-        loading={inventario.retireLoading}
       />
       <UnsavedChangesModal
         open={unsaved.modalOpen}

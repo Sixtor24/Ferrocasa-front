@@ -14,7 +14,6 @@ import { fetchSedes } from '../api/services/sedes.service';
 import { API_MAX_LIMIT } from '../api/pagination';
 import { useApiQuery } from '../hooks/useApiQuery';
 import { RegistroVehiculosModal } from '../components/modals';
-import RetirarInventarioModal from '../components/modals/RetirarInventarioModal';
 import TransferirAlmacenModal from '../components/modals/TransferirAlmacenModal';
 import UnsavedChangesModal from '../components/modals/UnsavedChangesModal';
 import { useUnsavedChangesGuard } from '../hooks/useUnsavedChangesGuard';
@@ -77,7 +76,7 @@ function VehiculoDetail({
   onSaved?: () => void | Promise<void>;
   onInventarioAction?: (result: InventarioVehiculoActionResult) => void;
 }) {
-  const { canWriteAssets, canTransferBien, canRetireBien } = useRolePermissions();
+  const { canWriteAssets, canTransferBien } = useRolePermissions();
   const navigate = useNavigate();
   const [estadoUso, setEstadoUso] = useState(vehiculo.estadoUso);
   const [condicionFisica, setCondicionFisica] = useState(vehiculo.condicionFisica);
@@ -231,20 +230,10 @@ function VehiculoDetail({
               <button
                 type="button"
                 onClick={() => inventario.setTransferOpen(true)}
-                disabled={inventario.retirado || inventario.transferLoading || inventario.retireLoading}
+                disabled={inventario.retirado || inventario.transferLoading}
                 className="px-5 py-2.5 border border-navy-200 text-navy-800 rounded-lg text-sm font-semibold hover:bg-navy-50 disabled:opacity-50"
               >
                 Transferir a otro almacén
-              </button>
-            )}
-            {canRetireBien && (
-              <button
-                type="button"
-                onClick={() => inventario.setRetireOpen(true)}
-                disabled={inventario.retirado || inventario.transferLoading || inventario.retireLoading}
-                className="px-5 py-2.5 border border-red-200 text-red-700 rounded-lg text-sm font-semibold hover:bg-red-50 disabled:opacity-50"
-              >
-                Retirar de Inventario
               </button>
             )}
           </>
@@ -259,13 +248,6 @@ function VehiculoDetail({
         almacenes={inventario.almacenes}
         onConfirm={inventario.handleTransfer}
         loading={inventario.transferLoading}
-      />
-      <RetirarInventarioModal
-        open={inventario.retireOpen}
-        onClose={() => inventario.setRetireOpen(false)}
-        assetLabel={inventario.assetLabel}
-        onConfirm={inventario.handleRetire}
-        loading={inventario.retireLoading}
       />
       <UnsavedChangesModal
         open={unsaved.modalOpen}
