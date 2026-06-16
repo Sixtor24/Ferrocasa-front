@@ -11,6 +11,8 @@ import type { BienMueble } from '../types/bien';
 import { isInventarioActivo } from './inventarioActivo';
 import { exportInternoBienesAdministrativos, exportInternoCementerio } from './exportInternoBienesAdministrativosExcel';
 import { exportInternoVehiculosMaquinaria } from './exportInternoVehiculosExcel';
+export { exportInternoReporteMovimientos } from './exportInternoReporteMovimientosExcel';
+export type { ReporteMovimientoExportRow } from './exportInternoReporteMovimientosExcel';
 
 async function fetchAllBienesBySedeAliases(aliases: readonly string[]): Promise<BienMueble[]> {
   const all = await fetchAllPages((page, limit) => fetchBienes({ page, limit }));

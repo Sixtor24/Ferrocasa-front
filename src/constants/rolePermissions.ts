@@ -33,6 +33,8 @@ export type RolePermissions = {
   isAssetReadOnly: boolean;
   canTransferBien: boolean;
   canRetireBien: boolean;
+  /** Reactivar estado de uso en activos retirados (Obsoleto → En uso / En obsolescencia). */
+  canReactivateEstadoUso: boolean;
   /** Ver en el listado los bienes/vehículos dados de baja (retirados). */
   canViewRetirados: boolean;
   canExportInventory: boolean;
@@ -88,6 +90,7 @@ export function getRolePermissions(rol: RoleName | null | undefined): RolePermis
       isAssetReadOnly: true,
       canTransferBien: false,
       canRetireBien: false,
+      canReactivateEstadoUso: false,
       canViewRetirados: false,
       canExportInventory: false,
     };
@@ -107,6 +110,7 @@ export function getRolePermissions(rol: RoleName | null | undefined): RolePermis
     isSuperAdmin || isAdmin || isCoordinador;
   const canRetireBien =
     isSuperAdmin || isAdmin || isCoordinador;
+  const canReactivateEstadoUso = isSuperAdmin || isAdmin;
   const canViewRetirados =
     isSuperAdmin || isAdmin || isCoordinador;
 
@@ -124,6 +128,7 @@ export function getRolePermissions(rol: RoleName | null | undefined): RolePermis
     isAssetReadOnly,
     canTransferBien,
     canRetireBien,
+    canReactivateEstadoUso,
     canViewRetirados,
     canExportInventory: canWriteAssets,
   };

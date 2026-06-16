@@ -3,15 +3,12 @@ import { Link } from 'react-router-dom';
 import { fetchBienesAdministrativos, fetchBienesCementerio } from '../api/services/bienes-sedes.service';
 import { fetchVehiculos } from '../api/services/vehiculos.service';
 import { fetchParcelas, fetchParcelasEstadisticas } from '../api/services/parcelas.service';
-import {
-  exportReporteCsv,
-  exportReporteExcel,
-  fetchReporte,
-} from '../api/services/reportes.service';
+import { fetchReporte } from '../api/services/reportes.service';
 import { MODULE_PAGE_SIZE } from '../api/pagination';
 import { useAuth } from '../context/AuthContext';
 import { hasReportesAccess } from '../constants/reportesAccess';
-import { anioDesdeFecha, resolveReporteRecurso } from '../utils/reportesExport';
+import { exportInternoReporteMovimientos } from '../utils/exportInternoExcel';
+import { isoDateToDisplay } from '../utils/formatters';
 import {
   CATEGORIAS_REPORTE,
   TIPOS_MOVIMIENTO_REPORTE,
@@ -22,15 +19,14 @@ import { useApiQuery } from '../hooks/useApiQuery';
 import ModuleMetricCard from '../components/module/ModuleMetricCard';
 import StatusBadge from '../components/StatusBadge';
 import SearchableSelect from '../components/forms/SearchableSelect';
+import FechaFilterInput from '../components/forms/FechaFilterInput';
 import {
   FileSpreadsheet,
-  FileText,
   Package,
   ChevronRight,
   Search,
   Filter,
   X,
-  RefreshCw,
   Landmark,
   Map,
   Truck,
@@ -43,18 +39,59 @@ type FilaReporte = {
   almacen: string;
   categoriaModulo: CategoriaReporte;
   tipoMov: TipoMovimientoActivo;
+  fechaReferencia: string;
+  fechaEgreso?: string;
   stockActual: number;
   estadoUso: string;
   estadoFisico: string;
 };
 
-function tipoMovimientoDesdeId(id: string): TipoMovimientoActivo {
-  const tipos: TipoMovimientoActivo[] = ['Entrada', 'Transferencia', 'Salida'];
-  let hash = 0;
-  for (let i = 0; i < id.length; i += 1) {
-    hash = (hash + id.charCodeAt(i)) % tipos.length;
+function rangoFechaAnioActual() {
+  const year = new Date().getFullYear();
+  return { desde: `${year}-01-01`, hasta: `${year}-12-31` };
+}
+
+function fechaEnRango(fecha: string | undefined, desde: string, hasta: string): boolean {
+  const valor = fecha?.trim();
+  if (!valor || valor === '—') return false;
+  return valor >= desde && valor <= hasta;
+}
+
+function tipoMovimientoDesdeActivo(input: {
+  fechaEgreso?: string;
+  formaAdquisicion?: string;
+}): TipoMovimientoActivo {
+  if (input.fechaEgreso && input.fechaEgreso !== '—') return 'Salida';
+  if (input.formaAdquisicion === 'Transferencia') return 'Transferencia';
+  return 'Entrada';
+}
+
+function pasaFiltrosReporte(
+  item: FilaReporte,
+  tipoMovimiento: string,
+  fechaDesde: string,
+  fechaHasta: string,
+): boolean {
+  const hayRango = Boolean(fechaDesde && fechaHasta);
+
+  if (tipoMovimiento === 'Salida') {
+    return hayRango
+      ? fechaEnRango(item.fechaEgreso, fechaDesde, fechaHasta)
+      : Boolean(item.fechaEgreso && item.fechaEgreso !== '—');
   }
-  return tipos[hash];
+
+  if (tipoMovimiento !== 'Todos los movimientos' && item.tipoMov !== tipoMovimiento) {
+    return false;
+  }
+
+  if (!hayRango) return true;
+
+  if (tipoMovimiento === 'Todos los movimientos') {
+    return fechaEnRango(item.fechaReferencia, fechaDesde, fechaHasta)
+      || fechaEnRango(item.fechaEgreso, fechaDesde, fechaHasta);
+  }
+
+  return fechaEnRango(item.fechaReferencia, fechaDesde, fechaHasta);
 }
 
 function estadoUsoTerreno(comprometida: number, desincorporada: number): string {
@@ -127,11 +164,11 @@ export default function Reportes() {
     resumenQuery.data,
   ]);
 
-  const [fechaDesde, setFechaDesde] = useState('2024-01-01');
-  const [fechaHasta, setFechaHasta] = useState('2024-12-31');
+  const rangoInicial = rangoFechaAnioActual();
+  const [fechaDesde, setFechaDesde] = useState(rangoInicial.desde);
+  const [fechaHasta, setFechaHasta] = useState(rangoInicial.hasta);
   const [tipoMovimiento, setTipoMovimiento] = useState<string>(TIPOS_MOVIMIENTO_REPORTE[0]);
   const [formato, setFormato] = useState<'Resumido' | 'Detallado'>('Resumido');
-  const [generado, setGenerado] = useState(true);
   const [exportMsg, setExportMsg] = useState('');
   const [exportando, setExportando] = useState(false);
   const [busqueda, setBusqueda] = useState('');
@@ -139,13 +176,19 @@ export default function Reportes() {
   const reporteActivos = useMemo((): FilaReporte[] => {
     const bienesAdmin = (bienesAdminQuery.data?.data ?? []).map((bien) => {
       const id = `bien-admin-${bien.id}`;
+      const fechaEgreso = bien.fechaEgreso;
       return {
         id,
         codigo: bien.codigoInterno,
         descripcion: bien.descripcion,
         almacen: bien.ubicacion,
         categoriaModulo: 'Bienes Administrativos' as const,
-        tipoMov: tipoMovimientoDesdeId(id),
+        tipoMov: tipoMovimientoDesdeActivo({
+          fechaEgreso,
+          formaAdquisicion: bien.formaAdquisicion,
+        }),
+        fechaReferencia: bien.fechaIngreso || bien.fechaAdquisicion,
+        fechaEgreso,
         stockActual: 1,
         estadoUso: bien.estadoUso,
         estadoFisico: bien.condicionFisica,
@@ -154,13 +197,19 @@ export default function Reportes() {
 
     const bienesCementerio = (bienesCementerioQuery.data?.data ?? []).map((bien) => {
       const id = `bien-cementerio-${bien.id}`;
+      const fechaEgreso = bien.fechaEgreso;
       return {
         id,
         codigo: bien.codigoInterno,
         descripcion: bien.descripcion,
         almacen: bien.ubicacion,
         categoriaModulo: 'Cementerio' as const,
-        tipoMov: tipoMovimientoDesdeId(id),
+        tipoMov: tipoMovimientoDesdeActivo({
+          fechaEgreso,
+          formaAdquisicion: bien.formaAdquisicion,
+        }),
+        fechaReferencia: bien.fechaIngreso || bien.fechaAdquisicion,
+        fechaEgreso,
         stockActual: 1,
         estadoUso: bien.estadoUso,
         estadoFisico: bien.condicionFisica,
@@ -175,7 +224,8 @@ export default function Reportes() {
         descripcion: terreno.identificacion,
         almacen: terreno.ubicacion,
         categoriaModulo: 'Terrenos' as const,
-        tipoMov: tipoMovimientoDesdeId(id),
+        tipoMov: tipoMovimientoDesdeActivo({ formaAdquisicion: terreno.formaAdquisicion }),
+        fechaReferencia: terreno.fechaIngreso || terreno.fechaAdquisicion,
         stockActual: 1,
         estadoUso: estadoUsoTerreno(terreno.areaComprometida, terreno.areaDesincorporada),
         estadoFisico: '—',
@@ -184,13 +234,19 @@ export default function Reportes() {
 
     const vehiculos = (vehiculosQuery.data?.data ?? []).map((vehiculo) => {
       const id = `vehiculo-${vehiculo.id}`;
+      const fechaEgreso = vehiculo.fechaEgreso;
       return {
         id,
         codigo: vehiculo.codigoInterno,
         descripcion: vehiculo.descripcion,
         almacen: vehiculo.almacen,
         categoriaModulo: 'Vehículos y Maquinarias' as const,
-        tipoMov: tipoMovimientoDesdeId(id),
+        tipoMov: tipoMovimientoDesdeActivo({
+          fechaEgreso,
+          formaAdquisicion: vehiculo.formaAdquisicion,
+        }),
+        fechaReferencia: vehiculo.fechaIngreso || vehiculo.fechaAdquisicion,
+        fechaEgreso,
         stockActual: 1,
         estadoUso: vehiculo.estadoUso,
         estadoFisico: vehiculo.condicionFisica,
@@ -235,9 +291,7 @@ export default function Reportes() {
     if (categoriasSeleccionadas.length > 0) {
       list = list.filter((m) => categoriasSeleccionadas.includes(m.categoriaModulo));
     }
-    if (tipoMovimiento !== 'Todos los movimientos') {
-      list = list.filter((m) => m.tipoMov === tipoMovimiento);
-    }
+    list = list.filter((m) => pasaFiltrosReporte(m, tipoMovimiento, fechaDesde, fechaHasta));
     if (busqueda) {
       const q = busqueda.toLowerCase();
       list = list.filter((m) =>
@@ -248,52 +302,38 @@ export default function Reportes() {
       );
     }
     return list;
-  }, [reporteActivos, categoriasSeleccionadas, tipoMovimiento, busqueda]);
+  }, [reporteActivos, categoriasSeleccionadas, tipoMovimiento, fechaDesde, fechaHasta, busqueda]);
 
   const limpiarFiltrosReporte = () => {
+    const rango = rangoFechaAnioActual();
+    setFechaDesde(rango.desde);
+    setFechaHasta(rango.hasta);
     setCategoriasSeleccionadas([]);
     setTipoMovimiento(TIPOS_MOVIMIENTO_REPORTE[0]);
     setBusqueda('');
   };
 
-  const refrescarFuentes = async () => {
-    await Promise.allSettled([
-      resumenQuery.refetch(),
-      bienesAdminQuery.refetch(),
-      bienesCementerioQuery.refetch(),
-      parcelasQuery.refetch(),
-      parcelasStatsQuery.refetch(),
-      vehiculosQuery.refetch(),
-    ]);
-  };
-
-  const handleGenerar = async () => {
-    setGenerado(false);
-    try {
-      await refrescarFuentes();
-    } finally {
-      setGenerado(true);
-    }
-  };
-
-  const exportarReporte = async (formato: 'excel' | 'csv') => {
+  const handleExportarReporte = async () => {
     if (!canAccess) return;
 
-    const recurso = resolveReporteRecurso(categoriasSeleccionadas);
-    const anio = recurso === 'protocolos-por-mes' ? anioDesdeFecha(fechaDesde) : undefined;
-    const etiqueta = formato === 'excel' ? 'Excel' : 'CSV';
-
     setExportando(true);
-    setExportMsg(`Generando ${etiqueta}...`);
+    setExportMsg('Generando Excel...');
     try {
-      if (formato === 'excel') {
-        await exportReporteExcel(recurso, anio);
-      } else {
-        await exportReporteCsv(recurso, anio);
-      }
-      setExportMsg(`${etiqueta} descargado exitosamente`);
+      await exportInternoReporteMovimientos(
+        filteredMateriales.map((row) => ({
+          codigo: row.codigo,
+          descripcion: row.descripcion,
+          categoria: row.categoriaModulo,
+          almacen: row.almacen,
+          movimiento: row.tipoMov,
+          stock: row.stockActual,
+          estadoUso: row.estadoUso,
+          estadoFisico: row.estadoFisico,
+        })),
+      );
+      setExportMsg('Reporte exportado exitosamente');
     } catch (err) {
-      setExportMsg(err instanceof Error ? err.message : `No se pudo exportar ${etiqueta}`);
+      setExportMsg(err instanceof Error ? err.message : 'No se pudo exportar el reporte');
     } finally {
       setExportando(false);
       setTimeout(() => setExportMsg(''), 4000);
@@ -302,7 +342,8 @@ export default function Reportes() {
 
   const activeFilterCount = (categoriasSeleccionadas.length > 0 ? 1 : 0) +
     (tipoMovimiento !== 'Todos los movimientos' ? 1 : 0) +
-    (busqueda ? 1 : 0);
+    (busqueda ? 1 : 0) +
+    ((fechaDesde !== rangoInicial.desde || fechaHasta !== rangoInicial.hasta) ? 1 : 0);
 
   return (
     <div className="p-4 md:p-6 space-y-6">
@@ -321,21 +362,12 @@ export default function Reportes() {
           {exportMsg && <span className="text-sm text-green-600 font-medium animate-pulse">{exportMsg}</span>}
           <button
             type="button"
-            onClick={() => exportarReporte('excel')}
-            disabled={exportando || !canAccess}
-            className="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-60"
-          >
-            <FileSpreadsheet size={16} />
-            <span className="hidden sm:inline">Excel (.xlsx)</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => exportarReporte('csv')}
+            onClick={() => void handleExportarReporte()}
             disabled={exportando || !canAccess}
             className="flex items-center gap-2 px-4 py-2 bg-navy-900 text-white rounded-lg text-sm font-medium hover:bg-navy-800 disabled:opacity-60"
           >
-            <FileText size={16} />
-            Descargar PDF
+            <FileSpreadsheet size={16} />
+            {exportando ? 'Exportando...' : 'Exportar Reporte'}
           </button>
         </div>
       </div>
@@ -386,13 +418,15 @@ export default function Reportes() {
             </div>
 
             {/* Date range */}
-            <div>
-              <label className="text-xs font-medium text-gray-500 uppercase mb-1.5 block">Rango de Fechas</label>
-              <div className="grid grid-cols-2 gap-2">
-                <input type="date" value={fechaDesde} onChange={(e) => setFechaDesde(e.target.value)}
-                  className="w-full border border-gray-200 rounded-lg px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy-500" />
-                <input type="date" value={fechaHasta} onChange={(e) => setFechaHasta(e.target.value)}
-                  className="w-full border border-gray-200 rounded-lg px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy-500" />
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-gray-500 uppercase block">Rango de Fechas</label>
+              <div>
+                <span className="text-xs text-gray-400 mb-1 block">Desde</span>
+                <FechaFilterInput value={fechaDesde} onChange={setFechaDesde} />
+              </div>
+              <div>
+                <span className="text-xs text-gray-400 mb-1 block">Hasta</span>
+                <FechaFilterInput value={fechaHasta} onChange={setFechaHasta} />
               </div>
             </div>
 
@@ -400,9 +434,14 @@ export default function Reportes() {
             <div>
               <label className="text-xs font-medium text-gray-500 uppercase mb-1.5 block">Movimiento</label>
               <SearchableSelect
-                value={tipoMovimiento}
-                onChange={(value) => setTipoMovimiento(value as TipoMovimientoActivo)}
-                options={TIPOS_MOVIMIENTO_REPORTE}
+                value={tipoMovimiento === TIPOS_MOVIMIENTO_REPORTE[0] ? '' : tipoMovimiento}
+                onChange={(value) => setTipoMovimiento(value || TIPOS_MOVIMIENTO_REPORTE[0])}
+                options={TIPOS_MOVIMIENTO_REPORTE.map((option) => ({
+                  label: option,
+                  value: option === 'Todos los movimientos' ? '' : option,
+                }))}
+                placeholder={TIPOS_MOVIMIENTO_REPORTE[0]}
+                disableSearch
               />
             </div>
 
@@ -440,12 +479,6 @@ export default function Reportes() {
               </div>
             </div>
 
-            <button onClick={handleGenerar}
-              className="w-full bg-navy-900 text-white py-2.5 rounded-lg font-medium hover:bg-navy-800 transition-colors flex items-center justify-center gap-2 text-sm">
-              <RefreshCw size={15} />
-              Generar Reporte
-            </button>
-
             <button
               type="button"
               onClick={limpiarFiltrosReporte}
@@ -479,7 +512,16 @@ export default function Reportes() {
               <span className="text-xs text-gray-500">Filtros:</span>
               {tipoMovimiento !== 'Todos los movimientos' && (
                 <span className="bg-navy-100 text-navy-800 text-xs font-medium px-2.5 py-1 rounded-full flex items-center gap-1">
-                  {tipoMovimiento} <X size={12} className="cursor-pointer" onClick={() => setTipoMovimiento('Todos los movimientos')} />
+                  {tipoMovimiento} <X size={12} className="cursor-pointer" onClick={() => setTipoMovimiento(TIPOS_MOVIMIENTO_REPORTE[0])} />
+                </span>
+              )}
+              {(fechaDesde !== rangoInicial.desde || fechaHasta !== rangoInicial.hasta) && (
+                <span className="bg-navy-100 text-navy-800 text-xs font-medium px-2.5 py-1 rounded-full flex items-center gap-1">
+                  {isoDateToDisplay(fechaDesde)} — {isoDateToDisplay(fechaHasta)}
+                  <X size={12} className="cursor-pointer" onClick={() => {
+                    setFechaDesde(rangoInicial.desde);
+                    setFechaHasta(rangoInicial.hasta);
+                  }} />
                 </span>
               )}
               {categoriasSeleccionadas.length > 0 && (
@@ -496,14 +538,13 @@ export default function Reportes() {
           )}
 
           {/* Table */}
-          {generado ? (
-            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
               <div className="px-4 sm:px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-gray-200">
                 <h3 className="text-base font-semibold text-navy-900">
                   {formato === 'Detallado' ? 'Vista Detallada' : 'Vista Resumida'}
                 </h3>
                 <span className="text-xs text-gray-500">
-                  {filteredMateriales.length} {filteredMateriales.length === 1 ? 'resultado' : 'resultados'} · {fechaDesde} — {fechaHasta}
+                  {filteredMateriales.length} {filteredMateriales.length === 1 ? 'resultado' : 'resultados'} · {isoDateToDisplay(fechaDesde)} — {isoDateToDisplay(fechaHasta)}
                 </span>
               </div>
 
@@ -572,17 +613,8 @@ export default function Reportes() {
               <div className="px-4 sm:px-6 py-3 border-t border-gray-200 flex items-center justify-between text-xs text-gray-500">
                 <span>{filteredMateriales.length} registros</span>
                 <span>Formato: {formato}</span>
-              </div>
             </div>
-          ) : (
-            <div className="bg-white rounded-xl border border-gray-200 p-16 flex items-center justify-center">
-              <div className="text-center">
-                <div className="w-10 h-10 border-4 border-navy-900 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-                <p className="text-sm text-gray-500 font-medium">Generando reporte...</p>
-                <p className="text-xs text-gray-400 mt-1">Procesando {reporteActivos.length} activos</p>
-              </div>
-            </div>
-          )}
+          </div>
         </div>
       </div>
     </div>

@@ -34,6 +34,7 @@ import { FILTROS_INVENTARIO_VACIOS } from '../constants/moduleFilters';
 import ModuleDataTable from '../components/module/ModuleDataTable';
 import ModuleTablePaginationBar from '../components/module/ModuleTablePaginationBar';
 import AssetDetailView from '../components/module/AssetDetailView';
+import EstadoUsoDetailField from '../components/module/EstadoUsoDetailField';
 import ApiState from '../components/ApiState';
 import StatusBadge from '../components/StatusBadge';
 import { formatFecha, formatMoneda, fechaCalendarioIso } from '../utils/formatters';
@@ -43,6 +44,8 @@ import {
   condicionVehiculoToApi,
   estadoUsoVehiculoToApi,
 } from '../utils/registroVehiculoMappers';
+import { canGuardarEstadoUsoDetalle } from '../utils/estadoUsoDetail';
+import { estadoUsoReactivationOverrides } from '../utils/persistEstadoUso';
 import { aggregateVehiculosMetricsFromList } from '../utils/vehiculosStats';
 import { filterAlmacenesVehiculos, nombresAlmacenesVehiculos } from '../utils/vehiculoAlmacenes';
 import {
@@ -77,7 +80,7 @@ function VehiculoDetail({
   onSaved?: () => void | Promise<void>;
   onInventarioAction?: (result: InventarioVehiculoActionResult) => void;
 }) {
-  const { canWriteAssets, canTransferBien, canRetireBien } = useRolePermissions();
+  const { canWriteAssets, canTransferBien, canRetireBien, canReactivateEstadoUso } = useRolePermissions();
   const navigate = useNavigate();
   const [estadoUso, setEstadoUso] = useState(vehiculo.estadoUso);
   const [condicionFisica, setCondicionFisica] = useState(vehiculo.condicionFisica);
@@ -92,6 +95,13 @@ function VehiculoDetail({
   const isDirty =
     estadoUso !== vehiculo.estadoUso || condicionFisica !== vehiculo.condicionFisica;
   const unsaved = useUnsavedChangesGuard(isDirty);
+  const showGuardarCambio = inventario.retirado ? canReactivateEstadoUso : canWriteAssets;
+  const puedeGuardarCambio = canGuardarEstadoUsoDetalle({
+    retirado: inventario.retirado,
+    canWriteAssets,
+    canReactivateEstadoUso,
+    isDirty,
+  });
 
   const guardarCambio = async () => {
     setSaving(true);
@@ -100,6 +110,7 @@ function VehiculoDetail({
       const payload = apiVehiculoToUpdatePayload(apiVehiculo, {
         estado_uso: estadoUsoVehiculoToApi(estadoUso),
         condicion_fisica: condicionVehiculoToApi(condicionFisica),
+        ...estadoUsoReactivationOverrides(vehiculo.estadoUso, estadoUso),
       });
       await updateVehiculo(vehiculo.id, payload);
       notifyVehiculoActualizado(vehiculo, estadoUso);
@@ -145,13 +156,13 @@ function VehiculoDetail({
               {
                 label: 'Estado de uso',
                 value: (
-                  <SearchableSelect
+                  <EstadoUsoDetailField
                     value={estadoUso}
-                    onChange={(value) => setEstadoUso(value as Vehiculo['estadoUso'])}
+                    onChange={setEstadoUso}
                     options={ESTADOS_USO_VEHICULO}
-                    className="max-w-xs"
-                    disabled={inventario.retirado || !canWriteAssets}
-                    disableSearch
+                    retirado={inventario.retirado}
+                    canWriteAssets={canWriteAssets}
+                    canReactivateEstadoUso={canReactivateEstadoUso}
                   />
                 ),
               },
@@ -217,11 +228,11 @@ function VehiculoDetail({
               <ArrowLeft size={16} />
               Volver al listado
             </button>
-            {canWriteAssets && (
+            {showGuardarCambio && (
               <button
                 type="button"
                 onClick={guardarCambio}
-                disabled={saving || inventario.retirado}
+                disabled={saving || !puedeGuardarCambio}
                 className="px-5 py-2.5 bg-navy-900 text-white rounded-lg text-sm font-semibold hover:bg-navy-800 disabled:opacity-60"
               >
                 {saving ? 'Guardando...' : 'Guardar cambio'}
@@ -429,8 +440,11 @@ export default function Vehiculos() {
               navigate('/vehiculos');
             }}
             onSaved={refreshVehiculos}
-            onInventarioAction={() => {
+            onInventarioAction={(result) => {
               refreshVehiculos();
+              if (result.type === 'retire') {
+                navigate('/vehiculos');
+              }
             }}
           />
         )}

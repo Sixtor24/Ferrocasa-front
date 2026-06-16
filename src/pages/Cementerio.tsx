@@ -26,6 +26,8 @@ import { notifyBienActualizado } from "../utils/assetNotify";
 import { apiBienToUpdatePayload } from "../utils/assetUpdateMappers";
 import { bienCodigoPk } from "../utils/bienCodigo";
 import { estadoUsoToApi } from "../utils/registroBienMappers";
+import { canGuardarEstadoUsoDetalle } from "../utils/estadoUsoDetail";
+import { estadoUsoReactivationOverrides } from "../utils/persistEstadoUso";
 import { useUnsavedChangesGuard } from "../hooks/useUnsavedChangesGuard";
 import UnsavedChangesModal from "../components/modals/UnsavedChangesModal";
 import type { Column } from "../components/DataTable";
@@ -40,6 +42,7 @@ import {
 } from "../hooks/useBienInventarioActions";
 import type { ApiAlmacen } from "../api/types";
 import ModulePageHeader from "../components/module/ModulePageHeader";
+import EstadoUsoDetailField from "../components/module/EstadoUsoDetailField";
 import { useRolePermissions } from "../hooks/useRolePermissions";
 import ModuleFilterBar from "../components/module/ModuleFilterBar";
 import SearchableSelect from "../components/forms/SearchableSelect";
@@ -73,7 +76,7 @@ function CementerioBienDetail({
   onSaved?: () => void | Promise<void>;
   onInventarioAction?: (result: InventarioBienActionResult) => void;
 }) {
-  const { canWriteAssets, canTransferBien, canRetireBien } =
+  const { canWriteAssets, canTransferBien, canRetireBien, canReactivateEstadoUso } =
     useRolePermissions();
   const navigate = useNavigate();
   const [estadoUso, setEstadoUso] = useState(bien.estadoUso);
@@ -90,6 +93,13 @@ function CementerioBienDetail({
 
   const isDirty = estadoUso !== bien.estadoUso;
   const unsaved = useUnsavedChangesGuard(isDirty);
+  const showGuardarCambio = inventario.retirado ? canReactivateEstadoUso : canWriteAssets;
+  const puedeGuardarCambio = canGuardarEstadoUsoDetalle({
+    retirado: inventario.retirado,
+    canWriteAssets,
+    canReactivateEstadoUso,
+    isDirty,
+  });
 
   const guardarCambio = async () => {
     setSaving(true);
@@ -98,6 +108,7 @@ function CementerioBienDetail({
       const apiBien = await fetchApiBienByCodigo(codigo);
       const payload = apiBienToUpdatePayload(apiBien, {
         estado_uso: estadoUsoToApi(estadoUso),
+        ...estadoUsoReactivationOverrides(bien.estadoUso, estadoUso),
       });
       await updateBien(codigo, payload);
       notifyBienActualizado(bien, { estadoUso });
@@ -170,15 +181,13 @@ function CementerioBienDetail({
               {
                 label: "Estado de uso",
                 value: (
-                  <SearchableSelect
+                  <EstadoUsoDetailField
                     value={estadoUso}
-                    onChange={(value) =>
-                      setEstadoUso(value as BienMueble["estadoUso"])
-                    }
+                    onChange={setEstadoUso}
                     options={ESTADOS_USO}
-                    className="max-w-xs"
-                    disabled={inventario.retirado || !canWriteAssets}
-                    disableSearch
+                    retirado={inventario.retirado}
+                    canWriteAssets={canWriteAssets}
+                    canReactivateEstadoUso={canReactivateEstadoUso}
                   />
                 ),
               },
@@ -213,11 +222,11 @@ function CementerioBienDetail({
               <ArrowLeft size={16} />
               Volver al listado
             </button>
-            {canWriteAssets && (
+            {showGuardarCambio && (
               <button
                 type="button"
                 onClick={guardarCambio}
-                disabled={saving}
+                disabled={saving || !puedeGuardarCambio}
                 className="px-5 py-2.5 bg-navy-900 text-white rounded-lg text-sm font-semibold hover:bg-navy-800 disabled:opacity-60"
               >
                 {saving ? "Guardando..." : "Guardar cambio"}
@@ -482,6 +491,10 @@ export default function Cementerio() {
                 return;
               }
               void bienesQuery.refetch();
+              if (result.type === "retire") {
+                navigate("/cementerio");
+                return;
+              }
               await detailQuery.refetch();
             }}
           />

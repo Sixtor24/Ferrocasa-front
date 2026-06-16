@@ -19,6 +19,7 @@ import {
 import { useApiQuery } from '../hooks/useApiQuery';
 import ApiState from '../components/ApiState';
 import AssetDetailView from '../components/module/AssetDetailView';
+import EstadoUsoDetailField from '../components/module/EstadoUsoDetailField';
 import ModuleFilterBar from '../components/module/ModuleFilterBar';
 import SearchableSelect from '../components/forms/SearchableSelect';
 import { FILTROS_INVENTARIO_VACIOS } from '../constants/moduleFilters';
@@ -38,6 +39,8 @@ import { notifyBienActualizado } from '../utils/assetNotify';
 import { apiBienToUpdatePayload } from '../utils/assetUpdateMappers';
 import { bienCodigoPk } from '../utils/bienCodigo';
 import { condicionFisicaToApi, estadoUsoToApi } from '../utils/registroBienMappers';
+import { canGuardarEstadoUsoDetalle } from '../utils/estadoUsoDetail';
+import { estadoUsoReactivationOverrides } from '../utils/persistEstadoUso';
 import { useUnsavedChangesGuard } from '../hooks/useUnsavedChangesGuard';
 import UnsavedChangesModal from '../components/modals/UnsavedChangesModal';
 import { useModuleUiState } from '../stores/moduleUiStore';
@@ -137,7 +140,7 @@ function AlmacenBienDetail({
   onSaved?: () => void | Promise<void>;
   onInventarioAction?: (result: InventarioBienActionResult) => void;
 }) {
-  const { canWriteAssets, canTransferBien, canRetireBien } = useRolePermissions();
+  const { canWriteAssets, canTransferBien, canRetireBien, canReactivateEstadoUso } = useRolePermissions();
   const navigate = useNavigate();
   const [estadoUso, setEstadoUso] = useState(bien.estadoUso);
   const [condicionFisica, setCondicionFisica] = useState(bien.condicionFisica);
@@ -152,6 +155,13 @@ function AlmacenBienDetail({
   const isDirty =
     estadoUso !== bien.estadoUso || condicionFisica !== bien.condicionFisica;
   const unsaved = useUnsavedChangesGuard(isDirty);
+  const showGuardarCambio = inventario.retirado ? canReactivateEstadoUso : canWriteAssets;
+  const puedeGuardarCambio = canGuardarEstadoUsoDetalle({
+    retirado: inventario.retirado,
+    canWriteAssets,
+    canReactivateEstadoUso,
+    isDirty,
+  });
 
   const guardarCambio = async () => {
     if (!isDirty || saving) return;
@@ -163,6 +173,7 @@ function AlmacenBienDetail({
       const payload = apiBienToUpdatePayload(apiBien, {
         estado_uso: estadoUsoToApi(estadoUso),
         condicion_fisica: condicionFisicaToApi(condicionFisica),
+        ...estadoUsoReactivationOverrides(bien.estadoUso, estadoUso),
       });
       await updateBien(codigo, payload);
       notifyBienActualizado(bien, { estadoUso, condicionFisica });
@@ -202,13 +213,13 @@ function AlmacenBienDetail({
             {
               label: 'Estado de uso',
               value: (
-                <SearchableSelect
+                <EstadoUsoDetailField
                   value={estadoUso}
-                  onChange={(value) => setEstadoUso(value as BienMueble['estadoUso'])}
+                  onChange={setEstadoUso}
                   options={ESTADOS_USO}
-                  className="max-w-xs"
-                  disabled={inventario.retirado || !canWriteAssets}
-                  disableSearch
+                  retirado={inventario.retirado}
+                  canWriteAssets={canWriteAssets}
+                  canReactivateEstadoUso={canReactivateEstadoUso}
                 />
               ),
             },
@@ -265,11 +276,11 @@ function AlmacenBienDetail({
             <ArrowLeft size={16} aria-hidden />
             Volver al listado
           </button>
-          {canWriteAssets && (
+          {showGuardarCambio && (
             <button
               type="button"
               onClick={guardarCambio}
-              disabled={saving || !isDirty || inventario.retirado}
+              disabled={saving || !puedeGuardarCambio}
               aria-busy={saving}
               className={`${ACTION_BTN} px-5 py-2.5 bg-navy-900 text-white hover:bg-navy-800 disabled:opacity-60`}
             >
@@ -456,6 +467,9 @@ export default function Almacen() {
                 return;
               }
               refreshBienes();
+              if (result.type === 'retire') {
+                navigate('/almacen');
+              }
             }}
           />
         )}
