@@ -566,7 +566,7 @@ export default function Almacen() {
           },
           {
             key: 'fecha',
-            label: 'Fecha',
+            label: 'Fecha de adquisición',
             type: 'date',
             value: filtros.fecha,
             onChange: (v) => setFiltro('fecha', v),
