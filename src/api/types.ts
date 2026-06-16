@@ -220,6 +220,9 @@ export interface ApiParcela {
   responsable?: ApiResponsable | null;
   compromiso?: ApiCompromisoTerreno | null;
   desincorporacion?: ApiDesincorporacionTerreno | null;
+  /** Movimientos completos cuando la parcela se enriquece en detalle. */
+  compromisos?: ApiCompromisoTerreno[];
+  desincorporaciones?: ApiDesincorporacionTerreno[];
 }
 
 export interface ApiBienesEstadisticas {

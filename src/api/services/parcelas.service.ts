@@ -144,34 +144,59 @@ async function enrichMovimientoConProtocolo<
 }
 
 async function enrichParcelaMovimientos(raw: ApiParcela): Promise<ApiParcela> {
-  let compromiso = raw.compromiso;
-  let desincorporacion = raw.desincorporacion;
+  const parcelaId = raw.codigo?.trim() || String(raw.id_terreno);
 
-  if (raw.id_comprometida && !compromiso?.protocolo?.motivo) {
+  let compromisos: NonNullable<ApiParcela['compromisos']> = [];
+  let desincorporaciones: NonNullable<ApiParcela['desincorporaciones']> = [];
+
+  try {
+    const [compList, desList] = await Promise.all([
+      fetchCompromisosByParcela(parcelaId),
+      fetchDesincorporacionesByParcela(parcelaId),
+    ]);
+    compromisos = await Promise.all(compList.map((item) => enrichMovimientoConProtocolo(item)));
+    desincorporaciones = await Promise.all(desList.map((item) => enrichMovimientoConProtocolo(item)));
+  } catch {
+    compromisos = [];
+    desincorporaciones = [];
+  }
+
+  if (compromisos.length === 0 && raw.compromiso) {
+    compromisos = [await enrichMovimientoConProtocolo(raw.compromiso)];
+  } else if (compromisos.length === 0 && raw.id_comprometida) {
     try {
       const found =
-        compromiso ??
-        (await fetchCompromisosByParcela(raw.id_terreno))[0] ??
-        (await fetchCompromisoById(raw.id_comprometida));
-      compromiso = await enrichMovimientoConProtocolo(found);
+        (await fetchCompromisosByParcela(parcelaId))[0]
+        ?? (await fetchCompromisoById(Number(raw.id_comprometida)));
+      compromisos = [await enrichMovimientoConProtocolo(found)];
     } catch {
-      compromiso = raw.compromiso;
+      compromisos = raw.compromiso ? [raw.compromiso] : [];
     }
   }
 
-  if (raw.id_desincorporada && !desincorporacion?.protocolo?.motivo) {
+  if (desincorporaciones.length === 0 && raw.desincorporacion) {
+    desincorporaciones = [await enrichMovimientoConProtocolo(raw.desincorporacion)];
+  } else if (desincorporaciones.length === 0 && raw.id_desincorporada) {
     try {
       const found =
-        desincorporacion ??
-        (await fetchDesincorporacionesByParcela(raw.id_terreno))[0] ??
-        (await fetchDesincorporacionById(raw.id_desincorporada));
-      desincorporacion = await enrichMovimientoConProtocolo(found);
+        (await fetchDesincorporacionesByParcela(parcelaId))[0]
+        ?? (await fetchDesincorporacionById(Number(raw.id_desincorporada)));
+      desincorporaciones = [await enrichMovimientoConProtocolo(found)];
     } catch {
-      desincorporacion = raw.desincorporacion;
+      desincorporaciones = raw.desincorporacion ? [raw.desincorporacion] : [];
     }
   }
 
-  return { ...raw, compromiso, desincorporacion };
+  const compromiso = compromisos[compromisos.length - 1] ?? raw.compromiso ?? null;
+  const desincorporacion = desincorporaciones[desincorporaciones.length - 1] ?? raw.desincorporacion ?? null;
+
+  return {
+    ...raw,
+    compromiso,
+    desincorporacion,
+    compromisos,
+    desincorporaciones,
+  };
 }
 
 async function enrichProtocolosBeneficiario(

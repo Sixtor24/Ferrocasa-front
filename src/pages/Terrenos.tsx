@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
@@ -6,29 +6,22 @@ import {
   fetchParcelaById,
   fetchParcelasAll,
   updateParcela,
-  type ParcelaPayload,
 } from '../api/services/parcelas.service';
 import type { ApiParcela } from '../api/types';
 import { useApiQuery } from '../hooks/useApiQuery';
 import ModuleMetricCard, { formatAreaM2 } from '../components/module/ModuleMetricCard';
 import SearchableSelect from '../components/forms/SearchableSelect';
+import type { FormaAdquisicion } from '../types/bien';
+import type { ProtocolizacionTerreno, Terreno } from '../types/terreno';
 import {
   ESTADOS_TRAMITE,
   LEVANTAMIENTO_TOPOGRAFICO_OPCIONES,
+  ZONIFICACIONES,
 } from '../types/terreno';
 import {
-  levantamientoTopograficoToApi,
-  mapLevantamientoTopografico,
-} from '../api/mappers/enums';
-import type { ProtocolizacionTerreno, Terreno } from '../types/terreno';
-import {
-  Modal,
   NuevaProtocolizacionModal,
   RegistroParcelasModal,
 } from '../components/modals';
-import { useAuth } from '../context/AuthContext';
-import { createProtocolo } from '../api/services/protocolos.service';
-import { createDesincorporacion } from '../api/services/desincorporaciones.service';
 import UnsavedChangesModal from '../components/modals/UnsavedChangesModal';
 import { useUnsavedChangesGuard } from '../hooks/useUnsavedChangesGuard';
 import type { TipoProtocolizacionParcela } from '../components/modals/NuevaProtocolizacionModal';
@@ -39,24 +32,33 @@ import ModuleDataTable from '../components/module/ModuleDataTable';
 import ModuleTablePaginationBar from '../components/module/ModuleTablePaginationBar';
 import AssetDetailView from '../components/module/AssetDetailView';
 import ApiState from '../components/ApiState';
+import CurrencyAmountInput from '../components/forms/CurrencyAmountInput';
+import DetailFieldInput, { DetailReadOnly } from '../components/module/DetailFieldInput';
 import { formatFecha, formatMoneda, fechaCalendarioIso } from '../utils/formatters';
+import {
+  FORMAS_ADQUISICION_DOCUMENTO,
+  formaAdquisicionToApi,
+} from '../utils/formaAdquisicionMappers';
+import { useTerrenoParcelaDetailEdit } from '../modules/terrenos/useTerrenoParcelaDetailEdit';
+import {
+  parcelaSoloConsulta,
+  parcelaTotalmenteDesincorporada,
+} from '../utils/parcelaMovimientos';
 import { aggregateTerrenoMetricas } from '../utils/parcelasStats';
 import { exportInventarioParcelas } from '../utils/exportInventarioParcelasExcel';
 import { useModuleUiState } from '../stores/moduleUiStore';
 import { useRolePermissions } from '../hooks/useRolePermissions';
 import type { Column } from '../components/DataTable';
-import { AlertTriangle, ArrowLeft, Map, MapPin, Layers, MinusCircle } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Loader2, Map, MapPin, Layers, MinusCircle } from 'lucide-react';
 
 const ESTADOS_PARCELA = ['disponible', 'comprometida', 'desincorporada'] as const;
 type TerrenosFilters = typeof FILTROS_TERRENOS_VACIOS;
 
+const ACTION_BTN =
+  'inline-flex items-center justify-center gap-2 rounded-lg text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed';
+
 function formatAreaM2Detail(value: number) {
   return `${value.toLocaleString('es-VE')} m²`;
-}
-
-function acreditacionEstadoToApi(value: Terreno['acreditacionTecnicaAmbiental']) {
-  if (value === 'Sí') return 'Si_posee';
-  return 'No_posee';
 }
 
 function filterTerrenosByUiFilters(terrenos: Terreno[], filtros: TerrenosFilters) {
@@ -80,53 +82,6 @@ function filterTerrenosByUiFilters(terrenos: Terreno[], filtros: TerrenosFilters
   });
 }
 
-function entityIdAsString(value: number | string | null | undefined): string {
-  if (value == null || value === '') {
-    throw new Error('ID de documento de propiedad inválido');
-  }
-  return String(value);
-}
-
-function nullableEntityIdAsNumber(value: number | string | null | undefined): number | null {
-  if (value == null || value === '') return null;
-  const num = typeof value === 'number' ? value : Number(value);
-  if (!Number.isFinite(num)) {
-    throw new Error('ID de entidad inválido');
-  }
-  return num;
-}
-
-function parcelaPayloadFromApi(
-  raw: ApiParcela,
-  overrides: Partial<Pick<ParcelaPayload, 'id_comprometida' | 'id_desincorporada'>> = {},
-): ParcelaPayload {
-  const idTerreno = raw.codigo?.trim() || entityIdAsString(raw.id_terreno);
-  return {
-    id_terreno: idTerreno,
-    nombre: raw.nombre ?? `Parcela ${idTerreno}`,
-    zona: raw.zona ?? 'Sin zona',
-    id_documento_propiedad: entityIdAsString(raw.id_documento_propiedad),
-    id_desincorporada: overrides.id_desincorporada
-      ?? nullableEntityIdAsNumber(raw.id_desincorporada),
-    id_comprometida: overrides.id_comprometida
-      ?? nullableEntityIdAsNumber(raw.id_comprometida),
-    ci_responsable: raw.ci_responsable ?? raw.responsable?.ci_responsable ?? '0',
-    zonificacion: raw.zonificacion ?? 'Sin zonificar',
-    observaciones: raw.observaciones ?? null,
-    acreditacion_ambiental: raw.acreditacion_ambiental,
-    levantamiento_topografico: levantamientoTopograficoToApi(
-      mapLevantamientoTopografico(raw.levantamiento_topografico),
-    ),
-    valor_adquisicion:
-      raw.valor_adquisicion != null
-        ? Number(raw.valor_adquisicion)
-        : raw.documento?.valor_adquisicion != null
-          ? Number(raw.documento.valor_adquisicion)
-          : null,
-    ubicacion_adicional: raw.ubicacion_adicional ?? null,
-  };
-}
-
 function TerrenoParcelaDetail({
   terreno,
   raw,
@@ -141,52 +96,28 @@ function TerrenoParcelaDetail({
   onUpdated: () => void;
 }) {
   const navigate = useNavigate();
-  const { user } = useAuth();
   const { canWriteAssets } = useRolePermissions();
-  const [acreditacion, setAcreditacion] = useState(terreno.acreditacionTecnicaAmbiental);
-  const [levantamiento, setLevantamiento] = useState(terreno.levantamientoTopografico);
   const [protocolModalOpen, setProtocolModalOpen] = useState(false);
-  const [protocolTipo, setProtocolTipo] = useState<TipoProtocolizacionParcela>('Compromiso');
-  const [protocolLockTipo, setProtocolLockTipo] = useState(false);
-  const [retiroConfirmOpen, setRetiroConfirmOpen] = useState(false);
-  const [retiroSubmitting, setRetiroSubmitting] = useState(false);
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    setAcreditacion(terreno.acreditacionTecnicaAmbiental);
-    setLevantamiento(terreno.levantamientoTopografico);
-  }, [terreno.acreditacionTecnicaAmbiental, terreno.levantamientoTopografico]);
-
-  const isDirty =
-    acreditacion !== terreno.acreditacionTecnicaAmbiental
-    || levantamiento !== terreno.levantamientoTopografico;
+  const soloConsulta = parcelaSoloConsulta(terreno);
+  const fieldsDisabled = soloConsulta || !canWriteAssets;
+  const {
+    draft,
+    patchDraft,
+    isDirty,
+    saving,
+    guardarCambio,
+    parcelaPayloadFromApi,
+  } = useTerrenoParcelaDetailEdit({
+    terreno,
+    raw,
+    disabled: fieldsDisabled,
+    onSaved: onUpdated,
+  });
   const unsaved = useUnsavedChangesGuard(isDirty);
-  const areaRetirable = terreno.areaDisponible + terreno.areaComprometida;
-  const yaDesincorporada = Boolean(raw.id_desincorporada);
+  const yaDesincorporada = parcelaTotalmenteDesincorporada(terreno);
   const compromisos = protocolos.filter((p) => p.tipoProtocolizacion === 'Compromiso');
   const desincorporaciones = protocolos.filter((p) => p.tipoProtocolizacion === 'Desincorporación');
   const sinAreaParaCompromiso = terreno.areaDisponible === 0 && !yaDesincorporada;
-
-  const guardarCambio = async () => {
-    setSaving(true);
-    try {
-      await updateParcela(terreno.id, {
-        ...parcelaPayloadFromApi(raw),
-        acreditacion_ambiental: acreditacionEstadoToApi(acreditacion),
-        levantamiento_topografico: levantamientoTopograficoToApi(levantamiento),
-      });
-      toast.success('Cambio guardado', {
-        description: `${terreno.codigo}: acreditación ${acreditacion}, levantamiento ${levantamiento}.`,
-      });
-      onUpdated();
-    } catch (err) {
-      toast.error('No se pudo guardar el cambio', {
-        description: err instanceof Error ? err.message : 'Intente nuevamente.',
-      });
-    } finally {
-      setSaving(false);
-    }
-  };
 
   const vincularProtocolizacion = async (tipo: TipoProtocolizacionParcela, idMovimiento: number) => {
     await updateParcela(
@@ -201,34 +132,19 @@ function TerrenoParcelaDetail({
     onUpdated();
   };
 
-  const handleRetiroConfirmado = async () => {
-    const today = new Date().toISOString().split('T')[0];
-    const areaTotal = terreno.areaDisponible + terreno.areaComprometida;
-    setRetiroSubmitting(true);
-    try {
-      const protocolo = await createProtocolo({
-        motivo: 'Venta',
-        id_beneficiado: null,
-        fecha_protocolo: today,
-      });
-      const desincorporacion = await createDesincorporacion({
-        id_protocolo: protocolo.id_protocolo,
-        cantidad_m2: areaTotal,
-        fecha_desincorporacion: today,
-      });
-      await vincularProtocolizacion('Desincorporación', desincorporacion.id_desincorporada);
-      setRetiroConfirmOpen(false);
-    } catch (err) {
-      toast.error('No se pudo retirar del inventario', {
-        description: err instanceof Error ? err.message : 'Intente nuevamente.',
-      });
-    } finally {
-      setRetiroSubmitting(false);
-    }
-  };
-
   return (
     <>
+      {soloConsulta && (
+        <div className="mx-4 md:mx-6 mt-4 max-w-7xl flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-amber-900">
+          <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+          <p className="text-sm">
+            <span className="font-semibold">Parcela sin área disponible.</span>
+            {' '}
+            Toda la superficie está protocolizada o desincorporada. Solo puede consultar la información histórica;
+            no es posible mover la parcela, editar datos ni registrar nuevas protocolizaciones.
+          </p>
+        </div>
+      )}
       <AssetDetailView
         title="Terrenos: Control de Parcelas"
         onNavigateTo={(to) =>
@@ -243,66 +159,190 @@ function TerrenoParcelaDetail({
           {
             title: 'Detalles',
             fields: [
-              { label: 'Identificación', value: terreno.identificacion },
-              { label: 'Código', value: terreno.codigo },
+              {
+                label: 'Identificación',
+                value: (
+                  <DetailFieldInput
+                    value={draft.identificacion}
+                    onChange={(value) => patchDraft({ identificacion: value })}
+                    disabled={fieldsDisabled}
+                  />
+                ),
+              },
+              {
+                label: 'Código',
+                value: <DetailReadOnly>{terreno.codigo}</DetailReadOnly>,
+              },
               {
                 label: 'Acreditación Técnica Ambiental',
-                value: canWriteAssets ? (
+                value: fieldsDisabled ? (
+                  <DetailReadOnly>{draft.acreditacionTecnicaAmbiental}</DetailReadOnly>
+                ) : (
                   <SearchableSelect
-                    value={acreditacion}
-                    onChange={(value) => setAcreditacion(value as Terreno['acreditacionTecnicaAmbiental'])}
+                    value={draft.acreditacionTecnicaAmbiental}
+                    onChange={(value) =>
+                      patchDraft({
+                        acreditacionTecnicaAmbiental: value as Terreno['acreditacionTecnicaAmbiental'],
+                      })
+                    }
                     options={ESTADOS_TRAMITE}
                     className="max-w-xs"
+                    disableSearch
                   />
-                ) : (
-                  acreditacion
                 ),
               },
-              { label: 'Fecha de Ingreso', value: formatFecha(terreno.fechaIngreso) },
-              { label: 'Ubicación Adicional', value: terreno.ubicacionAdicional || '—' },
+              {
+                label: 'Fecha de Ingreso',
+                value: (
+                  <DetailReadOnly>{formatFecha(terreno.fechaIngreso) || '—'}</DetailReadOnly>
+                ),
+              },
+              {
+                label: 'Ubicación Adicional',
+                value: (
+                  <DetailFieldInput
+                    value={draft.ubicacionAdicional}
+                    onChange={(value) => patchDraft({ ubicacionAdicional: value })}
+                    disabled={fieldsDisabled}
+                  />
+                ),
+              },
               {
                 label: 'Levantamiento topográfico',
-                value: canWriteAssets ? (
+                value: fieldsDisabled ? (
+                  <DetailReadOnly>{draft.levantamientoTopografico}</DetailReadOnly>
+                ) : (
                   <SearchableSelect
-                    value={levantamiento}
-                    onChange={(value) => setLevantamiento(value as Terreno['levantamientoTopografico'])}
+                    value={draft.levantamientoTopografico}
+                    onChange={(value) =>
+                      patchDraft({
+                        levantamientoTopografico: value as Terreno['levantamientoTopografico'],
+                      })
+                    }
                     options={LEVANTAMIENTO_TOPOGRAFICO_OPCIONES}
                     className="max-w-xs"
+                    disableSearch
                   />
-                ) : (
-                  levantamiento
                 ),
               },
-              { label: 'Número de Propiedad', value: terreno.nroPropiedad },
+              {
+                label: 'Número de Propiedad',
+                value: <DetailReadOnly>{terreno.nroPropiedad}</DetailReadOnly>,
+              },
               {
                 label: 'Valor de Adquisición',
-                value: formatMoneda(terreno.valorAdquisicion, terreno.moneda),
+                value: fieldsDisabled ? (
+                  <DetailReadOnly>
+                    {formatMoneda(draft.valorAdquisicion, terreno.moneda)}
+                  </DetailReadOnly>
+                ) : (
+                  <CurrencyAmountInput
+                    value={draft.valorAdquisicion}
+                    onChange={(value) => patchDraft({ valorAdquisicion: value })}
+                  />
+                ),
               },
-              { label: 'Área Desincorporada', value: formatAreaM2Detail(terreno.areaDesincorporada) },
-              { label: 'Zona', value: terreno.zona },
+              {
+                label: 'Área Desincorporada',
+                value: <DetailReadOnly>{formatAreaM2Detail(terreno.areaDesincorporada)}</DetailReadOnly>,
+              },
+              {
+                label: 'Zona',
+                value: (
+                  <DetailFieldInput
+                    value={draft.zona}
+                    onChange={(value) => patchDraft({ zona: value })}
+                    disabled={fieldsDisabled}
+                  />
+                ),
+              },
               {
                 label: 'Responsable',
-                value: terreno.responsable !== '—'
-                  ? terreno.responsable
-                  : terreno.ciResponsable
-                    ? `CI ${terreno.ciResponsable}`
-                    : '—',
+                value: (
+                  <DetailReadOnly>
+                    {terreno.responsable !== '—'
+                      ? terreno.responsable
+                      : terreno.ciResponsable
+                        ? `CI ${terreno.ciResponsable}`
+                        : '—'}
+                  </DetailReadOnly>
+                ),
               },
-              { label: 'Área Comprometida', value: formatAreaM2Detail(terreno.areaComprometida) },
-              { label: 'Ubicación', value: terreno.ubicacion },
-              { label: 'Observación', value: terreno.observacion || '—' },
-              { label: 'Área Disponible', value: formatAreaM2Detail(terreno.areaDisponible) },
-              { label: 'Zonificación', value: terreno.zonificacion },
+              {
+                label: 'Área Comprometida',
+                value: <DetailReadOnly>{formatAreaM2Detail(terreno.areaComprometida)}</DetailReadOnly>,
+              },
+              {
+                label: 'Ubicación',
+                value: <DetailReadOnly>{terreno.ubicacion}</DetailReadOnly>,
+              },
+              {
+                label: 'Observación',
+                value: (
+                  <DetailFieldInput
+                    value={draft.observacion}
+                    onChange={(value) => patchDraft({ observacion: value })}
+                    disabled={fieldsDisabled}
+                  />
+                ),
+              },
+              {
+                label: 'Área Disponible',
+                value: <DetailReadOnly>{formatAreaM2Detail(terreno.areaDisponible)}</DetailReadOnly>,
+              },
+              {
+                label: 'Zonificación',
+                value: fieldsDisabled ? (
+                  <DetailReadOnly>{draft.zonificacion || '—'}</DetailReadOnly>
+                ) : (
+                  <SearchableSelect
+                    value={draft.zonificacion}
+                    onChange={(value) => patchDraft({ zonificacion: value })}
+                    options={[...ZONIFICACIONES]}
+                    className="max-w-xs"
+                  />
+                ),
+              },
             ],
           },
           {
             title: 'Detalles del documento de Ingreso',
             fields: [
-              { label: 'Nro de Documento', value: terreno.numeroDocumento },
-              { label: 'Número de Propiedad', value: terreno.nroPropiedad },
-              { label: 'Área Total M²', value: formatAreaM2Detail(terreno.areaTotalM2) },
-              { label: 'Fecha Adquisición', value: formatFecha(terreno.fechaAdquisicion) },
-              { label: 'Forma de Adquisición', value: terreno.formaAdquisicion },
+              {
+                label: 'Nro de Documento',
+                value: <DetailReadOnly>{terreno.numeroDocumento || '—'}</DetailReadOnly>,
+              },
+              {
+                label: 'Número de Propiedad',
+                value: <DetailReadOnly>{terreno.nroPropiedad}</DetailReadOnly>,
+              },
+              {
+                label: 'Área Total M²',
+                value: <DetailReadOnly>{formatAreaM2Detail(terreno.areaTotalM2)}</DetailReadOnly>,
+              },
+              {
+                label: 'Fecha Adquisición',
+                value: <DetailReadOnly>{formatFecha(terreno.fechaAdquisicion) || '—'}</DetailReadOnly>,
+              },
+              {
+                label: 'Forma de Adquisición',
+                value: fieldsDisabled ? (
+                  <DetailReadOnly>{draft.formaAdquisicion}</DetailReadOnly>
+                ) : (
+                  <SearchableSelect
+                    value={formaAdquisicionToApi(draft.formaAdquisicion)}
+                    onChange={(value) => {
+                      const forma = FORMAS_ADQUISICION_DOCUMENTO.find((item) => item.value === value);
+                      if (forma) {
+                        patchDraft({ formaAdquisicion: forma.label as FormaAdquisicion });
+                      }
+                    }}
+                    options={FORMAS_ADQUISICION_DOCUMENTO}
+                    className="max-w-xs"
+                    disableSearch
+                  />
+                ),
+              },
             ],
           },
         ]}
@@ -316,14 +356,10 @@ function TerrenoParcelaDetail({
               <ArrowLeft size={16} />
               Volver al listado
             </button>
-            {canWriteAssets && (
+            {canWriteAssets && !soloConsulta && (
               <button
                 type="button"
-                onClick={() => {
-                  setProtocolTipo('Compromiso');
-                  setProtocolLockTipo(false);
-                  setProtocolModalOpen(true);
-                }}
+                onClick={() => setProtocolModalOpen(true)}
                 disabled={terreno.areaDisponible === 0}
                 title={
                   terreno.areaDisponible === 0
@@ -335,31 +371,22 @@ function TerrenoParcelaDetail({
                 Agregar Protocolización
               </button>
             )}
-            {canWriteAssets && (
+            {canWriteAssets && !soloConsulta && (
               <button
                 type="button"
                 onClick={guardarCambio}
-                disabled={saving}
-                className="px-5 py-2.5 bg-navy-900 text-white rounded-lg text-sm font-semibold hover:bg-navy-800"
+                disabled={saving || !isDirty}
+                aria-busy={saving}
+                className={`${ACTION_BTN} px-5 py-2.5 bg-navy-900 text-white hover:bg-navy-800 disabled:opacity-60`}
               >
-                {saving ? 'Guardando...' : 'Guardar cambio'}
-              </button>
-            )}
-            {canWriteAssets && (
-              <button
-                type="button"
-                onClick={() => setRetiroConfirmOpen(true)}
-                disabled={yaDesincorporada || areaRetirable === 0}
-                title={
-                  yaDesincorporada
-                    ? 'Esta parcela ya fue retirada del inventario'
-                    : areaRetirable === 0
-                      ? 'No hay área para retirar'
-                      : undefined
-                }
-                className="px-5 py-2.5 border border-red-200 text-red-700 rounded-lg text-sm font-semibold hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Retirar de Inventario
+                {saving ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" aria-hidden />
+                    Guardando...
+                  </>
+                ) : (
+                  'Guardar cambio'
+                )}
               </button>
             )}
           </>
@@ -382,7 +409,7 @@ function TerrenoParcelaDetail({
                         <span className="font-semibold">Área total comprometida.</span>
                         {' '}
                         Tiene {formatAreaM2Detail(terreno.areaComprometida)} asignados y no puede agregar otro compromiso.
-                        Para retirar del inventario, use el botón «Retirar de Inventario» arriba.
+                        Para desincorporar área comprometida, use «Agregar Protocolización» con tipo Desincorporación.
                       </>
                     ) : (
                       'Esta parcela no tiene área disponible para nuevos compromisos.'
@@ -446,59 +473,10 @@ function TerrenoParcelaDetail({
         </div>
       )}
 
-      <Modal
-        open={retiroConfirmOpen}
-        onClose={() => setRetiroConfirmOpen(false)}
-        title="Retirar de Inventario"
-        maxWidth="lg"
-        zIndexClass="z-[60]"
-        footer={
-          <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
-            <button
-              type="button"
-              onClick={() => setRetiroConfirmOpen(false)}
-              className="px-5 py-2.5 border border-gray-200 text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-50"
-            >
-              Cancelar
-            </button>
-            <button
-              type="button"
-              onClick={handleRetiroConfirmado}
-              disabled={retiroSubmitting}
-              className="px-5 py-2.5 bg-red-600 text-white rounded-lg text-sm font-semibold hover:bg-red-700 disabled:opacity-60"
-            >
-              {retiroSubmitting ? 'Retirando...' : 'Confirmar y Retirar'}
-            </button>
-          </div>
-        }
-      >
-        <div className="space-y-4">
-          <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
-            <AlertTriangle size={18} className="mt-0.5 shrink-0 text-red-600" />
-            <div>
-              <p className="text-sm font-semibold text-red-900">Está a punto de retirar esta parcela del inventario</p>
-              <p className="text-sm text-red-800 mt-1">
-                Esta operación registrará la parcela como desincorporada. Una vez confirmada, no podrá revertirse desde esta interfaz.
-              </p>
-            </div>
-          </div>
-          <p className="text-sm text-gray-700">
-            Al confirmar, usted declara conocer y asumir la responsabilidad de esta operación. Su usuario y la fecha actual quedarán registrados automáticamente como referencia de auditoría.
-          </p>
-          {user && (
-            <p className="text-xs text-gray-500 bg-gray-50 rounded-lg px-3 py-2">
-              Responsable: <span className="font-semibold text-navy-900">{user.username}</span>
-              {' · '}
-              Fecha: <span className="font-semibold text-navy-900">{new Date().toLocaleDateString('es-VE')}</span>
-            </p>
-          )}
-        </div>
-      </Modal>
       <NuevaProtocolizacionModal
         open={protocolModalOpen}
         onClose={() => setProtocolModalOpen(false)}
-        tipo={protocolTipo}
-        lockTipo={protocolLockTipo}
+        tipo="Compromiso"
         areaDisponible={terreno.areaDisponible}
         areaComprometida={terreno.areaComprometida}
         onCreated={vincularProtocolizacion}
@@ -625,15 +603,22 @@ export default function Terrenos() {
   ];
 
   if (id) {
-    const terreno = detailQuery.data?.terreno;
+    const terrenoDetalle =
+      detailQuery.data?.terreno
+      ?? terrenos.find((t) => t.codigo === id || String(t.id) === id)
+      ?? null;
     const raw = detailQuery.data?.raw;
     const protos = detailQuery.data?.protocolos ?? [];
 
     return (
-      <ApiState loading={detailQuery.loading} error={detailQuery.error} onRetry={detailQuery.refetch}>
-        {terreno && raw && (
+      <ApiState
+        loading={detailQuery.loading && !terrenoDetalle}
+        error={detailQuery.error}
+        onRetry={detailQuery.refetch}
+      >
+        {terrenoDetalle && raw && (
           <TerrenoParcelaDetail
-            terreno={terreno}
+            terreno={terrenoDetalle}
             raw={raw}
             protocolos={protos}
             onVolver={() => navigate('/terrenos')}

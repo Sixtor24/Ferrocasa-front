@@ -8,6 +8,7 @@ import {
   extractNumeroDocumentoMeta,
   stripParcelaObservacionesMeta,
 } from '../../utils/parcelaFechaMeta';
+import { sumCantidadM2 } from '../../utils/parcelaMovimientos';
 import {
   mapAcreditacionAmbiental,
   mapLevantamientoTopografico,
@@ -53,10 +54,12 @@ function areaFromDoc(p: ApiParcela): number {
 }
 
 function areaComprometida(p: ApiParcela): number {
+  if (p.compromisos?.length) return sumCantidadM2(p.compromisos);
   return toNumber(p.compromiso?.cantidad_m2) ?? 0;
 }
 
 function areaDesincorporada(p: ApiParcela): number {
+  if (p.desincorporaciones?.length) return sumCantidadM2(p.desincorporaciones);
   return toNumber(p.desincorporacion?.cantidad_m2) ?? 0;
 }
 
@@ -102,8 +105,12 @@ export function mapApiParcelaToInmueble(p: ApiParcela): Inmueble {
   const areaDes = areaDesincorporada(p);
 
   let estadoOcupacion: Inmueble['estadoOcupacion'] = 'Disponible';
-  if (p.id_comprometida) estadoOcupacion = 'Comprometido';
-  else if (p.id_desincorporada) estadoOcupacion = 'Desincorporado';
+  const areaDisp = Math.max(0, areaDoc - areaComp - areaDes);
+  if (areaDisp === 0 && areaComp === 0 && areaDes > 0) {
+    estadoOcupacion = 'Desincorporado';
+  } else if (areaComp > 0 || p.id_comprometida) {
+    estadoOcupacion = 'Comprometido';
+  }
 
   return {
     id: p.id_terreno,
@@ -149,20 +156,30 @@ function mapProtocoloItem(
 
 export function mapParcelaProtocolos(p: ApiParcela): ProtocolizacionTerreno[] {
   const items: ProtocolizacionTerreno[] = [];
+  const compromisos = p.compromisos?.length
+    ? p.compromisos
+    : p.compromiso
+      ? [p.compromiso]
+      : [];
+  const desincorporaciones = p.desincorporaciones?.length
+    ? p.desincorporaciones
+    : p.desincorporacion
+      ? [p.desincorporacion]
+      : [];
 
-  if (p.compromiso) {
+  for (const compromiso of compromisos) {
     items.push(
-      mapProtocoloItem(p, 'Compromiso', p.compromiso, p.compromiso.fecha_compromiso),
+      mapProtocoloItem(p, 'Compromiso', compromiso, compromiso.fecha_compromiso),
     );
   }
 
-  if (p.desincorporacion) {
+  for (const desincorporacion of desincorporaciones) {
     items.push(
       mapProtocoloItem(
         p,
         'Desincorporación',
-        p.desincorporacion,
-        p.desincorporacion.fecha_desincorporacion,
+        desincorporacion,
+        desincorporacion.fecha_desincorporacion,
       ),
     );
   }
