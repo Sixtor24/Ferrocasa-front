@@ -345,7 +345,7 @@ function TerrenoParcelaDetail({
                 {saving ? 'Guardando...' : 'Guardar cambio'}
               </button>
             )}
-            {canWriteAssets && (
+            {/* {canWriteAssets && (
               <button
                 type="button"
                 onClick={() => setRetiroConfirmOpen(true)}
@@ -361,7 +361,7 @@ function TerrenoParcelaDetail({
               >
                 Retirar de Inventario
               </button>
-            )}
+            )} */}
           </>
         }
       />
